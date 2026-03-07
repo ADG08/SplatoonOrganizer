@@ -2,15 +2,20 @@ version: "3.9"
 
 services:
   db:
-    image: postgres:16
+    image: postgres:16-alpine
     environment:
       POSTGRES_USER: splatoon
       POSTGRES_PASSWORD: splatoon
       POSTGRES_DB: splatoon
-    ports:
-      - "5432:5432"
+    # Port not exposed: bot and migrate use internal network (db:5432).
+    # For local dev with host access, uncomment: ports: - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U splatoon -d splatoon"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
   migrate:
     image: migrate/migrate:v4.17.0
@@ -25,11 +30,14 @@ services:
     volumes:
       - ./migrations:/migrations
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     restart: "on-failure"
 
   bot:
     build: .
+    env_file:
+      - .env
     environment:
       DISCORD_TOKEN: ${DISCORD_TOKEN}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
@@ -39,8 +47,10 @@ services:
       CRON_SCHEDULE: ${CRON_SCHEDULE:-}
       RUN_WEEKLY_ON_START: ${RUN_WEEKLY_ON_START:-0}
     depends_on:
-      - db
-      - migrate
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     restart: unless-stopped
 
 volumes:
