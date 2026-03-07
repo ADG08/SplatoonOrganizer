@@ -27,8 +27,8 @@ services:
         "postgres://splatoon:splatoon@db:5432/splatoon?sslmode=disable",
         "up",
       ]
-    volumes:
-      - ./migrations:/migrations
+    # No volume: migrations are in the image (Dockerfile.migrate). Required for Coolify.
+    # Local: after adding a migration, run: docker compose build migrate && docker compose up -d
     depends_on:
       db:
         condition: service_healthy
