@@ -9,7 +9,8 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -o bot ./cmd/bot
+# Build for host arch (Coolify VPS is often aarch64; local may be amd64/arm64).
+RUN CGO_ENABLED=0 GOOS=linux go build -o bot ./cmd/bot
 
 FROM alpine:3.20
 
