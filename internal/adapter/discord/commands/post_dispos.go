@@ -27,9 +27,11 @@ func (c *PostDisposCommand) Name() string {
 }
 
 func (c *PostDisposCommand) ApplicationCommand() *discordgo.ApplicationCommand {
+	perm := int64(discordgo.PermissionAdministrator)
 	return &discordgo.ApplicationCommand{
-		Name:        CommandNamePostDispos,
-		Description: "Poste le message des disponibilités de la semaine dans le channel configuré",
+		Name:                     CommandNamePostDispos,
+		Description:              "Poste le message des disponibilités de la semaine dans le channel configuré",
+		DefaultMemberPermissions: &perm,
 	}
 }
 

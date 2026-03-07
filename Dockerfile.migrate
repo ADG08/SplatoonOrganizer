@@ -1,0 +1,3 @@
+# Migrations image: includes SQL files so no host volume needed (works on Coolify).
+FROM migrate/migrate:v4.17.0
+COPY migrations /migrations
