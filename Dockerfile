@@ -23,7 +23,6 @@ COPY --from=builder /app/bot /app/bot
 ENV DISCORD_TOKEN=""
 ENV DISCORD_CLIENT_ID=""
 ENV DISCORD_GUILD_ID=""
-ENV DISCORD_CHANNEL_ID=""
 ENV DATABASE_URL=""
 ENV TZ="Europe/Paris"
 

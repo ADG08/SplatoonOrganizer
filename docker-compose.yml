@@ -19,14 +19,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.migrate
+    # Override entrypoint so we run sh (image default is "migrate"); then migrations + sleep to stay running.
+    entrypoint: ["/bin/sh", "-c"]
     command:
-      [
-        "-path",
-        "/migrations",
-        "-database",
-        "postgres://splatoon:splatoon@db:5432/splatoon?sslmode=disable",
-        "up",
-      ]
+      - "/usr/local/bin/migrate -path /migrations -database postgres://splatoon:splatoon@db:5432/splatoon?sslmode=disable up && touch /tmp/migrations-done && exec sleep infinity"
+    healthcheck:
+      test: ["CMD-SHELL", "test -f /tmp/migrations-done"]
+      interval: 2s
+      timeout: 1s
+      retries: 5
+      start_period: 10s
     # No volume: migrations are in the image (Dockerfile.migrate). Required for Coolify.
     # Local: after adding a migration, run: docker compose build migrate && docker compose up -d
     depends_on:
@@ -42,7 +44,6 @@ services:
       DISCORD_TOKEN: ${DISCORD_TOKEN}
       DISCORD_CLIENT_ID: ${DISCORD_CLIENT_ID}
       DISCORD_GUILD_ID: ${DISCORD_GUILD_ID}
-      DISCORD_CHANNEL_ID: ${DISCORD_CHANNEL_ID:-}
       DATABASE_URL: postgres://splatoon:splatoon@db:5432/splatoon?sslmode=disable
       CRON_SCHEDULE: ${CRON_SCHEDULE:-}
       RUN_WEEKLY_ON_START: ${RUN_WEEKLY_ON_START:-0}
@@ -50,7 +51,7 @@ services:
       db:
         condition: service_healthy
       migrate:
-        condition: service_completed_successfully
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
