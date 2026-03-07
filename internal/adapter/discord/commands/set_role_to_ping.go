@@ -13,12 +13,13 @@ const CommandNameSetRoleToPing = "set-role-to-ping"
 
 // SetRoleToPingCommand handles the /set-role-to-ping slash command.
 type SetRoleToPingCommand struct {
-	svc *appguildconfig.Service
+	svc     *appguildconfig.Service
+	ownerID string
 }
 
-// NewSetRoleToPingCommand creates a new set-role-to-ping command.
-func NewSetRoleToPingCommand(svc *appguildconfig.Service) *SetRoleToPingCommand {
-	return &SetRoleToPingCommand{svc: svc}
+// NewSetRoleToPingCommand creates a new set-role-to-ping command. ownerID is the Discord user ID of the bot creator (optional).
+func NewSetRoleToPingCommand(svc *appguildconfig.Service, ownerID string) *SetRoleToPingCommand {
+	return &SetRoleToPingCommand{svc: svc, ownerID: ownerID}
 }
 
 func (c *SetRoleToPingCommand) Name() string {
@@ -26,11 +27,9 @@ func (c *SetRoleToPingCommand) Name() string {
 }
 
 func (c *SetRoleToPingCommand) ApplicationCommand() *discordgo.ApplicationCommand {
-	perm := int64(discordgo.PermissionAdministrator)
 	return &discordgo.ApplicationCommand{
-		Name:                     CommandNameSetRoleToPing,
-		Description:              "Définit le rôle à mentionner quand les dispos sont postées",
-		DefaultMemberPermissions: &perm,
+		Name:        CommandNameSetRoleToPing,
+		Description: "Définit le rôle à mentionner quand les dispos sont postées (admin ou créateur du bot)",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionRole,
@@ -45,6 +44,9 @@ func (c *SetRoleToPingCommand) ApplicationCommand() *discordgo.ApplicationComman
 var _ discord.Command = (*SetRoleToPingCommand)(nil)
 
 func (c *SetRoleToPingCommand) Execute(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	if !isAdminOrOwner(i, c.ownerID) {
+		return respondWithError(s, i, ErrAdminOrOwner)
+	}
 	guildID := i.GuildID
 	if guildID == "" {
 		return respondWithError(s, i, "Cette commande doit être utilisée sur un serveur.")

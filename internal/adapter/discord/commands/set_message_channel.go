@@ -4,8 +4,8 @@ import (
 	"context"
 	"log"
 
-	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
+	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -13,12 +13,13 @@ const CommandNameSetMessageChannel = "set-message-channel"
 
 // SetMessageChannelCommand handles the /set-message-channel slash command.
 type SetMessageChannelCommand struct {
-	svc *appguildconfig.Service
+	svc     *appguildconfig.Service
+	ownerID string
 }
 
-// NewSetMessageChannelCommand creates a new set-message-channel command.
-func NewSetMessageChannelCommand(svc *appguildconfig.Service) *SetMessageChannelCommand {
-	return &SetMessageChannelCommand{svc: svc}
+// NewSetMessageChannelCommand creates a new set-message-channel command. ownerID is the Discord user ID of the bot creator (optional).
+func NewSetMessageChannelCommand(svc *appguildconfig.Service, ownerID string) *SetMessageChannelCommand {
+	return &SetMessageChannelCommand{svc: svc, ownerID: ownerID}
 }
 
 func (c *SetMessageChannelCommand) Name() string {
@@ -26,11 +27,9 @@ func (c *SetMessageChannelCommand) Name() string {
 }
 
 func (c *SetMessageChannelCommand) ApplicationCommand() *discordgo.ApplicationCommand {
-	perm := int64(discordgo.PermissionAdministrator)
 	return &discordgo.ApplicationCommand{
-		Name:                     CommandNameSetMessageChannel,
-		Description:              "Définit le channel où poster le message des disponibilités",
-		DefaultMemberPermissions: &perm,
+		Name:        CommandNameSetMessageChannel,
+		Description: "Définit le channel où poster le message des disponibilités (admin ou créateur du bot)",
 		Options: []*discordgo.ApplicationCommandOption{
 			{
 				Type:        discordgo.ApplicationCommandOptionChannel,
@@ -45,6 +44,9 @@ func (c *SetMessageChannelCommand) ApplicationCommand() *discordgo.ApplicationCo
 var _ discord.Command = (*SetMessageChannelCommand)(nil)
 
 func (c *SetMessageChannelCommand) Execute(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	if !isAdminOrOwner(i, c.ownerID) {
+		return respondWithError(s, i, ErrAdminOrOwner)
+	}
 	guildID := i.GuildID
 	if guildID == "" {
 		return respondWithError(s, i, "Cette commande doit être utilisée sur un serveur.")

@@ -14,12 +14,13 @@ const CommandNamePostDispos = "post-dispos"
 
 // PostDisposCommand handles the /post-dispos slash command.
 type PostDisposCommand struct {
-	sched *scheduler.Scheduler
+	sched   *scheduler.Scheduler
+	ownerID string
 }
 
-// NewPostDisposCommand creates a new post-dispos command.
-func NewPostDisposCommand(sched *scheduler.Scheduler) *PostDisposCommand {
-	return &PostDisposCommand{sched: sched}
+// NewPostDisposCommand creates a new post-dispos command. ownerID is the Discord user ID of the bot creator (optional).
+func NewPostDisposCommand(sched *scheduler.Scheduler, ownerID string) *PostDisposCommand {
+	return &PostDisposCommand{sched: sched, ownerID: ownerID}
 }
 
 func (c *PostDisposCommand) Name() string {
@@ -27,17 +28,18 @@ func (c *PostDisposCommand) Name() string {
 }
 
 func (c *PostDisposCommand) ApplicationCommand() *discordgo.ApplicationCommand {
-	perm := int64(discordgo.PermissionAdministrator)
 	return &discordgo.ApplicationCommand{
-		Name:                     CommandNamePostDispos,
-		Description:              "Poste le message des disponibilités de la semaine dans le channel configuré",
-		DefaultMemberPermissions: &perm,
+		Name:        CommandNamePostDispos,
+		Description: "Poste le message des disponibilités de la semaine (admin ou créateur du bot)",
 	}
 }
 
 var _ discord.Command = (*PostDisposCommand)(nil)
 
 func (c *PostDisposCommand) Execute(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	if !isAdminOrOwner(i, c.ownerID) {
+		return respondWithError(s, i, ErrAdminOrOwner)
+	}
 	// Respond quickly to avoid Discord "application did not respond" timeouts.
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,

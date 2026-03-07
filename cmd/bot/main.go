@@ -92,14 +92,14 @@ func main() {
 		}()
 	}
 
-	if err := reg.RegisterCommand(commands.NewPostDisposCommand(weeklyPoster)); err != nil {
+	if err := reg.RegisterCommand(commands.NewPostDisposCommand(weeklyPoster, cfg.DiscordOwnerID)); err != nil {
 		log.Fatalf("register post-dispos command: %v", err)
 	}
 
-	if err := reg.RegisterCommand(commands.NewSetMessageChannelCommand(guildConfigSvc)); err != nil {
+	if err := reg.RegisterCommand(commands.NewSetMessageChannelCommand(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
 		log.Fatalf("register set-message-channel command: %v", err)
 	}
-	if err := reg.RegisterCommand(commands.NewSetRoleToPingCommand(guildConfigSvc)); err != nil {
+	if err := reg.RegisterCommand(commands.NewSetRoleToPingCommand(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
 		log.Fatalf("register set-role-to-ping command: %v", err)
 	}
 
