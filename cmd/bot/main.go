@@ -13,9 +13,9 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/commands"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/handlers"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/scheduler"
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/persistence/postgres"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
-	"github.com/ADG08/SplatoonOrganizer/internal/adapter/persistence/postgres"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/joho/godotenv"
 )
@@ -64,6 +64,10 @@ func main() {
 
 	if err := reg.RegisterHandler(handlers.NewOpenDisposHandler(availSvc)); err != nil {
 		log.Fatalf("register open handler: %v", err)
+	}
+
+	if err := reg.RegisterHandler(handlers.NewViewDisposHandler(availSvc)); err != nil {
+		log.Fatalf("register view dispos handler: %v", err)
 	}
 
 	if err := reg.RegisterHandler(handlers.NewSelectDisposHandler(availSvc, cfg.DiscordChannelID)); err != nil {
