@@ -1,25 +1,25 @@
 services:
-  db-dev:
+  db-prod:
     image: postgres:16-alpine
     environment:
       POSTGRES_USER: splatoon
       POSTGRES_PASSWORD: splatoon
       POSTGRES_DB: splatoon
     volumes:
-      - db_data_dev:/var/lib/postgresql/data
+      - db_data_prod:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U splatoon -d splatoon"]
       interval: 5s
       timeout: 3s
       retries: 5
 
-  migrate-dev:
+  migrate-prod:
     build:
       context: .
       dockerfile: Dockerfile.migrate
     entrypoint: ["/bin/sh", "-c"]
     command:
-      - "/usr/local/bin/migrate -path /migrations -database ${DATABASE_URL} up && touch /tmp/migrations-done && exec sleep infinity"
+      - "/usr/local/bin/migrate -path /migrations -database postgres://splatoon:splatoon@db-prod:5432/splatoon?sslmode=disable up && touch /tmp/migrations-done && exec sleep infinity"
     healthcheck:
       test: ["CMD-SHELL", "test -f /tmp/migrations-done"]
       interval: 2s
@@ -27,29 +27,27 @@ services:
       retries: 5
       start_period: 10s
     depends_on:
-      db-dev:
+      db-prod:
         condition: service_healthy
     restart: "on-failure"
 
-  bot-dev:
+  bot-prod:
     build: .
-    env_file:
-      - .env
     environment:
-      DATABASE_URL: ${DATABASE_URL}
-      HEALTH_PORT: ${HEALTH_PORT:-8081}
+      DATABASE_URL: postgres://splatoon:splatoon@db-prod:5432/splatoon?sslmode=disable
+      HEALTH_PORT: ${HEALTH_PORT:-8080}
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:${HEALTH_PORT:-8081}/health || exit 1"]
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:${HEALTH_PORT:-8080}/health || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
       start_period: 15s
     depends_on:
-      db-dev:
+      db-prod:
         condition: service_healthy
-      migrate-dev:
+      migrate-prod:
         condition: service_healthy
     restart: unless-stopped
 
 volumes:
-  db_data_dev: {}
+  db_data_prod: {}

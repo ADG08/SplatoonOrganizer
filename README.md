@@ -34,7 +34,7 @@ L'architecture suit le pattern **Hexagonal / Clean Architecture** avec une sépa
 cp .env.example .env
 ```
 
-Renseigner ensuite les valeurs dans `.env` :
+Renseigner ensuite les valeurs dans `.env` (environnement local `dev`) :
 
 | Variable | Requis | Description |
 |---|---|---|
@@ -42,21 +42,39 @@ Renseigner ensuite les valeurs dans `.env` :
 | `DISCORD_CLIENT_ID` | Oui | ID de l'application Discord |
 | `DISCORD_GUILD_ID` | Oui | ID du serveur Discord (guild) |
 | `DISCORD_CHANNEL_ID` | Non | Salon par défaut pour les publications |
-| `DATABASE_URL` | Oui | URL de connexion PostgreSQL |
+| `DATABASE_URL` | Oui | URL de connexion PostgreSQL (local Docker: `...@db-dev:5432/...`) |
 | `CRON_SCHEDULE` | Non | Expression cron (défaut : `0 10 * * MON`) |
 | `RUN_WEEKLY_ON_START` | Non | Mettre `1` pour publier au démarrage |
 
-### 2. Lancer le projet
+### 2. Lancer le projet en local (dev)
 
 ```bash
-docker-compose up --build
+docker compose up -d --build
 ```
 
-Docker Compose démarre automatiquement trois services :
+Docker Compose démarre automatiquement trois services `dev` :
 
-- **`db`** — PostgreSQL 16 avec un volume persistant
-- **`migrate`** — Applique les migrations sur la base de données
-- **`bot`** — Compile et lance le bot Go
+- **`db-dev`** — PostgreSQL 16 avec un volume persistant local
+- **`migrate-dev`** — Applique les migrations sur la base de données locale
+- **`bot-dev`** — Compile et lance le bot Go
+
+### Déploiement sur Coolify (prod)
+
+Sur Coolify, ne comptez pas sur un fichier `.env` présent dans le repo : configurez les variables d'environnement directement dans l'UI Coolify.
+
+Pour éviter que Coolify suive l'état des services `dev`, utilisez un fichier Compose dédié prod :
+
+```bash
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+Ce fichier ne contient que `db-prod`, `migrate-prod` et `bot-prod`, ce qui maintient un état de santé cohérent côté Coolify.
+
+### Arrêter l'environnement local (dev)
+
+```bash
+docker compose down
+```
 
 ## Commandes Discord
 
@@ -116,7 +134,8 @@ SplatoonOrganizer/
 │
 ├── migrations/                  # Fichiers de migration SQL
 ├── Dockerfile
-├── docker-compose.yml
+├── docker-compose.yml           # Stack locale dev
+├── docker-compose.prod.yml      # Stack prod pour Coolify
 ├── sqlc.yaml
 └── .env.example
 ```
@@ -158,8 +177,8 @@ Après modification des requêtes SQL dans `internal/db/queries/` :
 sqlc generate
 ```
 
-### Appliquer les migrations manuellement
+### Appliquer les migrations manuellement (local dev)
 
 ```bash
-docker-compose run --rm migrate
+docker compose run --rm migrate-dev
 ```

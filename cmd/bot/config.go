@@ -12,10 +12,16 @@ type Config struct {
 	DatabaseURL      string
 	CronSchedule     string
 	RunWeeklyOnStart bool
+	HealthPort       string
 }
 
 // LoadConfig reads configuration from environment variables.
 func LoadConfig() (*Config, error) {
+	healthPort := os.Getenv("HEALTH_PORT")
+	if healthPort == "" {
+		healthPort = "8080"
+	}
+
 	cfg := &Config{
 		DiscordToken:     os.Getenv("DISCORD_TOKEN"),
 		DiscordClientID:  os.Getenv("DISCORD_CLIENT_ID"),
@@ -25,6 +31,7 @@ func LoadConfig() (*Config, error) {
 		DatabaseURL:      os.Getenv("DATABASE_URL"),
 		CronSchedule:     os.Getenv("CRON_SCHEDULE"),
 		RunWeeklyOnStart: os.Getenv("RUN_WEEKLY_ON_START") == "1",
+		HealthPort:       healthPort,
 	}
 
 	if cfg.DiscordToken == "" {

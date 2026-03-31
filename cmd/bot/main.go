@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -107,10 +108,25 @@ func main() {
 		log.Fatalf("failed to register slash commands: %v", err)
 	}
 
+	go startHealthServer(cfg.HealthPort)
+
 	log.Println("SplatoonOrganizer bot is running. Press CTRL-C to exit.")
 
 	<-ctx.Done()
 	log.Println("shutting down...")
+}
+
+func startHealthServer(port string) {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("ok"))
+	})
+	addr := ":" + port
+	log.Printf("health server listening on %s", addr)
+	if err := http.ListenAndServe(addr, mux); err != nil {
+		log.Printf("health server error: %v", err)
+	}
 }
 
 func signalContext() (context.Context, context.CancelFunc) {
