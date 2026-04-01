@@ -11,29 +11,32 @@ func BuildWeeklyEmbed(table string) *discordgo.MessageEmbed {
 	}
 }
 
-// BuildWeeklyMessage builds the full message (embed + edit button).
-// If roleID is not empty, the message includes a role mention (<@&roleID>) for pinging.
-func BuildWeeklyMessage(table string, roleID string) *discordgo.MessageSend {
-	msg := &discordgo.MessageSend{
-		Embeds: []*discordgo.MessageEmbed{
-			BuildWeeklyEmbed(table),
-		},
-		Components: []discordgo.MessageComponent{
-			discordgo.ActionsRow{
-				Components: []discordgo.MessageComponent{
-					discordgo.Button{
-						Label:    "✏️ Mes dispos",
-						Style:    discordgo.PrimaryButton,
-						CustomID: OpenDisposCustomIDPrefix,
-					},
-					discordgo.Button{
-						Label:    "📋 Voir les dispos",
-						Style:    discordgo.SecondaryButton,
-						CustomID: ViewDisposCustomIDPrefix,
-					},
+// BuildWeeklyComponents returns the action row with the weekly availability buttons.
+func BuildWeeklyComponents() []discordgo.MessageComponent {
+	return []discordgo.MessageComponent{
+		discordgo.ActionsRow{
+			Components: []discordgo.MessageComponent{
+				discordgo.Button{
+					Label:    "✏️ Mes dispos",
+					Style:    discordgo.PrimaryButton,
+					CustomID: OpenDisposCustomIDPrefix,
+				},
+				discordgo.Button{
+					Label:    "📋 Voir les dispos",
+					Style:    discordgo.SecondaryButton,
+					CustomID: ViewDisposCustomIDPrefix,
 				},
 			},
 		},
+	}
+}
+
+// BuildWeeklyMessage builds the full message (embed + buttons).
+// If roleID is not empty, the message includes a role mention (<@&roleID>) for pinging.
+func BuildWeeklyMessage(table string, roleID string) *discordgo.MessageSend {
+	msg := &discordgo.MessageSend{
+		Embeds:     []*discordgo.MessageEmbed{BuildWeeklyEmbed(table)},
+		Components: BuildWeeklyComponents(),
 	}
 	if roleID != "" {
 		msg.Content = "<@&" + roleID + ">"

@@ -83,6 +83,7 @@ docker compose down
 | Commande | Permission | Description |
 |---|---|---|
 | `/dispos` | Tous | Affiche le détail des disponibilités de la semaine avec les mentions des joueurs (message éphémère). |
+| `/help` | Admin | Ouvre un panneau de configuration moderne avec sélecteurs interactifs (salon + rôle à ping). |
 | `/post-dispos` | Tous | Déclenche manuellement la publication du message hebdomadaire. |
 | `/set-message-channel channel:<#salon>` | Admin | Définit le salon où le message hebdomadaire est publié. |
 | `/set-role-to-ping role:<@role>` | Admin | Définit le rôle à mentionner lors de la publication. |

@@ -89,12 +89,23 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		if err := handler.Handle(s, i); err != nil {
 			log.Printf("error handling interaction %q: %v", data.CustomID, err)
 		}
+	case discordgo.InteractionModalSubmit:
+		data := i.ModalSubmitData()
+		handler, ok := b.registry.GetHandler(data.CustomID)
+		if !ok {
+			log.Printf("no handler registered for modal %q", data.CustomID)
+			return
+		}
+		if err := handler.Handle(s, i); err != nil {
+			log.Printf("error handling modal %q: %v", data.CustomID, err)
+		}
 	default:
 		// ignore other interaction types for now
 	}
 }
 
-// RegisterSlashCommands registers all slash commands for the given application and guild.
+// RegisterSlashCommands syncs slash commands with Discord using a bulk overwrite,
+// which removes any previously registered commands that are no longer in the registry.
 func (b *Bot) RegisterSlashCommands(appID, guildID string) error {
 	if appID == "" {
 		return fmt.Errorf("application ID is empty")
@@ -103,6 +114,7 @@ func (b *Bot) RegisterSlashCommands(appID, guildID string) error {
 		return fmt.Errorf("guild ID is empty")
 	}
 
+	var acs []*discordgo.ApplicationCommand
 	for _, c := range b.registry.commands {
 		ac := c.ApplicationCommand()
 		if ac == nil {
@@ -111,9 +123,11 @@ func (b *Bot) RegisterSlashCommands(appID, guildID string) error {
 				Description: "Splatoon organizer command",
 			}
 		}
-		if _, err := b.session.ApplicationCommandCreate(appID, guildID, ac); err != nil {
-			return fmt.Errorf("registering command %q: %w", ac.Name, err)
-		}
+		acs = append(acs, ac)
+	}
+
+	if _, err := b.session.ApplicationCommandBulkOverwrite(appID, guildID, acs); err != nil {
+		return fmt.Errorf("bulk overwriting slash commands: %w", err)
 	}
 
 	return nil

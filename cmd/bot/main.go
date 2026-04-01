@@ -58,8 +58,8 @@ func main() {
 	// Adapters (primary / driving): Discord
 	reg := discord.NewRegistry()
 
-	if err := reg.RegisterCommand(commands.NewDisposCommand(availSvc)); err != nil {
-		log.Fatalf("register command: %v", err)
+	if err := reg.RegisterCommand(commands.NewHelpCommand(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
+		log.Fatalf("register help command: %v", err)
 	}
 
 	if err := reg.RegisterHandler(handlers.NewOpenDisposHandler(availSvc)); err != nil {
@@ -72,6 +72,9 @@ func main() {
 
 	if err := reg.RegisterHandler(handlers.NewSelectDisposHandler(availSvc, cfg.DiscordChannelID)); err != nil {
 		log.Fatalf("register select dispos handler: %v", err)
+	}
+	if err := reg.RegisterHandler(handlers.NewHelpConfigHandler(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
+		log.Fatalf("register help config handler: %v", err)
 	}
 
 	b, err := discord.NewBot(cfg.DiscordToken, reg)
@@ -95,17 +98,6 @@ func main() {
 				log.Printf("run weekly on start: %v", err)
 			}
 		}()
-	}
-
-	if err := reg.RegisterCommand(commands.NewPostDisposCommand(weeklyPoster, cfg.DiscordOwnerID)); err != nil {
-		log.Fatalf("register post-dispos command: %v", err)
-	}
-
-	if err := reg.RegisterCommand(commands.NewSetMessageChannelCommand(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
-		log.Fatalf("register set-message-channel command: %v", err)
-	}
-	if err := reg.RegisterCommand(commands.NewSetRoleToPingCommand(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
-		log.Fatalf("register set-role-to-ping command: %v", err)
 	}
 
 	if err := b.RegisterSlashCommands(cfg.DiscordClientID, cfg.DiscordGuildID); err != nil {

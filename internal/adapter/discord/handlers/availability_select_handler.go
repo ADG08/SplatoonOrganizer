@@ -113,28 +113,12 @@ func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interact
 		if i.ChannelID != "" {
 			channelID = i.ChannelID
 		}
+		components := BuildWeeklyComponents()
 		_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
-			ID:      msgID,
-			Channel: channelID,
-			Embeds: &[]*discordgo.MessageEmbed{
-				embed,
-			},
-			Components: &[]discordgo.MessageComponent{
-				discordgo.ActionsRow{
-					Components: []discordgo.MessageComponent{
-						discordgo.Button{
-							Label:    "✏️ Mes dispos",
-							Style:    discordgo.PrimaryButton,
-							CustomID: OpenDisposCustomIDPrefix,
-						},
-						discordgo.Button{
-							Label:    "📋 Voir les dispos",
-							Style:    discordgo.SecondaryButton,
-							CustomID: ViewDisposCustomIDPrefix,
-						},
-					},
-				},
-			},
+			ID:         msgID,
+			Channel:    channelID,
+			Embeds:     &[]*discordgo.MessageEmbed{embed},
+			Components: &components,
 		})
 		if err != nil {
 			log.Printf("error editing weekly message: %v", err)
