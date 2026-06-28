@@ -56,14 +56,67 @@ func (s *Service) ToggleAvailability(ctx context.Context, userID string, dayInde
 }
 
 // SetDayAvailability sets a user's availability for an entire day.
+// Selecting at least one slot clears any "unavailable for the week" status.
 func (s *Service) SetDayAvailability(ctx context.Context, userID string, dayIndex int, slots [availability.SlotsPerDay]bool) (availability.WeekKey, error) {
 	week := s.CurrentWeek()
+	anyAvailable := false
 	for slotIndex := 0; slotIndex < availability.SlotsPerDay; slotIndex++ {
 		if err := s.repo.SetAvailability(ctx, week, userID, dayIndex, slotIndex, slots[slotIndex]); err != nil {
 			return "", err
 		}
+		if slots[slotIndex] {
+			anyAvailable = true
+		}
+	}
+	if anyAvailable {
+		if err := s.repo.DeleteWeekUnavailable(ctx, week, userID); err != nil {
+			return "", err
+		}
 	}
 	return week, nil
+}
+
+// ToggleWeekUnavailable toggles a user's "unavailable for the whole week" status.
+// Marking unavailable also clears all the user's slot selections for the week.
+// It returns the new state (true = now marked unavailable).
+func (s *Service) ToggleWeekUnavailable(ctx context.Context, userID string) (availability.WeekKey, bool, error) {
+	week := s.CurrentWeek()
+
+	unavailable, err := s.repo.IsUserWeekUnavailable(ctx, week, userID)
+	if err != nil {
+		return "", false, err
+	}
+
+	if unavailable {
+		if err := s.repo.DeleteWeekUnavailable(ctx, week, userID); err != nil {
+			return "", false, err
+		}
+		return week, false, nil
+	}
+
+	if err := s.repo.DeleteAllUserAvailability(ctx, week, userID); err != nil {
+		return "", false, err
+	}
+	if err := s.repo.SetWeekUnavailable(ctx, week, userID); err != nil {
+		return "", false, err
+	}
+	return week, true, nil
+}
+
+// IsUserWeekUnavailable reports whether the user is marked unavailable for the current week.
+func (s *Service) IsUserWeekUnavailable(ctx context.Context, userID string) (bool, error) {
+	return s.repo.IsUserWeekUnavailable(ctx, s.CurrentWeek(), userID)
+}
+
+// ClearWeekUnavailable removes a user's "unavailable for the week" status for the current week.
+// Opening "Mes dispos" makes the user available again.
+func (s *Service) ClearWeekUnavailable(ctx context.Context, userID string) error {
+	return s.repo.DeleteWeekUnavailable(ctx, s.CurrentWeek(), userID)
+}
+
+// GetWeekUnavailableUsers returns the user IDs marked unavailable for a week.
+func (s *Service) GetWeekUnavailableUsers(ctx context.Context, week availability.WeekKey) ([]string, error) {
+	return s.repo.GetWeekUnavailableUsers(ctx, week)
 }
 
 // GetUserAvailability returns a user's availability for the current week.
@@ -166,4 +219,17 @@ func (s *Service) FormatUsersBySlot(users []availability.SlotUsers) string {
 		fmt.Fprintf(&b, "• **%s** · %s\n", labelsDays[day], strings.Join(parts, " · "))
 	}
 	return b.String()
+}
+
+// FormatUnavailableUsers formats the users marked unavailable for the week as a mention list.
+// Returns an empty string when nobody is marked unavailable.
+func (s *Service) FormatUnavailableUsers(userIDs []string) string {
+	if len(userIDs) == 0 {
+		return ""
+	}
+	mentions := make([]string, 0, len(userIDs))
+	for _, id := range userIDs {
+		mentions = append(mentions, "<@"+id+">")
+	}
+	return "🚫 **Indisponibles cette semaine** : " + strings.Join(mentions, ", ")
 }

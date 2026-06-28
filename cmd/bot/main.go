@@ -62,6 +62,10 @@ func main() {
 		log.Fatalf("register help command: %v", err)
 	}
 
+	if err := reg.RegisterCommand(commands.NewAnnonceCommand(guildConfigSvc, cfg.DiscordOwnerID, cfg.DiscordChannelID)); err != nil {
+		log.Fatalf("register annonce command: %v", err)
+	}
+
 	if err := reg.RegisterHandler(handlers.NewOpenDisposHandler(availSvc)); err != nil {
 		log.Fatalf("register open handler: %v", err)
 	}
@@ -72,6 +76,9 @@ func main() {
 
 	if err := reg.RegisterHandler(handlers.NewSelectDisposHandler(availSvc, cfg.DiscordChannelID)); err != nil {
 		log.Fatalf("register select dispos handler: %v", err)
+	}
+	if err := reg.RegisterHandler(handlers.NewUnavailableDisposHandler(availSvc, cfg.DiscordChannelID)); err != nil {
+		log.Fatalf("register unavailable dispos handler: %v", err)
 	}
 	if err := reg.RegisterHandler(handlers.NewHelpConfigHandler(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
 		log.Fatalf("register help config handler: %v", err)

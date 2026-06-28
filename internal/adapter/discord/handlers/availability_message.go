@@ -26,6 +26,11 @@ func BuildWeeklyComponents() []discordgo.MessageComponent {
 					Style:    discordgo.SecondaryButton,
 					CustomID: ViewDisposCustomIDPrefix,
 				},
+				discordgo.Button{
+					Label:    "🚫 Pas dispo cette semaine",
+					Style:    discordgo.SecondaryButton,
+					CustomID: UnavailableCustomIDPrefix,
+				},
 			},
 		},
 	}

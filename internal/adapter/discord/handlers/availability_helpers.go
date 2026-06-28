@@ -1,13 +1,49 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 
+	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/bwmarrin/discordgo"
 )
+
+// refreshWeeklyMessage re-renders the main weekly availability message (best-effort).
+func refreshWeeklyMessage(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, week availability.WeekKey, channelID string) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.Printf("panic while refreshing main table: %v", r)
+		}
+	}()
+
+	counts, err := svc.GetAvailabilitySummary(ctx, week)
+	if err != nil {
+		log.Printf("error getting availability summary: %v", err)
+		return
+	}
+
+	embed := BuildWeeklyEmbed(svc.FormatTable(counts))
+
+	msgID, err := svc.GetSondageMessageID(ctx, week)
+	if err != nil {
+		log.Printf("error getting sondage message id: %v", err)
+		return
+	}
+
+	components := BuildWeeklyComponents()
+	if _, err := s.ChannelMessageEditComplex(&discordgo.MessageEdit{
+		ID:         msgID,
+		Channel:    channelID,
+		Embeds:     &[]*discordgo.MessageEmbed{embed},
+		Components: &components,
+	}); err != nil {
+		log.Printf("error editing weekly message: %v", err)
+	}
+}
 
 func respondWithError(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) error {
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{

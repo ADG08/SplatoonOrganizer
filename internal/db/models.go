@@ -26,3 +26,9 @@ type SondageMessage struct {
 	Week      string `json:"week"`
 	MessageID string `json:"message_id"`
 }
+
+type WeekUnavailable struct {
+	UserID    string             `json:"user_id"`
+	Week      string             `json:"week"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}

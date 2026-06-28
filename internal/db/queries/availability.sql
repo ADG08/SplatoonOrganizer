@@ -44,3 +44,30 @@ FROM dispos
 WHERE week = $1
 ORDER BY day_index, slot_index, user_id;
 
+-- name: DeleteAllUserAvailability :exec
+DELETE FROM dispos
+WHERE user_id = $1
+  AND week = $2;
+
+-- name: SetWeekUnavailable :exec
+INSERT INTO week_unavailable (user_id, week)
+VALUES ($1, $2)
+ON CONFLICT (user_id, week) DO NOTHING;
+
+-- name: DeleteWeekUnavailable :exec
+DELETE FROM week_unavailable
+WHERE user_id = $1
+  AND week = $2;
+
+-- name: IsUserWeekUnavailable :one
+SELECT EXISTS (
+    SELECT 1 FROM week_unavailable
+    WHERE user_id = $1 AND week = $2
+) AS unavailable;
+
+-- name: GetWeekUnavailableUsers :many
+SELECT user_id
+FROM week_unavailable
+WHERE week = $1
+ORDER BY user_id;
+

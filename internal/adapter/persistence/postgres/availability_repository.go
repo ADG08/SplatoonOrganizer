@@ -97,6 +97,55 @@ func (r *AvailabilityRepository) SetAvailability(ctx context.Context, week avail
 	return nil
 }
 
+func (r *AvailabilityRepository) DeleteAllUserAvailability(ctx context.Context, week availability.WeekKey, userID string) error {
+	if err := r.queries.DeleteAllUserAvailability(ctx, db.DeleteAllUserAvailabilityParams{
+		UserID: userID,
+		Week:   string(week),
+	}); err != nil {
+		return fmt.Errorf("delete all user availability: %w", err)
+	}
+	return nil
+}
+
+func (r *AvailabilityRepository) SetWeekUnavailable(ctx context.Context, week availability.WeekKey, userID string) error {
+	if err := r.queries.SetWeekUnavailable(ctx, db.SetWeekUnavailableParams{
+		UserID: userID,
+		Week:   string(week),
+	}); err != nil {
+		return fmt.Errorf("set week unavailable: %w", err)
+	}
+	return nil
+}
+
+func (r *AvailabilityRepository) DeleteWeekUnavailable(ctx context.Context, week availability.WeekKey, userID string) error {
+	if err := r.queries.DeleteWeekUnavailable(ctx, db.DeleteWeekUnavailableParams{
+		UserID: userID,
+		Week:   string(week),
+	}); err != nil {
+		return fmt.Errorf("delete week unavailable: %w", err)
+	}
+	return nil
+}
+
+func (r *AvailabilityRepository) IsUserWeekUnavailable(ctx context.Context, week availability.WeekKey, userID string) (bool, error) {
+	unavailable, err := r.queries.IsUserWeekUnavailable(ctx, db.IsUserWeekUnavailableParams{
+		UserID: userID,
+		Week:   string(week),
+	})
+	if err != nil {
+		return false, fmt.Errorf("is user week unavailable: %w", err)
+	}
+	return unavailable, nil
+}
+
+func (r *AvailabilityRepository) GetWeekUnavailableUsers(ctx context.Context, week availability.WeekKey) ([]string, error) {
+	users, err := r.queries.GetWeekUnavailableUsers(ctx, string(week))
+	if err != nil {
+		return nil, fmt.Errorf("get week unavailable users: %w", err)
+	}
+	return users, nil
+}
+
 func (r *AvailabilityRepository) GetAvailabilityCounts(ctx context.Context, week availability.WeekKey) ([]availability.SlotCount, error) {
 	rows, err := r.queries.GetAvailabilityCounts(ctx, string(week))
 	if err != nil {

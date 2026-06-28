@@ -87,43 +87,11 @@ func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interact
 	}
 
 	// Refresh main weekly table (best-effort)
-	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Printf("panic while refreshing main table: %v", r)
-			}
-		}()
-
-		counts, err := h.svc.GetAvailabilitySummary(ctx, week)
-		if err != nil {
-			log.Printf("error getting availability summary: %v", err)
-			return
-		}
-
-		content := h.svc.FormatTable(counts)
-		embed := BuildWeeklyEmbed(content)
-
-		msgID, err := h.svc.GetSondageMessageID(ctx, week)
-		if err != nil {
-			log.Printf("error getting sondage message id: %v", err)
-			return
-		}
-
-		channelID := h.defaultChannel
-		if i.ChannelID != "" {
-			channelID = i.ChannelID
-		}
-		components := BuildWeeklyComponents()
-		_, err = s.ChannelMessageEditComplex(&discordgo.MessageEdit{
-			ID:         msgID,
-			Channel:    channelID,
-			Embeds:     &[]*discordgo.MessageEmbed{embed},
-			Components: &components,
-		})
-		if err != nil {
-			log.Printf("error editing weekly message: %v", err)
-		}
-	}()
+	channelID := h.defaultChannel
+	if i.ChannelID != "" {
+		channelID = i.ChannelID
+	}
+	go refreshWeeklyMessage(context.Background(), s, h.svc, week, channelID)
 
 	return nil
 }

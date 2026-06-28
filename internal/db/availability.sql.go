@@ -9,6 +9,22 @@ import (
 	"context"
 )
 
+const deleteAllUserAvailability = `-- name: DeleteAllUserAvailability :exec
+DELETE FROM dispos
+WHERE user_id = $1
+  AND week = $2
+`
+
+type DeleteAllUserAvailabilityParams struct {
+	UserID string `json:"user_id"`
+	Week   string `json:"week"`
+}
+
+func (q *Queries) DeleteAllUserAvailability(ctx context.Context, arg DeleteAllUserAvailabilityParams) error {
+	_, err := q.db.Exec(ctx, deleteAllUserAvailability, arg.UserID, arg.Week)
+	return err
+}
+
 const deleteAvailability = `-- name: DeleteAvailability :exec
 DELETE FROM dispos
 WHERE user_id = $1
@@ -31,6 +47,22 @@ func (q *Queries) DeleteAvailability(ctx context.Context, arg DeleteAvailability
 		arg.SlotIndex,
 		arg.Week,
 	)
+	return err
+}
+
+const deleteWeekUnavailable = `-- name: DeleteWeekUnavailable :exec
+DELETE FROM week_unavailable
+WHERE user_id = $1
+  AND week = $2
+`
+
+type DeleteWeekUnavailableParams struct {
+	UserID string `json:"user_id"`
+	Week   string `json:"week"`
+}
+
+func (q *Queries) DeleteWeekUnavailable(ctx context.Context, arg DeleteWeekUnavailableParams) error {
+	_, err := q.db.Exec(ctx, deleteWeekUnavailable, arg.UserID, arg.Week)
 	return err
 }
 
@@ -152,6 +184,33 @@ func (q *Queries) GetUserAvailability(ctx context.Context, arg GetUserAvailabili
 	return items, nil
 }
 
+const getWeekUnavailableUsers = `-- name: GetWeekUnavailableUsers :many
+SELECT user_id
+FROM week_unavailable
+WHERE week = $1
+ORDER BY user_id
+`
+
+func (q *Queries) GetWeekUnavailableUsers(ctx context.Context, week string) ([]string, error) {
+	rows, err := q.db.Query(ctx, getWeekUnavailableUsers, week)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var user_id string
+		if err := rows.Scan(&user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, user_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertAvailability = `-- name: InsertAvailability :exec
 INSERT INTO dispos (user_id, day_index, slot_index, week)
 VALUES ($1, $2, $3, $4)
@@ -173,6 +232,25 @@ func (q *Queries) InsertAvailability(ctx context.Context, arg InsertAvailability
 		arg.Week,
 	)
 	return err
+}
+
+const isUserWeekUnavailable = `-- name: IsUserWeekUnavailable :one
+SELECT EXISTS (
+    SELECT 1 FROM week_unavailable
+    WHERE user_id = $1 AND week = $2
+) AS unavailable
+`
+
+type IsUserWeekUnavailableParams struct {
+	UserID string `json:"user_id"`
+	Week   string `json:"week"`
+}
+
+func (q *Queries) IsUserWeekUnavailable(ctx context.Context, arg IsUserWeekUnavailableParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isUserWeekUnavailable, arg.UserID, arg.Week)
+	var unavailable bool
+	err := row.Scan(&unavailable)
+	return unavailable, err
 }
 
 const listSondageMessageIDs = `-- name: ListSondageMessageIDs :many
@@ -197,6 +275,22 @@ func (q *Queries) ListSondageMessageIDs(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 	return items, nil
+}
+
+const setWeekUnavailable = `-- name: SetWeekUnavailable :exec
+INSERT INTO week_unavailable (user_id, week)
+VALUES ($1, $2)
+ON CONFLICT (user_id, week) DO NOTHING
+`
+
+type SetWeekUnavailableParams struct {
+	UserID string `json:"user_id"`
+	Week   string `json:"week"`
+}
+
+func (q *Queries) SetWeekUnavailable(ctx context.Context, arg SetWeekUnavailableParams) error {
+	_, err := q.db.Exec(ctx, setWeekUnavailable, arg.UserID, arg.Week)
+	return err
 }
 
 const upsertSondageMessage = `-- name: UpsertSondageMessage :exec

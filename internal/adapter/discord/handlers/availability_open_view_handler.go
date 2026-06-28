@@ -33,6 +33,12 @@ func (h *OpenDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 	}
 	ctx := context.Background()
 
+	// Opening "Mes dispos" means the user is available again: clear any week-unavailable status.
+	if err := h.svc.ClearWeekUnavailable(ctx, userID); err != nil {
+		log.Printf("error clearing week unavailability on open: %v", err)
+		return respondWithError(s, i, "Erreur lors de la mise à jour de vos disponibilités.")
+	}
+
 	_, userSlots, err := h.svc.GetUserAvailability(ctx, userID)
 	if err != nil {
 		log.Printf("error getting user availability: %v", err)
@@ -87,7 +93,16 @@ func (h *ViewDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 		return respondWithError(s, i, "Erreur lors de la récupération des disponibilités.")
 	}
 
+	unavailableUsers, err := h.svc.GetWeekUnavailableUsers(ctx, week)
+	if err != nil {
+		log.Printf("error getting week unavailable users from button: %v", err)
+		return respondWithError(s, i, "Erreur lors de la récupération des disponibilités.")
+	}
+
 	description := h.svc.FormatUsersBySlot(users)
+	if unavailable := h.svc.FormatUnavailableUsers(unavailableUsers); unavailable != "" {
+		description += "\n" + unavailable
+	}
 	embed := &discordgo.MessageEmbed{
 		Title:       "Disponibilités par créneau",
 		Description: description,
