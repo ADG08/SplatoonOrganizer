@@ -3,23 +3,26 @@ package handlers
 import (
 	"context"
 	"log"
+	"strconv"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
-	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
+	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/bwmarrin/discordgo"
 )
 
 // SelectDisposHandler handles select menu interactions for day availability.
 type SelectDisposHandler struct {
 	svc            *appavailability.Service
+	guildCfg       *appguildconfig.Service
 	defaultChannel string
 }
 
 // NewSelectDisposHandler creates a new select dispos handler.
-func NewSelectDisposHandler(svc *appavailability.Service, defaultChannelID string) *SelectDisposHandler {
+func NewSelectDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service, defaultChannelID string) *SelectDisposHandler {
 	return &SelectDisposHandler{
 		svc:            svc,
+		guildCfg:       guildCfg,
 		defaultChannel: defaultChannelID,
 	}
 }
@@ -44,16 +47,20 @@ func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interact
 
 	ctx := context.Background()
 
-	// Values are "1" and "2" for Après-midi and Soir
-	values := i.MessageComponentData().Values
-	var slots [availability.SlotsPerDay]bool
-	for _, v := range values {
-		switch v {
-		case "1":
-			slots[0] = true
-		case "2":
-			slots[1] = true
+	// Values are 1-based slot indexes of the layout ("1" = first slot)
+	layout, err := h.guildCfg.SlotLayout(ctx, i.GuildID)
+	if err != nil {
+		log.Printf("error getting slot layout: %v", err)
+		return respondWithError(s, i, "Erreur lors de la récupération de la configuration du serveur.")
+	}
+	slots := make([]bool, layout.Len())
+	for _, v := range i.MessageComponentData().Values {
+		n, err := strconv.Atoi(v)
+		if err != nil || !layout.Valid(n-1) {
+			log.Printf("ignoring invalid slot value %q", v)
+			continue
 		}
+		slots[n-1] = true
 	}
 
 	week, err := h.svc.SetDayAvailability(ctx, userID, dayIndex, slots)
@@ -67,13 +74,14 @@ func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interact
 		log.Printf("error getting user availability after select: %v", err)
 		return respondWithError(s, i, "Erreur lors du rafraîchissement.")
 	}
+	label := func(day, slot int) string { return layout.Label(slot) }
 
 	// Update the ephemeral message: same chunk as the interacted menu (5 first days or 2 last days)
 	var components []discordgo.MessageComponent
 	if dayIndex < 5 {
-		components = buildUserDisposSelectMenus(userSlots, 0, 5)
+		components = buildUserDisposSelectMenus(layout, userSlots, 0, 5, label)
 	} else {
-		components = buildUserDisposSelectMenus(userSlots, 5, 2)
+		components = buildUserDisposSelectMenus(layout, userSlots, 5, 2, label)
 	}
 
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -91,7 +99,7 @@ func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interact
 	if i.ChannelID != "" {
 		channelID = i.ChannelID
 	}
-	go refreshWeeklyMessage(context.Background(), s, h.svc, week, channelID)
+	go refreshWeeklyMessage(context.Background(), s, h.svc, h.guildCfg, i.GuildID, week, channelID)
 
 	return nil
 }

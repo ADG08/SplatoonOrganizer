@@ -6,19 +6,22 @@ import (
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
+	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/bwmarrin/discordgo"
 )
 
 // UnavailableDisposHandler handles the "Pas dispo cette semaine" button click.
 type UnavailableDisposHandler struct {
 	svc            *appavailability.Service
+	guildCfg       *appguildconfig.Service
 	defaultChannel string
 }
 
 // NewUnavailableDisposHandler creates a new unavailable dispos handler.
-func NewUnavailableDisposHandler(svc *appavailability.Service, defaultChannelID string) *UnavailableDisposHandler {
+func NewUnavailableDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service, defaultChannelID string) *UnavailableDisposHandler {
 	return &UnavailableDisposHandler{
 		svc:            svc,
+		guildCfg:       guildCfg,
 		defaultChannel: defaultChannelID,
 	}
 }
@@ -63,7 +66,7 @@ func (h *UnavailableDisposHandler) Handle(s *discordgo.Session, i *discordgo.Int
 	if i.ChannelID != "" {
 		channelID = i.ChannelID
 	}
-	go refreshWeeklyMessage(context.Background(), s, h.svc, week, channelID)
+	go refreshWeeklyMessage(context.Background(), s, h.svc, h.guildCfg, i.GuildID, week, channelID)
 
 	return nil
 }

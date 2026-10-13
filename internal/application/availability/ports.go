@@ -15,6 +15,7 @@ type Repository interface {
 	GetUserAvailability(ctx context.Context, week availability.WeekKey, userID string) (map[int]map[int]bool, error)
 	SetAvailability(ctx context.Context, week availability.WeekKey, userID string, dayIndex, slotIndex int, available bool) error
 	DeleteAllUserAvailability(ctx context.Context, week availability.WeekKey, userID string) error
+	DeleteWeekAvailability(ctx context.Context, week availability.WeekKey) error
 
 	GetAvailabilityCounts(ctx context.Context, week availability.WeekKey) ([]availability.SlotCount, error)
 	GetAvailabilityUsers(ctx context.Context, week availability.WeekKey) ([]availability.SlotUsers, error)

@@ -9,6 +9,7 @@ import (
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/handlers"
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
 	"github.com/bwmarrin/discordgo"
 	"github.com/robfig/cron/v3"
 )
@@ -80,17 +81,17 @@ func (s *Scheduler) RunWeeklyNow(ctx context.Context) error {
 
 func (s *Scheduler) runWeeklyJob(ctx context.Context) error {
 	channelID := s.channelID
-	roleID := ""
+	cfg := &guildconfig.GuildConfig{}
 
 	if s.guildConfig != nil && s.guildID != "" {
-		cfg, err := s.guildConfig.Get(ctx, s.guildID)
+		got, err := s.guildConfig.Get(ctx, s.guildID)
 		if err != nil {
 			log.Printf("get guild config: %v", err)
-		} else if cfg != nil {
+		} else if got != nil {
+			cfg = got
 			if cfg.ChannelID != "" {
 				channelID = cfg.ChannelID
 			}
-			roleID = cfg.RoleID
 		}
 	}
 
@@ -98,38 +99,5 @@ func (s *Scheduler) runWeeklyJob(ctx context.Context) error {
 		return ErrChannelNotConfigured
 	}
 
-	week := s.availSvc.CurrentWeek()
-
-	counts, err := s.availSvc.GetAvailabilitySummary(ctx, week)
-	if err != nil {
-		return fmt.Errorf("get availability summary: %w", err)
-	}
-
-	content := s.availSvc.FormatTable(counts)
-
-	// Delete all known sondage messages in this channel, then post the new one
-	ids, err := s.availSvc.ListSondageMessageIDs(ctx)
-	if err != nil {
-		log.Printf("list sondage message ids: %v", err)
-	} else {
-		for _, msgID := range ids {
-			if msgID == "" {
-				continue
-			}
-			if err := s.session.ChannelMessageDelete(channelID, msgID); err != nil {
-				log.Printf("error deleting sondage message %s: %v", msgID, err)
-			}
-		}
-	}
-
-	msg, err := s.session.ChannelMessageSendComplex(channelID, handlers.BuildWeeklyMessage(content, roleID))
-	if err != nil {
-		return fmt.Errorf("send weekly message: %w", err)
-	}
-
-	if err := s.availSvc.UpsertSondageMessage(ctx, week, msg.ID); err != nil {
-		return fmt.Errorf("upsert sondage message: %w", err)
-	}
-
-	return nil
+	return handlers.PublishWeeklyMessage(ctx, s.session, s.availSvc, cfg, channelID)
 }

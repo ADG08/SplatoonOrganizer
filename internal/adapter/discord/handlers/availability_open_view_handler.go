@@ -6,17 +6,20 @@ import (
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
+	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/bwmarrin/discordgo"
 )
 
 // OpenDisposHandler handles the "Mes dispos" button click.
 type OpenDisposHandler struct {
-	svc *appavailability.Service
+	svc      *appavailability.Service
+	guildCfg *appguildconfig.Service
 }
 
 // NewOpenDisposHandler creates a new open dispos handler.
-func NewOpenDisposHandler(svc *appavailability.Service) *OpenDisposHandler {
-	return &OpenDisposHandler{svc: svc}
+func NewOpenDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service) *OpenDisposHandler {
+	return &OpenDisposHandler{svc: svc, guildCfg: guildCfg}
 }
 
 func (h *OpenDisposHandler) CustomID() string {
@@ -39,42 +42,51 @@ func (h *OpenDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 		return respondWithError(s, i, "Erreur lors de la mise à jour de vos disponibilités.")
 	}
 
-	_, userSlots, err := h.svc.GetUserAvailability(ctx, userID)
+	layout, err := h.guildCfg.SlotLayout(ctx, i.GuildID)
+	if err != nil {
+		log.Printf("error getting slot layout: %v", err)
+		return respondWithError(s, i, "Erreur lors de la récupération de la configuration du serveur.")
+	}
+	return sendDisposMenus(s, i, h.svc, layout, userID)
+}
+
+// sendDisposMenus sends the "Mes dispos" menus (5 days, then 2 days because of Discord's
+// 5 rows limit).
+func sendDisposMenus(s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, layout availability.Layout, userID string) error {
+	_, userSlots, err := svc.GetUserAvailability(context.Background(), userID)
 	if err != nil {
 		log.Printf("error getting user availability: %v", err)
 		return respondWithError(s, i, "Erreur lors de la récupération de vos disponibilités.")
 	}
+	label := func(day, slot int) string { return layout.Label(slot) }
 
-	// Discord: max 5 Action Rows per message, 1 select menu per row -> 5 select menus per message.
-	// We have 7 days: first message 5 menus (Lundi-Vendredi), follow-up 2 menus (Samedi-Dimanche).
-	componentsFirst := buildUserDisposSelectMenus(userSlots, 0, 5)
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content:    "Configure tes disponibilités pour la semaine en cours :",
 			Flags:      discordgo.MessageFlagsEphemeral,
-			Components: componentsFirst,
+			Components: buildUserDisposSelectMenus(layout, userSlots, 0, 5, label),
 		},
 	}); err != nil {
 		return err
 	}
-	componentsSecond := buildUserDisposSelectMenus(userSlots, 5, 2)
 	_, err = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
 		Content:    "Suite :",
 		Flags:      discordgo.MessageFlagsEphemeral,
-		Components: componentsSecond,
+		Components: buildUserDisposSelectMenus(layout, userSlots, 5, 2, label),
 	})
 	return err
 }
 
 // ViewDisposHandler handles the "Voir les dispos" button click.
 type ViewDisposHandler struct {
-	svc *appavailability.Service
+	svc      *appavailability.Service
+	guildCfg *appguildconfig.Service
 }
 
 // NewViewDisposHandler creates a new view dispos handler.
-func NewViewDisposHandler(svc *appavailability.Service) *ViewDisposHandler {
-	return &ViewDisposHandler{svc: svc}
+func NewViewDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service) *ViewDisposHandler {
+	return &ViewDisposHandler{svc: svc, guildCfg: guildCfg}
 }
 
 func (h *ViewDisposHandler) CustomID() string {
@@ -99,21 +111,39 @@ func (h *ViewDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 		return respondWithError(s, i, "Erreur lors de la récupération des disponibilités.")
 	}
 
-	description := h.svc.FormatUsersBySlot(users)
+	layout, err := h.guildCfg.SlotLayout(ctx, i.GuildID)
+	if err != nil {
+		log.Printf("error getting slot layout: %v", err)
+		return respondWithError(s, i, "Erreur lors de la récupération de la configuration du serveur.")
+	}
+
+	description := h.svc.FormatUsersBySlot(layout, week, users)
 	if unavailable := h.svc.FormatUnavailableUsers(unavailableUsers); unavailable != "" {
 		description += "\n" + unavailable
 	}
-	embed := &discordgo.MessageEmbed{
-		Title:       "Disponibilités par créneau",
-		Description: description,
-		Color:       0xFEE75C,
-	}
 
-	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	// Hourly details can exceed the embed description limit: split into several messages.
+	chunks := splitLines(description, embedDescriptionLimit)
+	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Embeds: []*discordgo.MessageEmbed{embed},
-			Flags:  discordgo.MessageFlagsEphemeral,
+			Embeds: []*discordgo.MessageEmbed{{
+				Title:       "Disponibilités par créneau",
+				Description: chunks[0],
+				Color:       0xFEE75C,
+			}},
+			Flags: discordgo.MessageFlagsEphemeral,
 		},
-	})
+	}); err != nil {
+		return err
+	}
+	for _, chunk := range chunks[1:] {
+		if _, err := s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
+			Embeds: []*discordgo.MessageEmbed{{Description: chunk, Color: 0xFEE75C}},
+			Flags:  discordgo.MessageFlagsEphemeral,
+		}); err != nil {
+			return err
+		}
+	}
+	return nil
 }

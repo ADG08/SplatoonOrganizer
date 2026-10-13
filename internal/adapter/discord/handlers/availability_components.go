@@ -2,34 +2,30 @@ package handlers
 
 import (
 	"fmt"
+	"strconv"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/bwmarrin/discordgo"
 )
 
 // buildUserDisposSelectMenus builds one select menu per day for days [dayStart, dayStart+dayCount).
-func buildUserDisposSelectMenus(userSlots map[int]map[int]bool, dayStart, dayCount int) []discordgo.MessageComponent {
+// Option values are 1-based slot indexes ("1" = first slot of the layout); label gives the
+// option text of a slot, in the member's timezone.
+func buildUserDisposSelectMenus(layout availability.Layout, userSlots map[int]map[int]bool, dayStart, dayCount int, label func(day, slot int) string) []discordgo.MessageComponent {
 	dayPlaceholders := []string{"Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"}
-	slotOptions := []struct {
-		Value string
-		Label string
-	}{
-		{"1", "Après-midi"},
-		{"2", "Soir"},
-	}
 
 	minVals := 0
-	maxVals := 2
+	maxVals := layout.Len()
 
 	var rows []discordgo.MessageComponent
 	for day := dayStart; day < dayStart+dayCount && day < availability.DaysPerWeek; day++ {
 		daySlots := userSlots[day]
-		options := make([]discordgo.SelectMenuOption, availability.SlotsPerDay)
-		for slot := 0; slot < availability.SlotsPerDay; slot++ {
+		options := make([]discordgo.SelectMenuOption, layout.Len())
+		for slot := 0; slot < layout.Len(); slot++ {
 			available := daySlots != nil && daySlots[slot]
 			options[slot] = discordgo.SelectMenuOption{
-				Label:   slotOptions[slot].Label,
-				Value:   slotOptions[slot].Value,
+				Label:   label(day, slot),
+				Value:   strconv.Itoa(slot + 1),
 				Default: available,
 			}
 		}

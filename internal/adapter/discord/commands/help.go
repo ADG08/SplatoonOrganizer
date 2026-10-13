@@ -55,8 +55,7 @@ func (c *HelpCommand) Execute(s *discordgo.Session, i *discordgo.InteractionCrea
 		"⚙️  Panneau de configuration",
 		"Gerez les parametres du bot pour ce serveur.",
 		discord.HelpPanelColorDefault,
-		cfg.ChannelID,
-		cfg.RoleID,
+		cfg,
 	)
 	components := discord.BuildHelpPanelComponents()
 

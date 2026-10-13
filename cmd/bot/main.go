@@ -66,21 +66,25 @@ func main() {
 		log.Fatalf("register annonce command: %v", err)
 	}
 
-	if err := reg.RegisterHandler(handlers.NewOpenDisposHandler(availSvc)); err != nil {
+	if err := reg.RegisterHandler(handlers.NewOpenDisposHandler(availSvc, guildConfigSvc)); err != nil {
 		log.Fatalf("register open handler: %v", err)
 	}
 
-	if err := reg.RegisterHandler(handlers.NewViewDisposHandler(availSvc)); err != nil {
+	if err := reg.RegisterHandler(handlers.NewViewDisposHandler(availSvc, guildConfigSvc)); err != nil {
 		log.Fatalf("register view dispos handler: %v", err)
 	}
 
-	if err := reg.RegisterHandler(handlers.NewSelectDisposHandler(availSvc, cfg.DiscordChannelID)); err != nil {
+	if err := reg.RegisterHandler(handlers.NewWhoDisposHandler(availSvc, guildConfigSvc)); err != nil {
+		log.Fatalf("register who dispos handler: %v", err)
+	}
+
+	if err := reg.RegisterHandler(handlers.NewSelectDisposHandler(availSvc, guildConfigSvc, cfg.DiscordChannelID)); err != nil {
 		log.Fatalf("register select dispos handler: %v", err)
 	}
-	if err := reg.RegisterHandler(handlers.NewUnavailableDisposHandler(availSvc, cfg.DiscordChannelID)); err != nil {
+	if err := reg.RegisterHandler(handlers.NewUnavailableDisposHandler(availSvc, guildConfigSvc, cfg.DiscordChannelID)); err != nil {
 		log.Fatalf("register unavailable dispos handler: %v", err)
 	}
-	if err := reg.RegisterHandler(handlers.NewHelpConfigHandler(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
+	if err := reg.RegisterHandler(handlers.NewHelpConfigHandler(guildConfigSvc, availSvc, cfg.DiscordOwnerID, cfg.DiscordChannelID)); err != nil {
 		log.Fatalf("register help config handler: %v", err)
 	}
 

@@ -107,6 +107,13 @@ func (r *AvailabilityRepository) DeleteAllUserAvailability(ctx context.Context, 
 	return nil
 }
 
+func (r *AvailabilityRepository) DeleteWeekAvailability(ctx context.Context, week availability.WeekKey) error {
+	if err := r.queries.DeleteWeekAvailability(ctx, string(week)); err != nil {
+		return fmt.Errorf("delete week availability: %w", err)
+	}
+	return nil
+}
+
 func (r *AvailabilityRepository) SetWeekUnavailable(ctx context.Context, week availability.WeekKey, userID string) error {
 	if err := r.queries.SetWeekUnavailable(ctx, db.SetWeekUnavailableParams{
 		UserID: userID,

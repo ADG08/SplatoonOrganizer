@@ -3,6 +3,7 @@ package guildconfig
 import (
 	"context"
 
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
 )
 
@@ -36,4 +37,18 @@ func (s *Service) SetChannel(ctx context.Context, guildID, channelID string) err
 // SetRole updates the role to ping for a guild.
 func (s *Service) SetRole(ctx context.Context, guildID, roleID string) error {
 	return s.repo.SetRole(ctx, guildID, roleID)
+}
+
+// SlotLayout returns how days are split into slots for a guild (half-day by default).
+func (s *Service) SlotLayout(ctx context.Context, guildID string) (availability.Layout, error) {
+	cfg, err := s.Get(ctx, guildID)
+	if err != nil {
+		return availability.Layout{}, err
+	}
+	return cfg.SlotLayout, nil
+}
+
+// SetSlotSettings updates how days are split into slots and how the weekly message is shown.
+func (s *Service) SetSlotSettings(ctx context.Context, guildID string, layout availability.Layout, display guildconfig.Display) error {
+	return s.repo.SetSlotSettings(ctx, guildID, layout, display)
 }

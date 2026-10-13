@@ -6,14 +6,16 @@ import (
 	"log"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
+	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/bwmarrin/discordgo"
 )
 
 // refreshWeeklyMessage re-renders the main weekly availability message (best-effort).
-func refreshWeeklyMessage(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, week availability.WeekKey, channelID string) {
+func refreshWeeklyMessage(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, guildCfg *appguildconfig.Service, guildID string, week availability.WeekKey, channelID string) {
 	defer func() {
 		if r := recover(); r != nil {
 			log.Printf("panic while refreshing main table: %v", r)
@@ -26,23 +28,57 @@ func refreshWeeklyMessage(ctx context.Context, s *discordgo.Session, svc *appava
 		return
 	}
 
-	embed := BuildWeeklyEmbed(svc.FormatTable(counts))
-
+	cfg, err := guildCfg.Get(ctx, guildID)
+	if err != nil {
+		log.Printf("error getting guild config: %v", err)
+		return
+	}
 	msgID, err := svc.GetSondageMessageID(ctx, week)
 	if err != nil {
 		log.Printf("error getting sondage message id: %v", err)
 		return
 	}
 
-	components := BuildWeeklyComponents()
-	if _, err := s.ChannelMessageEditComplex(&discordgo.MessageEdit{
-		ID:         msgID,
-		Channel:    channelID,
-		Embeds:     &[]*discordgo.MessageEmbed{embed},
-		Components: &components,
-	}); err != nil {
+	payload, err := BuildWeeklyPayload(svc.BuildWeeklyView(cfg.SlotLayout, week, counts), cfg.RoleID, cfg.Display)
+	if err != nil {
+		log.Printf("error building weekly message: %v", err)
+		return
+	}
+	if _, err := s.ChannelMessageEditComplex(payload.MessageEdit(channelID, msgID)); err != nil {
 		log.Printf("error editing weekly message: %v", err)
 	}
+}
+
+// embedDescriptionLimit is Discord's maximum length of an embed description.
+const embedDescriptionLimit = 4096
+
+// splitLines splits text into chunks of at most limit bytes, cutting between lines when possible.
+func splitLines(text string, limit int) []string {
+	var chunks []string
+	var cur strings.Builder
+	for _, line := range strings.SplitAfter(text, "\n") {
+		for len(line) > limit { // a single line longer than the limit: hard cut on a rune boundary
+			if cur.Len() > 0 {
+				chunks = append(chunks, cur.String())
+				cur.Reset()
+			}
+			cut := limit
+			for cut > 0 && !utf8.RuneStart(line[cut]) {
+				cut--
+			}
+			chunks = append(chunks, line[:cut])
+			line = line[cut:]
+		}
+		if cur.Len()+len(line) > limit {
+			chunks = append(chunks, cur.String())
+			cur.Reset()
+		}
+		cur.WriteString(line)
+	}
+	if cur.Len() > 0 || len(chunks) == 0 {
+		chunks = append(chunks, cur.String())
+	}
+	return chunks
 }
 
 func respondWithError(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) error {
