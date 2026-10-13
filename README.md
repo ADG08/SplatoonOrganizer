@@ -1,6 +1,6 @@
 # SplatoonOrganizer
 
-Un bot Discord conçu pour coordonner les sessions de jeu Splatoon en collectant et affichant les disponibilités hebdomadaires des membres d'un serveur.
+Un bot Discord conçu pour coordonner les sessions de jeu Splatoon en collectant et affichant les disponibilités hebdomadaires des membres d'un serveur. Une seule instance du bot peut servir plusieurs serveurs : chacun a sa configuration, ses dispos et son message de la semaine.
 
 ## Fonctionnement
 
@@ -40,8 +40,8 @@ Renseigner ensuite les valeurs dans `.env` (environnement local `dev`) :
 |---|---|---|
 | `DISCORD_TOKEN` | Oui | Token du bot Discord |
 | `DISCORD_CLIENT_ID` | Oui | ID de l'application Discord |
-| `DISCORD_GUILD_ID` | Oui | ID du serveur Discord (guild) |
-| `DISCORD_CHANNEL_ID` | Non | Salon par défaut pour les publications |
+| `DISCORD_GUILD_ID` | Non | Ancien serveur unique : ses commandes « de serveur » sont retirées au démarrage (les commandes sont désormais globales) |
+| `DISCORD_CHANNEL_ID` | Non | Salon de ce serveur, repris dans sa configuration s'il n'en a pas encore |
 | `DATABASE_URL` | Oui | URL de connexion PostgreSQL (local Docker: `...@db-dev:5432/...`) |
 | `CRON_SCHEDULE` | Non | Expression cron (défaut : `0 10 * * MON`) |
 | `RUN_WEEKLY_ON_START` | Non | Mettre `1` pour publier au démarrage |
@@ -120,7 +120,13 @@ Un décalage fixe ne suit pas l'heure d'été : `/fuseau` accepte aussi un fusea
 
 ## Planification automatique
 
-Le bot publie automatiquement le message de disponibilités chaque **lundi à 10h00 (Europe/Paris)** par défaut. À chaque publication, les anciens messages sont supprimés.
+Le bot publie automatiquement le message de disponibilités chaque **lundi à 10h00 (Europe/Paris)** par défaut, dans chaque serveur qui a configuré un salon via `/help`. À chaque publication, le message de la semaine précédente est supprimé.
+
+## Plusieurs serveurs
+
+Il suffit d'inviter le bot sur un serveur : les commandes slash sont globales. Un admin configure ensuite le salon (et éventuellement le rôle, les créneaux et l'affichage) avec `/help`. Les dispos, les « pas dispo » et le message de la semaine sont propres à chaque serveur ; le fuseau horaire d'un membre est commun à tous les serveurs.
+
+Pour rester réactif quand plusieurs membres cliquent en même temps, le message de la semaine d'un serveur est mis à jour tout de suite au premier clic, puis au plus une fois par seconde : les clics suivants sont regroupés.
 
 Le planning est configurable via la variable `CRON_SCHEDULE` (format cron standard). Pour déclencher une publication au démarrage (utile pour les tests), utiliser `RUN_WEEKLY_ON_START=1`.
 
@@ -166,20 +172,23 @@ SplatoonOrganizer/
 ## Schéma de base de données
 
 ```sql
--- Stocke les messages publiés par semaine
-CREATE TABLE sondage_messages (
-    week       TEXT PRIMARY KEY,  -- Clé de semaine ISO (ex: "2026-W10")
-    message_id TEXT NOT NULL      -- ID du message Discord
+-- Dernier message de la semaine publié par serveur
+CREATE TABLE weekly_messages (
+    guild_id   TEXT PRIMARY KEY,
+    week       TEXT NOT NULL,  -- Clé de semaine ISO (ex: "2026-W10")
+    channel_id TEXT NOT NULL,
+    message_id TEXT NOT NULL
 );
 
 -- Stocke les disponibilités des utilisateurs
 CREATE TABLE dispos (
+    guild_id   TEXT     NOT NULL,
     user_id    TEXT     NOT NULL,
     day_index  SMALLINT NOT NULL,  -- 0=Lundi … 6=Dimanche
     slot_index SMALLINT NOT NULL,  -- Après-midi/Soir : 0, 1 · Par heure : 0 = première heure, 1 = +1h…
     week       TEXT     NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    CONSTRAINT dispos_unique_per_week UNIQUE (user_id, day_index, slot_index, week)
+    CONSTRAINT dispos_unique_per_week UNIQUE (guild_id, week, user_id, day_index, slot_index)
 );
 
 -- Configuration par serveur Discord
