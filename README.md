@@ -101,7 +101,7 @@ Lorsque le message hebdomadaire est publié, un bouton **✏️ Mes dispos** est
 
 Depuis `/help` → **🕒 Configurer les créneaux**, un admin choisit :
 
-- le **découpage** : **Après-midi / Soir** (par défaut) ou **Par heure**, un créneau par heure entre une première heure et une heure de fin (heure de Paris, `minuit` possible) ;
+- le **découpage** : **Après-midi / Soir** (par défaut) ou **Par heure**, un créneau par heure entre une première heure et une heure de fin (heure de Paris, 20h → minuit par défaut ; ces deux champs sont ignorés en « Après-midi / Soir ») ;
 - l'**affichage** du message de la semaine :
   - **Classique** (par défaut) : l'embed d'origine avec le tableau en texte ;
   - **Image** : la grille dessinée en image (PNG générée par le bot, cases colorées selon le nombre de dispos) dans un message Components V2, avec un menu **👀 Voir qui est dispo…** qui affiche en privé qui est dispo un jour donné.

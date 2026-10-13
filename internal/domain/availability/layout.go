@@ -16,6 +16,11 @@ const (
 
 	// MaxSlotsPerDay is bounded by Discord: a select menu holds at most 25 options.
 	MaxSlotsPerDay = 25
+
+	// DefaultStartHour and DefaultEndHour are the hourly range proposed by default:
+	// 20h to minuit, Paris time.
+	DefaultStartHour = 20
+	DefaultEndHour   = 24
 )
 
 var halfDayLabels = []string{"Après-midi", "Soir"}
@@ -70,7 +75,7 @@ func (l Layout) Label(slot int) string {
 	return HourLabel(start) + " – " + HourLabel(start+1)
 }
 
-// Summary describes the layout for the admin panel (e.g. "Par heure · 13h → minuit").
+// Summary describes the layout for the admin panel (e.g. "Par heure · 20h → minuit").
 func (l Layout) Summary() string {
 	if !l.IsHourly() {
 		return "Après-midi / Soir"

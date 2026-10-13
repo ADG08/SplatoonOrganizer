@@ -132,7 +132,7 @@ func (h *HelpConfigHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 // buildSlotsModalComponents builds the slot layout and display form, prefilled with the current config.
 func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.MessageComponent {
 	current := cfg.SlotLayout
-	start, end := 13, 24
+	start, end := availability.DefaultStartHour, availability.DefaultEndHour
 	if current.IsHourly() {
 		start, end = current.StartHour, current.EndHour
 	}
@@ -182,22 +182,23 @@ func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Message
 		},
 		discordgo.Label{
 			Label:       "Premiere heure (mode par heure)",
-			Description: "Heure de Paris. Chaque membre verra les heures dans son fuseau.",
+			Description: "Heure de Paris. Ignoree en Apres-midi / Soir.",
 			Component: discordgo.SelectMenu{
 				CustomID:  "slot_start_hour",
-				MinValues: intPtr(1),
+				MinValues: intPtr(0),
 				MaxValues: 1,
-				Required:  boolPtr(true),
+				Required:  boolPtr(false),
 				Options:   startOptions,
 			},
 		},
 		discordgo.Label{
-			Label: "Fin du dernier creneau (mode par heure)",
+			Label:       "Fin du dernier creneau (mode par heure)",
+			Description: "Ignoree en Apres-midi / Soir.",
 			Component: discordgo.SelectMenu{
 				CustomID:  "slot_end_hour",
-				MinValues: intPtr(1),
+				MinValues: intPtr(0),
 				MaxValues: 1,
-				Required:  boolPtr(true),
+				Required:  boolPtr(false),
 				Options:   endOptions,
 			},
 		},
@@ -243,10 +244,14 @@ func (h *HelpConfigHandler) handleSlotsSubmit(s *discordgo.Session, i *discordgo
 
 	layout := availability.HalfDayLayout()
 	if modalSelectValue(data.Components, "slot_mode") == string(availability.ModeHourly) {
-		start, errStart := strconv.Atoi(modalSelectValue(data.Components, "slot_start_hour"))
-		end, errEnd := strconv.Atoi(modalSelectValue(data.Components, "slot_end_hour"))
-		if errStart != nil || errEnd != nil {
-			return respondWithError(s, i, "Heures invalides.")
+		// The hours are optional (they don't apply to "Après-midi / Soir"): an empty one
+		// falls back to the default 20h - minuit.
+		start, end := availability.DefaultStartHour, availability.DefaultEndHour
+		if v := modalSelectValue(data.Components, "slot_start_hour"); v != "" {
+			start, _ = strconv.Atoi(v)
+		}
+		if v := modalSelectValue(data.Components, "slot_end_hour"); v != "" {
+			end, _ = strconv.Atoi(v)
 		}
 		var err error
 		if layout, err = availability.HourlyLayout(start, end); err != nil {
