@@ -83,7 +83,6 @@ docker compose down
 | Commande | Permission | Description |
 |---|---|---|
 | `/dispos` | Tous | Affiche le détail des disponibilités de la semaine avec les mentions des joueurs (message éphémère). |
-| `/fuseau` | Tous | Choisit son fuseau horaire (autocomplétion, ou décalage comme `UTC+5:30`) pour voir les créneaux à son heure. |
 | `/help` | Admin | Ouvre un panneau de configuration moderne avec sélecteurs interactifs (salon, rôle à ping, créneaux, affichage et langue). |
 | `/post-dispos` | Tous | Déclenche manuellement la publication du message hebdomadaire. |
 | `/set-message-channel channel:<#salon>` | Admin | Définit le salon où le message hebdomadaire est publié. |
@@ -118,7 +117,7 @@ Le bot ne peut pas connaître le fuseau d'un membre (Discord ne le transmet pas)
 - le bouton **🌍 Mon fuseau** lui renvoie en privé la grille de la semaine recalculée à son heure, avec un bouton **⚙️ Modifier mon fuseau** ;
 - le message public reste à l'heure de Paris, puisqu'il est partagé par tous.
 
-Un décalage fixe ne suit pas l'heure d'été : `/fuseau` accepte aussi un fuseau nommé (ex. `Europe/Paris`) qui, lui, la suit automatiquement.
+Un décalage fixe ne suit pas l'heure d'été : le membre le met à jour avec **⚙️ Modifier mon fuseau** quand l'heure change.
 
 ## Planification automatique
 

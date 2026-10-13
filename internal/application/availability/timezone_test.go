@@ -30,9 +30,6 @@ func TestParseTimezone(t *testing.T) {
 			t.Errorf("%s: offset %d, want %d", input, offset, wantOffset)
 		}
 	}
-	if got := mustLoad(t, "europe/paris").String(); got != "Europe/Paris" {
-		t.Errorf("common zones are case-insensitive: got %q", got)
-	}
 	mustLoad(t, "America/Lima")
 	for _, bad := range []string{"", "Mars/Base", "UTC+15"} {
 		if _, err := availability.ParseTimezone(bad); err == nil {

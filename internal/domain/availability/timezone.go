@@ -154,17 +154,12 @@ func CountriesByOffset(at time.Time) map[int][]Timezone {
 
 var utcOffsetPattern = regexp.MustCompile(`^(?:UTC|GMT)?\s*([+-])\s*(\d{1,2})(?::?(\d{2}))?$`)
 
-// ParseTimezone accepts an IANA name ("America/Sao_Paulo", case-insensitive for the
-// zones of Countries) or a fixed offset ("UTC+5:30", "GMT-3", "+2").
+// ParseTimezone accepts a fixed offset ("UTC+5:30", "GMT-3", "+2"), as offered by the
+// timezone picker, or an IANA name ("America/Sao_Paulo").
 func ParseTimezone(input string) (*time.Location, error) {
 	input = strings.TrimSpace(input)
 	if input == "" {
 		return nil, fmt.Errorf("empty timezone")
-	}
-	for _, tz := range Countries {
-		if strings.EqualFold(tz.Zone, input) {
-			return time.LoadLocation(tz.Zone)
-		}
 	}
 	if m := utcOffsetPattern.FindStringSubmatch(strings.ToUpper(input)); m != nil {
 		hours, _ := strconv.Atoi(m[2])

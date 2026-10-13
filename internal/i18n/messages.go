@@ -45,14 +45,10 @@ type Messages struct {
 	PickerEast         string
 	BtnEditTimezone    string
 	TimezoneSaved      string // %s timezone name, %s current time there
-	TimezoneUsedBy     string
-	TimezoneUnknown    string // %s what was typed
 	GridInYourTime     string // %s weekly title
 	LocalTimeLegend    string // %s timezone name
 	ShiftedColumns     string // %d minutes
 	NoHoursToConvert   string
-	FuseauDescription  string
-	FuseauOptionDesc   string
 	HelpDescription    string
 	AnnonceDescription string
 	AnnonceTitleDesc   string
@@ -150,20 +146,16 @@ var fr = Messages{
 	PickerContent: "🌍 **Quel est ton fuseau horaire ?**\n" +
 		"Choisis ton décalage UTC (l'heure affichée doit être ton heure actuelle) : " +
 		"les créneaux s'afficheront ensuite à ton heure.\n" +
-		"-# Un décalage fixe ne suit pas l'heure d'été : pense à le changer quand l'heure change, " +
-		"ou utilise `/fuseau` avec ta ville (ex : `Europe/Paris`) pour que ce soit automatique.",
+		"-# Un décalage fixe ne suit pas l'heure d'été : quand l'heure change, mets-le à jour avec " +
+		"**⚙️ Modifier mon fuseau**.",
 	PickerWest:         "UTC-12 → UTC-1 · Amériques, Pacifique",
 	PickerEast:         "UTC+0 → UTC+14 · Europe, Afrique, Asie, Océanie",
 	BtnEditTimezone:    "⚙️ Modifier mon fuseau",
 	TimezoneSaved:      "✅ Fuseau enregistré : **%s** (il est %s chez toi).",
-	TimezoneUsedBy:     "Les menus **✏️ Mes dispos** et le bouton **🌍 Mon fuseau** l'utiliseront.",
-	TimezoneUnknown:    "Je ne connais pas le fuseau « %s ». Choisis une proposition de la liste, ou écris un décalage comme `UTC+5:30`.",
 	GridInYourTime:     "%s · à ton heure",
 	LocalTimeLegend:    "Heures affichées à ton heure · %s",
 	ShiftedColumns:     " · colonnes décalées de %d min",
 	NoHoursToConvert:   "Les créneaux de ce serveur sont « Après-midi / Soir » : il n'y a pas d'heure à convertir.",
-	FuseauDescription:  "Choisir ton fuseau horaire pour voir les créneaux à ton heure",
-	FuseauOptionDesc:   "Ta ville ou ton décalage (ex : Montréal, America/Lima, UTC+5:30)",
 	HelpDescription:    "Panneau admin pour configurer le bot",
 	AnnonceDescription: "Publier une annonce (embed) dans le salon des dispos",
 	AnnonceTitleDesc:   "Titre de l'annonce",
@@ -258,20 +250,16 @@ var en = Messages{
 	PickerContent: "🌍 **What's your timezone?**\n" +
 		"Pick your UTC offset (the time shown should be your current time): " +
 		"slots will then be shown in your time.\n" +
-		"-# A fixed offset doesn't follow daylight saving time: change it when the clocks change, " +
-		"or use `/fuseau` with your city (e.g. `Europe/London`) to make it automatic.",
+		"-# A fixed offset doesn't follow daylight saving time: when the clocks change, update it with " +
+		"**⚙️ Change my timezone**.",
 	PickerWest:         "UTC-12 → UTC-1 · Americas, Pacific",
 	PickerEast:         "UTC+0 → UTC+14 · Europe, Africa, Asia, Oceania",
 	BtnEditTimezone:    "⚙️ Change my timezone",
 	TimezoneSaved:      "✅ Timezone saved: **%s** (it is %s for you).",
-	TimezoneUsedBy:     "The **✏️ My availability** menus and the **🌍 My timezone** button will use it.",
-	TimezoneUnknown:    "I don't know the timezone \"%s\". Pick a suggestion from the list, or type an offset like `UTC+5:30`.",
 	GridInYourTime:     "%s · in your time",
 	LocalTimeLegend:    "Hours shown in your time · %s",
 	ShiftedColumns:     " · columns shifted by %d min",
 	NoHoursToConvert:   "This server uses \"Afternoon / Evening\" slots: there are no hours to convert.",
-	FuseauDescription:  "Set your timezone to see the slots in your time",
-	FuseauOptionDesc:   "Your city or offset (e.g. Montreal, America/Lima, UTC+5:30)",
 	HelpDescription:    "Admin panel to configure the bot",
 	AnnonceDescription: "Post an announcement (embed) in the availability channel",
 	AnnonceTitleDesc:   "Title of the announcement",

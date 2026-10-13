@@ -88,10 +88,6 @@ func main() {
 		log.Fatalf("register view dispos handler: %v", err)
 	}
 
-	if err := reg.RegisterCommand(commands.NewFuseauCommand(availSvc, guildConfigSvc)); err != nil {
-		log.Fatalf("register fuseau command: %v", err)
-	}
-
 	if err := reg.RegisterHandler(handlers.NewTimezoneSelectHandler(availSvc, guildConfigSvc)); err != nil {
 		log.Fatalf("register timezone select handler: %v", err)
 	}

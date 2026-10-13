@@ -16,11 +16,6 @@ func respondWithError(s *discordgo.Session, i *discordgo.InteractionCreate, msg 
 	})
 }
 
-// respondEphemeral sends an ephemeral message only the user sees.
-func respondEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) error {
-	return respondWithError(s, i, msg)
-}
-
 // description returns a command text in French (the default) with its English
 // localization: Discord shows command descriptions in each member's app language, as
 // global commands can't follow a guild setting.
