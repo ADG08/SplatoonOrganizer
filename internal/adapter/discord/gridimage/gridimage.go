@@ -81,8 +81,10 @@ func Render(view appavailability.WeeklyView) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The encoding time hardly depends on the level, and on these flat colors the fastest
+	// level gives the smallest file.
 	var buf bytes.Buffer
-	if err := nativewebp.Encode(&buf, img, &nativewebp.Options{CompressionLevel: nativewebp.BestCompression}); err != nil {
+	if err := nativewebp.Encode(&buf, img, &nativewebp.Options{CompressionLevel: nativewebp.BestSpeed}); err != nil {
 		return nil, fmt.Errorf("encode webp: %w", err)
 	}
 	return buf.Bytes(), nil

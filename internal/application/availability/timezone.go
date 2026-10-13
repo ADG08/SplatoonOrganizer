@@ -10,23 +10,34 @@ import (
 )
 
 // UserTimezone returns the timezone a member picked, or nil when they never did.
+// Answers from memory after the first lookup.
 func (s *Service) UserTimezone(ctx context.Context, userID string) (*time.Location, error) {
+	if loc, ok := s.timezones.Load(userID); ok {
+		return loc.(*time.Location), nil
+	}
 	zone, err := s.repo.GetUserTimezone(ctx, userID)
-	if err != nil || zone == "" {
+	if err != nil {
 		return nil, err
 	}
-	loc, err := availability.ParseTimezone(zone)
-	if err != nil {
-		// A zone removed from tzdata: ask the member again rather than failing.
-		log.Printf("user %s: stored timezone %q: %v", userID, zone, err)
-		return nil, nil
+	var loc *time.Location
+	if zone != "" {
+		if loc, err = availability.ParseTimezone(zone); err != nil {
+			// A zone removed from tzdata: ask the member again rather than failing.
+			log.Printf("user %s: stored timezone %q: %v", userID, zone, err)
+			loc = nil
+		}
 	}
+	s.timezones.Store(userID, loc)
 	return loc, nil
 }
 
 // SetUserTimezone remembers the timezone a member picked.
 func (s *Service) SetUserTimezone(ctx context.Context, userID string, loc *time.Location) error {
-	return s.repo.SetUserTimezone(ctx, userID, loc.String())
+	if err := s.repo.SetUserTimezone(ctx, userID, loc.String()); err != nil {
+		return err
+	}
+	s.timezones.Store(userID, loc)
+	return nil
 }
 
 // SlotLabelIn labels a slot in the member's timezone, e.g. "14h – 15h", prefixed with the

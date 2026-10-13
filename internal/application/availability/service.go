@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
@@ -15,6 +16,10 @@ import (
 type Service struct {
 	repo Repository
 	loc  *time.Location
+
+	// timezones caches members' timezones (nil = never picked): read on most clicks of an
+	// hourly guild, written only when a member picks one.
+	timezones sync.Map // userID -> *time.Location
 }
 
 // NewService creates a new availability service.

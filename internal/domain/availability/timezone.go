@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -126,17 +127,26 @@ var Countries = []Timezone{
 	{"America/Nuuk", "Groenland"},
 }
 
+// countryLocations are the locations of Countries, loaded once (LoadLocation reads and
+// parses tzdata on every call). A zone missing from tzdata is nil.
+var countryLocations = sync.OnceValue(func() []*time.Location {
+	locs := make([]*time.Location, len(Countries))
+	for i, c := range Countries {
+		locs[i], _ = time.LoadLocation(c.Zone)
+	}
+	return locs
+})
+
 // CountriesByOffset groups the places of Countries by their UTC offset (in seconds) at the
 // given time, in list order.
 func CountriesByOffset(at time.Time) map[int][]string {
 	byOffset := make(map[int][]string)
-	for _, c := range Countries {
-		loc, err := time.LoadLocation(c.Zone)
-		if err != nil {
+	for i, loc := range countryLocations() {
+		if loc == nil {
 			continue
 		}
 		_, offset := at.In(loc).Zone()
-		byOffset[offset] = append(byOffset[offset], c.Where)
+		byOffset[offset] = append(byOffset[offset], Countries[i].Where)
 	}
 	return byOffset
 }

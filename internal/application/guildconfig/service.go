@@ -2,6 +2,7 @@ package guildconfig
 
 import (
 	"context"
+	"sync"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
@@ -10,6 +11,10 @@ import (
 // Service implements guild configuration use cases.
 type Service struct {
 	repo Repository
+
+	// cache holds the configs already read: they are needed on nearly every interaction
+	// and only change through this service (single bot process).
+	cache sync.Map // guildID -> guildconfig.GuildConfig
 }
 
 // NewService creates a new guild config service.
@@ -18,8 +23,18 @@ func NewService(repo Repository) *Service {
 }
 
 // Get returns the guild configuration, with defaults when the guild has none.
+// The returned config is a copy the caller may modify.
 func (s *Service) Get(ctx context.Context, guildID string) (*guildconfig.GuildConfig, error) {
-	return s.repo.Get(ctx, guildID)
+	if cfg, ok := s.cache.Load(guildID); ok {
+		c := cfg.(guildconfig.GuildConfig)
+		return &c, nil
+	}
+	cfg, err := s.repo.Get(ctx, guildID)
+	if err != nil {
+		return nil, err
+	}
+	s.cache.Store(guildID, *cfg)
+	return cfg, nil
 }
 
 // ListWithChannel returns the guilds that configured a channel for the weekly message.
@@ -29,11 +44,13 @@ func (s *Service) ListWithChannel(ctx context.Context) ([]*guildconfig.GuildConf
 
 // SetChannel updates the message channel for a guild.
 func (s *Service) SetChannel(ctx context.Context, guildID, channelID string) error {
+	defer s.cache.Delete(guildID)
 	return s.repo.SetChannel(ctx, guildID, channelID)
 }
 
 // SetRole updates the role to ping for a guild.
 func (s *Service) SetRole(ctx context.Context, guildID, roleID string) error {
+	defer s.cache.Delete(guildID)
 	return s.repo.SetRole(ctx, guildID, roleID)
 }
 
@@ -48,5 +65,6 @@ func (s *Service) SlotLayout(ctx context.Context, guildID string) (availability.
 
 // SetSlotSettings updates how days are split into slots and how the weekly message is shown.
 func (s *Service) SetSlotSettings(ctx context.Context, guildID string, layout availability.Layout, display guildconfig.Display) error {
+	defer s.cache.Delete(guildID)
 	return s.repo.SetSlotSettings(ctx, guildID, layout, display)
 }
