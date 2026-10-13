@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 )
 
 // UserTimezone returns the timezone a member picked, or nil when they never did.
@@ -43,32 +44,32 @@ func (s *Service) SetUserTimezone(ctx context.Context, userID string, loc *time.
 // SlotLabelIn labels a slot in the member's timezone, e.g. "14h – 15h", prefixed with the
 // local day when it differs from the reference day ("Mar 3h – 4h" for Lundi 20h Paris seen
 // from Tokyo). Half-day layouts and unknown timezones keep the reference labels.
-func (s *Service) SlotLabelIn(layout availability.Layout, week availability.WeekKey, dayIndex, slot int, loc *time.Location) string {
+func (s *Service) SlotLabelIn(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, dayIndex, slot int, loc *time.Location) string {
 	if !layout.IsHourly() || loc == nil {
-		return layout.Label(slot)
+		return m.SlotLabel(layout, slot)
 	}
 	ref, err := layout.SlotStart(week, dayIndex, slot, s.loc)
 	if err != nil {
-		return layout.Label(slot)
+		return m.SlotLabel(layout, slot)
 	}
 	end, _ := layout.SlotStart(week, dayIndex, slot+1, s.loc)
 	start, end := ref.In(loc), end.In(loc)
 
-	endLabel := availability.ClockLabel(end)
+	endLabel := m.Clock(end)
 	if end.Hour() == 0 && end.Minute() == 0 {
-		endLabel = "minuit"
+		endLabel = m.Midnight
 	}
-	label := availability.ClockLabel(start) + " – " + endLabel
+	label := m.Clock(start) + " – " + endLabel
 	if start.Format("2006-01-02") != ref.Format("2006-01-02") {
-		label = shortDayLabels[weekdayIndex(start)] + " " + label
+		label = m.ShortDays[weekdayIndex(start)] + " " + label
 	}
 	return label
 }
 
 // BuildWeeklyViewIn is BuildWeeklyView with the hours and days of the grid converted to
 // the member's timezone, for the private "À mon heure" view.
-func (s *Service) BuildWeeklyViewIn(layout availability.Layout, week availability.WeekKey, counts []availability.SlotCount, loc *time.Location) WeeklyView {
-	view := s.BuildWeeklyView(layout, week, counts)
+func (s *Service) BuildWeeklyViewIn(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, counts []availability.SlotCount, loc *time.Location) WeeklyView {
+	view := s.BuildWeeklyView(m, layout, week, counts)
 	if !layout.IsHourly() || loc == nil {
 		return view
 	}
@@ -82,19 +83,19 @@ func (s *Service) BuildWeeklyViewIn(layout availability.Layout, week availabilit
 		}
 		t = t.In(loc)
 		hours[slot], minutes = t.Hour(), t.Minute()
-		view.Columns[slot] = availability.ClockLabel(t)
+		view.Columns[slot] = m.Clock(t)
 	}
 	// A row keeps one evening together, labelled by the local day of its first slot
 	// (an evening in Paris may start the next day in Asia or Oceania).
 	for day := range view.Rows {
 		if t, err := layout.SlotStart(week, day, 0, s.loc); err == nil {
-			view.Rows[day] = shortDayLabels[weekdayIndex(t.In(loc))]
+			view.Rows[day] = m.ShortDays[weekdayIndex(t.In(loc))]
 		}
 	}
 
-	view.Legend = "Heures affichées à ton heure · " + availability.TimezoneName(loc)
+	view.Legend = fmt.Sprintf(m.LocalTimeLegend, m.TimezoneName(loc))
 	if minutes != 0 {
-		view.Legend += fmt.Sprintf(" · colonnes décalées de %d min", minutes)
+		view.Legend += fmt.Sprintf(m.ShiftedColumns, minutes)
 	}
 	view.Table = hourlyTable(hours, view.Rows, view.Counts)
 	return view

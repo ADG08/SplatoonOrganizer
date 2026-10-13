@@ -14,6 +14,7 @@ import (
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -35,7 +36,7 @@ var utcOffsets = []int{
 // buildTimezonePicker asks for the member's UTC offset with two selects (Discord allows 25
 // options per select): west of UTC, then UTC and east. Each option shows the current time
 // at that offset, so members can pick the one matching their clock.
-func buildTimezonePicker(next string) []discordgo.MessageComponent {
+func buildTimezonePicker(m *i18n.Messages, next string) []discordgo.MessageComponent {
 	now := time.Now().UTC()
 	countries := availability.CountriesByOffset(now)
 	var west, east []discordgo.SelectMenuOption
@@ -44,7 +45,7 @@ func buildTimezonePicker(next string) []discordgo.MessageComponent {
 		opt := discordgo.SelectMenuOption{
 			Label:       name + " · " + now.Add(time.Duration(minutes)*time.Minute).Format("15:04"),
 			Value:       name,
-			Description: countriesDescription(countries[minutes*60]),
+			Description: countriesDescription(m, countries[minutes*60]),
 		}
 		if minutes < 0 {
 			west = append(west, opt)
@@ -60,21 +61,22 @@ func buildTimezonePicker(next string) []discordgo.MessageComponent {
 		}}}
 	}
 	return []discordgo.MessageComponent{
-		row("w", "UTC-12 → UTC-1 · Amériques, Pacifique", west),
-		row("e", "UTC+0 → UTC+14 · Europe, Afrique, Asie, Océanie", east),
+		row("w", m.PickerWest, west),
+		row("e", m.PickerEast, east),
 	}
 }
 
 // countriesDescription lists places for a picker option, within Discord's 100 characters.
-func countriesDescription(names []string) string {
+func countriesDescription(m *i18n.Messages, places []availability.Timezone) string {
 	const limit = 100
 	desc := ""
-	for n, name := range names {
+	for n, place := range places {
+		name := m.CountryName(place)
 		next := name
 		if desc != "" {
 			next = desc + ", " + name
 		}
-		if len([]rune(next)) > limit || (n < len(names)-1 && len([]rune(next)) > limit-2) {
+		if len([]rune(next)) > limit || (n < len(places)-1 && len([]rune(next)) > limit-2) {
 			return desc + "…"
 		}
 		desc = next
@@ -82,58 +84,54 @@ func countriesDescription(names []string) string {
 	return desc
 }
 
-const timezonePickerContent = "🌍 **Quel est ton fuseau horaire ?**\n" +
-	"Choisis ton décalage UTC (l'heure affichée doit être ton heure actuelle) : " +
-	"les créneaux s'afficheront ensuite à ton heure.\n" +
-	"-# Un décalage fixe ne suit pas l'heure d'été : pense à le changer quand l'heure change, " +
-	"ou utilise `/fuseau` avec ta ville (ex : `Europe/Paris`) pour que ce soit automatique."
-
 // respondTimezonePicker answers an interaction with the timezone picker.
-func respondTimezonePicker(s *discordgo.Session, i *discordgo.InteractionCreate, next string) error {
+func respondTimezonePicker(s *discordgo.Session, i *discordgo.InteractionCreate, m *i18n.Messages, next string) error {
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content:    timezonePickerContent,
+			Content:    m.PickerContent,
 			Flags:      discordgo.MessageFlagsEphemeral,
-			Components: buildTimezonePicker(next),
+			Components: buildTimezonePicker(m, next),
 		},
 	})
 }
 
 // editTimezoneButton reopens the timezone picker; next is what to show afterwards.
-func editTimezoneButton(next string) discordgo.ActionsRow {
+func editTimezoneButton(m *i18n.Messages, next string) discordgo.ActionsRow {
 	return discordgo.ActionsRow{Components: []discordgo.MessageComponent{discordgo.Button{
-		Label:    "⚙️ Modifier mon fuseau",
+		Label:    m.BtnEditTimezone,
 		Style:    discordgo.SecondaryButton,
 		CustomID: TimezoneEditCustomIDPrefix + ":" + next,
 	}}}
 }
 
 // timezoneLegend reminds which timezone the menus use, for hourly layouts.
-func timezoneLegend(layout availability.Layout, loc *time.Location) string {
+func timezoneLegend(m *i18n.Messages, layout availability.Layout, loc *time.Location) string {
 	if !layout.IsHourly() || loc == nil {
 		return ""
 	}
-	return "-# 🌍 Heures affichées à ton heure (" + availability.TimezoneName(loc) + ")"
+	return fmt.Sprintf(m.TimezoneInMenus, m.TimezoneName(loc))
 }
 
 // sendLocalGrid sends the week's grid converted to the member's timezone, as an image or a
 // text table depending on the guild's display.
 func sendLocalGrid(s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, cfg *guildconfig.GuildConfig, loc *time.Location, followup bool) error {
+	m := cfg.Messages()
 	week := svc.CurrentWeek()
 	counts, err := svc.GetAvailabilitySummary(context.Background(), cfg.GuildID, week)
 	if err != nil {
 		log.Printf("error getting availability summary: %v", err)
-		return respondWithError(s, i, "Erreur lors de la récupération des disponibilités.")
+		return respondWithError(s, i, m.ErrGeneric)
 	}
-	view := svc.BuildWeeklyViewIn(cfg.SlotLayout, week, counts, loc)
+	view := svc.BuildWeeklyViewIn(m, cfg.SlotLayout, week, counts, loc)
+	title := fmt.Sprintf(m.GridInYourTime, view.Title)
 
 	params := &discordgo.WebhookParams{Flags: discordgo.MessageFlagsEphemeral}
 	if cfg.Display == guildconfig.DisplayImage {
 		img, err := gridimage.Render(view)
 		if err != nil {
 			log.Printf("error rendering local grid: %v", err)
-			return respondWithError(s, i, "Erreur lors de la génération de l'image.")
+			return respondWithError(s, i, m.ErrGeneric)
 		}
 		accent := weeklyAccentColor
 		params.Flags |= discordgo.MessageFlagsIsComponentsV2
@@ -141,18 +139,18 @@ func sendLocalGrid(s *discordgo.Session, i *discordgo.InteractionCreate, svc *ap
 		params.Components = []discordgo.MessageComponent{discordgo.Container{
 			AccentColor: &accent,
 			Components: []discordgo.MessageComponent{
-				discordgo.TextDisplay{Content: "### " + view.Title + " · à ton heure\n-# " + view.Legend},
+				discordgo.TextDisplay{Content: "### " + title + "\n-# " + view.Legend},
 				discordgo.MediaGallery{Items: []discordgo.MediaGalleryItem{{Media: discordgo.UnfurledMediaItem{URL: "attachment://" + weeklyImageName}}}},
-				editTimezoneButton(tzNextGrid),
+				editTimezoneButton(m, tzNextGrid),
 			},
 		}}
 	} else {
 		params.Embeds = []*discordgo.MessageEmbed{{
-			Title:       view.Title + " · à ton heure",
+			Title:       title,
 			Description: "*" + view.Legend + "*\n" + view.Table,
 			Color:       weeklyAccentColor,
 		}}
-		params.Components = []discordgo.MessageComponent{editTimezoneButton(tzNextGrid)}
+		params.Components = []discordgo.MessageComponent{editTimezoneButton(m, tzNextGrid)}
 	}
 
 	if followup {
@@ -186,36 +184,34 @@ func (h *TimezoneSelectHandler) CustomID() string {
 var _ discord.InteractionHandler = (*TimezoneSelectHandler)(nil)
 
 func (h *TimezoneSelectHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg := loadGuildConfig(s, i, h.guildCfg)
+	if cfg == nil {
+		return nil
+	}
+	m := cfg.Messages()
 	userID := getUserID(i)
 	values := i.MessageComponentData().Values
 	if userID == "" || len(values) == 0 {
-		return respondWithError(s, i, "Interaction invalide.")
+		return respondWithError(s, i, m.ErrInvalid)
 	}
 	// Custom ID: availability:tz:<next>:<w|e>
 	next, _, _ := strings.Cut(strings.TrimPrefix(i.MessageComponentData().CustomID, TimezoneCustomIDPrefix+":"), ":")
 	loc, err := availability.ParseTimezone(values[0])
 	if err != nil {
 		log.Printf("timezone picker: %q: %v", values[0], err)
-		return respondWithError(s, i, "Fuseau inconnu.")
+		return respondWithError(s, i, m.ErrInvalid)
 	}
-	ctx := context.Background()
-	if err := h.svc.SetUserTimezone(ctx, userID, loc); err != nil {
+	if err := h.svc.SetUserTimezone(context.Background(), userID, loc); err != nil {
 		log.Printf("error setting user timezone: %v", err)
-		return respondWithError(s, i, "Erreur lors de l'enregistrement de ton fuseau.")
+		return respondWithError(s, i, m.ErrGeneric)
 	}
-	if err := updateEphemeral(s, i, fmt.Sprintf("✅ Fuseau enregistré : **%s** (il est %s chez toi).",
-		availability.TimezoneName(loc), time.Now().In(loc).Format("15:04"))); err != nil {
+	if err := updateEphemeral(s, i, fmt.Sprintf(m.TimezoneSaved, m.TimezoneName(loc), m.Clock(time.Now().In(loc)))); err != nil {
 		return err
 	}
 
-	cfg, err := h.guildCfg.Get(ctx, i.GuildID)
-	if err != nil {
-		log.Printf("error getting guild config: %v", err)
-		return nil
-	}
 	switch next {
 	case tzNextDispos:
-		return sendDisposMenus(s, i, h.svc, cfg.SlotLayout, userID, loc, true)
+		return sendDisposMenus(s, i, h.svc, cfg, userID, loc, true)
 	case tzNextGrid:
 		return sendLocalGrid(s, i, h.svc, cfg, loc, true)
 	}
@@ -248,36 +244,37 @@ func (h *MyTimeHandler) CustomID() string {
 var _ discord.InteractionHandler = (*MyTimeHandler)(nil)
 
 func (h *MyTimeHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg := loadGuildConfig(s, i, h.guildCfg)
+	if cfg == nil {
+		return nil
+	}
+	m := cfg.Messages()
 	userID := getUserID(i)
 	if userID == "" {
-		return respondWithError(s, i, "Impossible de déterminer ton utilisateur Discord pour cette interaction.")
-	}
-	ctx := context.Background()
-	cfg, err := h.guildCfg.Get(ctx, i.GuildID)
-	if err != nil {
-		log.Printf("error getting guild config: %v", err)
-		return respondWithError(s, i, "Erreur lors de la récupération de la configuration du serveur.")
+		return respondWithError(s, i, m.ErrUnknownUser)
 	}
 	if !cfg.SlotLayout.IsHourly() {
-		return respondWithError(s, i, "Les créneaux de ce serveur sont « Après-midi / Soir » : il n'y a pas d'heure à convertir.")
+		return respondWithError(s, i, m.NoHoursToConvert)
 	}
-	loc, err := h.svc.UserTimezone(ctx, userID)
+	loc, err := h.svc.UserTimezone(context.Background(), userID)
 	if err != nil {
 		log.Printf("error getting user timezone: %v", err)
-		return respondWithError(s, i, "Erreur lors de la récupération de ton fuseau.")
+		return respondWithError(s, i, m.ErrGeneric)
 	}
 	if loc == nil {
-		return respondTimezonePicker(s, i, tzNextGrid)
+		return respondTimezonePicker(s, i, m, tzNextGrid)
 	}
 	return sendLocalGrid(s, i, h.svc, cfg, loc, false)
 }
 
 // TimezoneEditHandler handles "⚙️ Modifier mon fuseau": it shows the picker again.
-type TimezoneEditHandler struct{}
+type TimezoneEditHandler struct {
+	guildCfg *appguildconfig.Service
+}
 
 // NewTimezoneEditHandler creates the "Modifier mon fuseau" handler.
-func NewTimezoneEditHandler() *TimezoneEditHandler {
-	return &TimezoneEditHandler{}
+func NewTimezoneEditHandler(guildCfg *appguildconfig.Service) *TimezoneEditHandler {
+	return &TimezoneEditHandler{guildCfg: guildCfg}
 }
 
 func (h *TimezoneEditHandler) CustomID() string {
@@ -287,6 +284,10 @@ func (h *TimezoneEditHandler) CustomID() string {
 var _ discord.InteractionHandler = (*TimezoneEditHandler)(nil)
 
 func (h *TimezoneEditHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg := loadGuildConfig(s, i, h.guildCfg)
+	if cfg == nil {
+		return nil
+	}
 	next := strings.TrimPrefix(i.MessageComponentData().CustomID, TimezoneEditCustomIDPrefix+":")
-	return respondTimezonePicker(s, i, next)
+	return respondTimezonePicker(s, i, cfg.Messages(), next)
 }

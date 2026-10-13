@@ -10,6 +10,7 @@ import (
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -34,218 +35,183 @@ func (h *HelpConfigHandler) CustomID() string {
 var _ discord.InteractionHandler = (*HelpConfigHandler)(nil)
 
 func (h *HelpConfigHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	if !isAdminOrOwnerInteraction(i, h.ownerID) {
-		return respondWithError(s, i, ErrAdminOrOwnerInteraction)
+	cfg := loadGuildConfig(s, i, h.svc)
+	if cfg == nil {
+		return nil
 	}
-
-	guildID := i.GuildID
-	if guildID == "" {
-		return respondWithError(s, i, "Cette interaction doit etre utilisee sur un serveur.")
+	m := cfg.Messages()
+	if !isAdminOrOwnerInteraction(i, h.ownerID) {
+		return respondWithError(s, i, m.ErrAdminOnly)
+	}
+	if i.GuildID == "" {
+		return respondWithError(s, i, m.ErrGuildOnly)
 	}
 
 	if i.Type == discordgo.InteractionModalSubmit {
-		return h.handleModalSubmit(s, i, guildID)
+		return h.handleModalSubmit(s, i, cfg)
 	}
 
-	data := i.MessageComponentData()
-	switch data.CustomID {
+	switch i.MessageComponentData().CustomID {
 	case discord.HelpPanelOpenChannelModalID:
-		cfg, err := h.svc.Get(context.Background(), guildID)
-		if err != nil {
-			log.Printf("help config: get config before channel modal: %v", err)
-		}
-		defaultChannelID := ""
-		if cfg != nil {
-			defaultChannelID = cfg.ChannelID
-		}
 		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,
 			Data: &discordgo.InteractionResponseData{
 				CustomID: discord.HelpPanelModalChannelID,
-				Title:    "Configurer le channel",
+				Title:    m.ChannelModalTitle,
 				Components: []discordgo.MessageComponent{
 					discordgo.Label{
-						Label: "Channel des dispos",
+						Label: m.ChannelLabel,
 						Component: discordgo.SelectMenu{
 							CustomID:      "channel_selected",
 							MenuType:      discordgo.ChannelSelectMenu,
-							Placeholder:   "Choisis un channel texte",
+							Placeholder:   m.ChannelHint,
 							ChannelTypes:  []discordgo.ChannelType{discordgo.ChannelTypeGuildText},
 							MinValues:     intPtr(1),
 							MaxValues:     1,
 							Required:      boolPtr(true),
-							DefaultValues: defaultChannelValues(defaultChannelID),
+							DefaultValues: defaultChannelValues(cfg.ChannelID),
 						},
 					},
 				},
 			},
 		})
 	case discord.HelpPanelOpenRoleModalID:
-		cfg, err := h.svc.Get(context.Background(), guildID)
-		if err != nil {
-			log.Printf("help config: get config before role modal: %v", err)
-		}
-		defaultRoleID := ""
-		if cfg != nil {
-			defaultRoleID = cfg.RoleID
-		}
 		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,
 			Data: &discordgo.InteractionResponseData{
 				CustomID: discord.HelpPanelModalRoleID,
-				Title:    "Configurer le role",
+				Title:    m.RoleModalTitle,
 				Components: []discordgo.MessageComponent{
 					discordgo.Label{
-						Label: "Role a ping",
+						Label: m.RoleLabel,
 						Component: discordgo.SelectMenu{
 							CustomID:      "roles_selected",
 							MenuType:      discordgo.RoleSelectMenu,
-							Placeholder:   "Choisis le role a mentionner",
+							Placeholder:   m.RoleHint,
 							MinValues:     intPtr(1),
 							MaxValues:     1,
 							Required:      boolPtr(true),
-							DefaultValues: defaultRoleValues(defaultRoleID),
+							DefaultValues: defaultRoleValues(cfg.RoleID),
 						},
 					},
 				},
 			},
 		})
 	case discord.HelpPanelOpenSlotsModalID:
-		cfg, err := h.svc.Get(context.Background(), guildID)
-		if err != nil {
-			log.Printf("help config: get config before slots modal: %v", err)
-			cfg = &guildconfig.GuildConfig{}
-		}
 		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,
 			Data: &discordgo.InteractionResponseData{
 				CustomID:   discord.HelpPanelModalSlotsID,
-				Title:      "Configurer les creneaux",
+				Title:      m.MessageModalTitle,
 				Components: buildSlotsModalComponents(cfg),
 			},
 		})
 	default:
-		return respondWithError(s, i, "Interaction inconnue.")
+		return respondWithError(s, i, m.ErrInvalid)
 	}
 }
 
-// buildSlotsModalComponents builds the slot layout and display form, prefilled with the current config.
+// buildSlotsModalComponents builds the language, display and slots form, prefilled with
+// the current config (Discord allows 5 fields per form).
 func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.MessageComponent {
+	m := cfg.Messages()
 	current := cfg.SlotLayout
 	start, end := availability.DefaultStartHour, availability.DefaultEndHour
 	if current.IsHourly() {
 		start, end = current.StartHour, current.EndHour
 	}
 
+	languages := make([]discordgo.SelectMenuOption, len(i18n.Langs))
+	for n, lang := range i18n.Langs {
+		languages[n] = discordgo.SelectMenuOption{Label: m.LanguageNames[n], Value: string(lang), Default: lang == i18n.Parse(string(cfg.Language))}
+	}
+	displays := []discordgo.SelectMenuOption{
+		{Label: m.DisplayClassic, Value: string(guildconfig.DisplayClassic), Default: cfg.Display != guildconfig.DisplayImage},
+		{Label: m.DisplayImage, Value: string(guildconfig.DisplayImage), Default: cfg.Display == guildconfig.DisplayImage},
+	}
 	modes := []discordgo.SelectMenuOption{
-		{Label: "Apres-midi / Soir", Value: string(availability.ModeHalfDay), Default: !current.IsHourly()},
-		{Label: "Par heure", Value: string(availability.ModeHourly), Default: current.IsHourly()},
+		{Label: m.LayoutSummary(availability.HalfDayLayout()), Value: string(availability.ModeHalfDay), Default: !current.IsHourly()},
+		{Label: m.ModeHourly, Value: string(availability.ModeHourly), Default: current.IsHourly()},
 	}
 	// Discord allows 25 options per select menu: 0h..23h for the start, 1h..minuit for the end.
 	var startOptions, endOptions []discordgo.SelectMenuOption
 	for h := 0; h < 24; h++ {
 		startOptions = append(startOptions, discordgo.SelectMenuOption{
-			Label: availability.HourLabel(h), Value: strconv.Itoa(h), Default: h == start,
+			Label: m.HourLabel(h), Value: strconv.Itoa(h), Default: h == start,
 		})
 		endOptions = append(endOptions, discordgo.SelectMenuOption{
-			Label: availability.HourLabel(h + 1), Value: strconv.Itoa(h + 1), Default: h+1 == end,
+			Label: m.HourLabel(h + 1), Value: strconv.Itoa(h + 1), Default: h+1 == end,
 		})
 	}
 
-	displays := []discordgo.SelectMenuOption{
-		{Label: "Classique (texte)", Value: string(guildconfig.DisplayClassic), Default: cfg.Display != guildconfig.DisplayImage},
-		{Label: "Image", Value: string(guildconfig.DisplayImage), Default: cfg.Display == guildconfig.DisplayImage},
+	selectField := func(label, hint, customID string, required bool, options []discordgo.SelectMenuOption) discordgo.Label {
+		minValues := 0
+		if required {
+			minValues = 1
+		}
+		return discordgo.Label{
+			Label:       label,
+			Description: hint,
+			Component: discordgo.SelectMenu{
+				CustomID:  customID,
+				MinValues: intPtr(minValues),
+				MaxValues: 1,
+				Required:  boolPtr(required),
+				Options:   options,
+			},
+		}
 	}
-
 	return []discordgo.MessageComponent{
-		discordgo.Label{
-			Label:       "Affichage du message",
-			Description: "Changer l'affichage republie le message de la semaine.",
-			Component: discordgo.SelectMenu{
-				CustomID:  "display_style",
-				MinValues: intPtr(1),
-				MaxValues: 1,
-				Required:  boolPtr(true),
-				Options:   displays,
-			},
-		},
-		discordgo.Label{
-			Label:       "Decoupage des journees",
-			Description: "⚠️ Changer le decoupage reinitialise les dispos de la semaine en cours.",
-			Component: discordgo.SelectMenu{
-				CustomID:  "slot_mode",
-				MinValues: intPtr(1),
-				MaxValues: 1,
-				Required:  boolPtr(true),
-				Options:   modes,
-			},
-		},
-		discordgo.Label{
-			Label:       "Premiere heure (mode par heure)",
-			Description: "Heure de Paris. Ignoree en Apres-midi / Soir.",
-			Component: discordgo.SelectMenu{
-				CustomID:  "slot_start_hour",
-				MinValues: intPtr(0),
-				MaxValues: 1,
-				Required:  boolPtr(false),
-				Options:   startOptions,
-			},
-		},
-		discordgo.Label{
-			Label:       "Fin du dernier creneau (mode par heure)",
-			Description: "Ignoree en Apres-midi / Soir.",
-			Component: discordgo.SelectMenu{
-				CustomID:  "slot_end_hour",
-				MinValues: intPtr(0),
-				MaxValues: 1,
-				Required:  boolPtr(false),
-				Options:   endOptions,
-			},
-		},
+		selectField(m.LanguageLabel, "", "language", true, languages),
+		selectField(m.DisplayLabel, m.DisplayHint, "display_style", true, displays),
+		selectField(m.ModeLabel, m.ModeHint, "slot_mode", true, modes),
+		// The hours are optional: they don't apply to "Après-midi / Soir".
+		selectField(m.StartHourLabel, m.StartHourHint, "slot_start_hour", false, startOptions),
+		selectField(m.EndHourLabel, m.EndHourHint, "slot_end_hour", false, endOptions),
 	}
 }
 
-func (h *HelpConfigHandler) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate, guildID string) error {
+func (h *HelpConfigHandler) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate, cfg *guildconfig.GuildConfig) error {
 	data := i.ModalSubmitData()
 	ctx := context.Background()
+	m := cfg.Messages()
 
 	switch data.CustomID {
 	case discord.HelpPanelModalChannelID:
-		menu := findModalSelectMenu(data.Components, "channel_selected")
-		if menu == nil || len(menu.Values) == 0 {
-			return respondWithError(s, i, "Aucun channel selectionne.")
+		channelID := modalSelectValue(data.Components, "channel_selected")
+		if channelID == "" {
+			return respondWithError(s, i, m.NothingSelected)
 		}
-		channelID := menu.Values[0]
-		if err := h.svc.SetChannel(ctx, guildID, channelID); err != nil {
+		if err := h.svc.SetChannel(ctx, cfg.GuildID, channelID); err != nil {
 			log.Printf("help config modal: set channel: %v", err)
-			return respondWithError(s, i, "Erreur lors de l'enregistrement du channel.")
+			return respondWithError(s, i, m.ErrGeneric)
 		}
 	case discord.HelpPanelModalRoleID:
-		menu := findModalSelectMenu(data.Components, "roles_selected")
-		if menu == nil || len(menu.Values) == 0 {
-			return respondWithError(s, i, "Aucun role selectionne.")
+		roleID := modalSelectValue(data.Components, "roles_selected")
+		if roleID == "" {
+			return respondWithError(s, i, m.NothingSelected)
 		}
-		roleID := menu.Values[0]
-		if err := h.svc.SetRole(ctx, guildID, roleID); err != nil {
+		if err := h.svc.SetRole(ctx, cfg.GuildID, roleID); err != nil {
 			log.Printf("help config modal: set role: %v", err)
-			return respondWithError(s, i, "Erreur lors de l'enregistrement du role.")
+			return respondWithError(s, i, m.ErrGeneric)
 		}
 	case discord.HelpPanelModalSlotsID:
-		return h.handleSlotsSubmit(s, i, guildID, data)
+		return h.handleSlotsSubmit(s, i, cfg, data)
 	default:
-		return respondWithError(s, i, "Modal inconnu.")
+		return respondWithError(s, i, m.ErrInvalid)
 	}
 
-	return h.refreshPanel(s, i, guildID, "Configuration enregistree via modal.")
+	return h.refreshPanel(s, i, cfg.GuildID, m.ConfigSaved)
 }
 
-func (h *HelpConfigHandler) handleSlotsSubmit(s *discordgo.Session, i *discordgo.InteractionCreate, guildID string, data discordgo.ModalSubmitInteractionData) error {
+func (h *HelpConfigHandler) handleSlotsSubmit(s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, data discordgo.ModalSubmitInteractionData) error {
 	ctx := context.Background()
+	lang := i18n.Parse(modalSelectValue(data.Components, "language"))
+	m := i18n.For(lang) // answer in the language just picked
 
 	layout := availability.HalfDayLayout()
 	if modalSelectValue(data.Components, "slot_mode") == string(availability.ModeHourly) {
-		// The hours are optional (they don't apply to "Après-midi / Soir"): an empty one
-		// falls back to the default 20h - minuit.
+		// An empty hour falls back to the default 20h - minuit.
 		start, end := availability.DefaultStartHour, availability.DefaultEndHour
 		if v := modalSelectValue(data.Components, "slot_start_hour"); v != "" {
 			start, _ = strconv.Atoi(v)
@@ -255,7 +221,7 @@ func (h *HelpConfigHandler) handleSlotsSubmit(s *discordgo.Session, i *discordgo
 		}
 		var err error
 		if layout, err = availability.HourlyLayout(start, end); err != nil {
-			return respondWithError(s, i, "La premiere heure doit etre avant la fin du dernier creneau.")
+			return respondWithError(s, i, m.HourOrder)
 		}
 	}
 
@@ -264,45 +230,40 @@ func (h *HelpConfigHandler) handleSlotsSubmit(s *discordgo.Session, i *discordgo
 		display = guildconfig.DisplayImage
 	}
 
-	previous, err := h.svc.Get(ctx, guildID)
-	if err != nil {
-		log.Printf("help config modal: get guild config: %v", err)
-		return respondWithError(s, i, "Erreur lors de la recuperation de la configuration.")
-	}
 	layoutChanged := layout != previous.SlotLayout
-	if !layoutChanged && display == previous.Display {
-		return h.refreshPanel(s, i, guildID, "Rien n'a change.")
+	if !layoutChanged && display == previous.Display && lang == previous.Language {
+		return h.refreshPanel(s, i, previous.GuildID, m.NothingChanged)
 	}
 
-	if err := h.svc.SetSlotSettings(ctx, guildID, layout, display); err != nil {
-		log.Printf("help config modal: set slot settings: %v", err)
-		return respondWithError(s, i, "Erreur lors de l'enregistrement des creneaux.")
+	if err := h.svc.SetMessageSettings(ctx, previous.GuildID, layout, display, lang); err != nil {
+		log.Printf("help config modal: set message settings: %v", err)
+		return respondWithError(s, i, m.ErrGeneric)
 	}
 
-	message := "Affichage mis a jour : le message de la semaine a ete republie."
+	message := m.Republished
 	if layoutChanged {
 		// Slot indexes of the old layout would be misread with the new one: start the week over.
-		if err := h.availSvc.ResetWeek(ctx, guildID, h.availSvc.CurrentWeek()); err != nil {
+		if err := h.availSvc.ResetWeek(ctx, previous.GuildID, h.availSvc.CurrentWeek()); err != nil {
 			log.Printf("help config modal: reset week: %v", err)
-			return respondWithError(s, i, "Creneaux enregistres, mais impossible de reinitialiser les dispos de la semaine.")
+			return respondWithError(s, i, m.ErrGeneric)
 		}
-		message = "Creneaux mis a jour : les dispos de la semaine ont ete reinitialisees et le message republie."
+		message = m.SlotsReset
 	}
 
 	// The message may switch between an embed and Components V2: post it again rather than edit it.
-	cfg := previous
-	cfg.SlotLayout, cfg.Display = layout, display
+	cfg := *previous
+	cfg.SlotLayout, cfg.Display, cfg.Language = layout, display, lang
 	if cfg.ChannelID == "" {
-		message += " (aucun salon configure : rien n'a ete publie)"
+		message += m.NotPublished
 	} else {
 		go func() {
-			if err := PublishWeeklyMessage(context.Background(), s, h.availSvc, cfg); err != nil {
+			if err := PublishWeeklyMessage(context.Background(), s, h.availSvc, &cfg); err != nil {
 				log.Printf("help config modal: republish weekly message: %v", err)
 			}
 		}()
 	}
 
-	return h.refreshPanel(s, i, guildID, message)
+	return h.refreshPanel(s, i, previous.GuildID, message)
 }
 
 // modalSelectValue returns the first selected value of a modal select menu, or "".
@@ -314,21 +275,14 @@ func modalSelectValue(components []discordgo.MessageComponent, customID string) 
 	return menu.Values[0]
 }
 
+// refreshPanel shows the panel again with the saved settings, in the guild's language.
 func (h *HelpConfigHandler) refreshPanel(s *discordgo.Session, i *discordgo.InteractionCreate, guildID, description string) error {
-	ctx := context.Background()
-	cfg, err := h.svc.Get(ctx, guildID)
-	if err != nil {
-		log.Printf("help config: get guild config after update: %v", err)
-		return respondWithError(s, i, "Configuration mise a jour, mais impossible de rafraichir l'affichage.")
+	cfg := loadGuildConfig(s, i, h.svc)
+	if cfg == nil {
+		return nil
 	}
-
-	embed := discord.BuildHelpPanelEmbed(
-		"✅  Configuration mise a jour",
-		description,
-		discord.HelpPanelColorSuccess,
-		cfg,
-	)
-	components := discord.BuildHelpPanelComponents()
+	embed := discord.BuildHelpPanelEmbed(cfg.Messages().PanelUpdated, description, discord.HelpPanelColorSuccess, cfg)
+	components := discord.BuildHelpPanelComponents(cfg)
 
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
@@ -416,5 +370,3 @@ func isAdminOrOwnerInteraction(i *discordgo.InteractionCreate, ownerID string) b
 	}
 	return false
 }
-
-const ErrAdminOrOwnerInteraction = "Tu dois etre administrateur du serveur ou le createur du bot pour utiliser ce panneau."

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 )
 
 // gridMaxColumns keeps the code block narrow enough for phones; wider layouts are split.
@@ -27,7 +28,7 @@ type WeeklyView struct {
 // BuildWeeklyView renders availability counts for the weekly message.
 // Discord timestamps don't render inside code blocks or images, so the grid uses the
 // reference timezone and only the legend is in each member's timezone.
-func (s *Service) BuildWeeklyView(layout availability.Layout, week availability.WeekKey, counts []availability.SlotCount) WeeklyView {
+func (s *Service) BuildWeeklyView(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, counts []availability.SlotCount) WeeklyView {
 	grid := make([][]int, availability.DaysPerWeek)
 	for i := range grid {
 		grid[i] = make([]int, layout.Len())
@@ -39,42 +40,41 @@ func (s *Service) BuildWeeklyView(layout availability.Layout, week availability.
 	}
 
 	view := WeeklyView{
-		Title:  "Dispos de la semaine",
+		Title:  m.ClassicTitle,
 		Hourly: layout.IsHourly(),
 		Counts: grid,
-		Rows:   append([]string(nil), shortDayLabels...),
+		Rows:   append([]string(nil), m.ShortDays[:]...),
 	}
 	if monday, err := week.Monday(s.loc); err == nil {
-		view.Title += " du " + monday.Format("02/01")
+		view.Title = m.WeekTitle(monday)
 	}
 	for day := range grid {
 		for slot, count := range grid[day] {
 			view.Peak = max(view.Peak, count)
 			if day == 0 {
-				view.Columns = append(view.Columns, columnLabel(layout, slot))
+				view.Columns = append(view.Columns, columnLabel(m, layout, slot))
 			}
 		}
 	}
 
 	if layout.IsHourly() {
-		view.Legend = fmt.Sprintf("Heures de Paris · %dh Paris = %s chez toi",
-			layout.StartHour, s.slotTime(layout, week, 0, 0))
+		view.Legend = fmt.Sprintf(m.ParisTimeLegend, m.HourLabel(layout.StartHour), s.slotTime(m, layout, week, 0, 0))
 		hours := make([]int, layout.Len())
 		for slot := range hours {
 			hours[slot] = layout.StartHour + slot
 		}
 		view.Table = hourlyTable(hours, view.Rows, grid)
 	} else {
-		view.Table = halfDayTable(layout, grid)
+		view.Table = halfDayTable(m, view.Rows, grid)
 	}
 	return view
 }
 
-func columnLabel(layout availability.Layout, slot int) string {
+func columnLabel(m *i18n.Messages, layout availability.Layout, slot int) string {
 	if layout.IsHourly() {
-		return availability.HourLabel(layout.StartHour + slot)
+		return m.HourLabel(layout.StartHour + slot)
 	}
-	return layout.Label(slot)
+	return m.HalfDay[slot]
 }
 
 // hourlyTable renders one column per hour, labelled with the hour of the day.
@@ -108,13 +108,13 @@ func hourlyTable(hours []int, rows []string, grid [][]int) string {
 }
 
 // halfDayTable renders the "Après-midi / Soir" table, unchanged from the original message.
-func halfDayTable(layout availability.Layout, grid [][]int) string {
+func halfDayTable(m *i18n.Messages, rows []string, grid [][]int) string {
 	var b strings.Builder
 	b.WriteString("```md\n")
-	fmt.Fprintf(&b, "%-10s %-11s %-11s\n", "Jour", layout.Label(0), layout.Label(1))
+	fmt.Fprintf(&b, "%-10s %-11s %-11s\n", m.TableDayHeader, m.HalfDay[0], m.HalfDay[1])
 	for day := range grid {
-		fmt.Fprintf(&b, "%-10s", shortDayLabels[day])
-		for slot := 0; slot < layout.Len(); slot++ {
+		fmt.Fprintf(&b, "%-10s", rows[day])
+		for slot := range grid[day] {
 			fmt.Fprintf(&b, " %-11d", grid[day][slot])
 		}
 		b.WriteString("\n")

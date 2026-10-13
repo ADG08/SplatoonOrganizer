@@ -25,6 +25,7 @@ type GuildConfig struct {
 	SlotStartHour pgtype.Int2 `json:"slot_start_hour"`
 	SlotEndHour   pgtype.Int2 `json:"slot_end_hour"`
 	DisplayStyle  pgtype.Text `json:"display_style"`
+	Language      pgtype.Text `json:"language"`
 }
 
 type UserTimezone struct {

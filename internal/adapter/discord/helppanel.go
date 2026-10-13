@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -19,20 +20,25 @@ const (
 	HelpPanelColorSuccess = 0x57F287
 )
 
-// BuildHelpPanelEmbed builds the configuration panel embed with the current channel/role/slots state.
+// BuildHelpPanelEmbed builds the configuration panel embed with the guild's current
+// settings, in the guild's language.
 func BuildHelpPanelEmbed(title, description string, color int, cfg *guildconfig.GuildConfig) *discordgo.MessageEmbed {
-	channelID, roleID := cfg.ChannelID, cfg.RoleID
-	display := "Classique (texte)"
+	m := cfg.Messages()
+	display := m.DisplayClassic
 	if cfg.Display == guildconfig.DisplayImage {
-		display = "Image"
+		display = m.DisplayImage
 	}
-	channelValue := "❌  Non configure"
-	if channelID != "" {
-		channelValue = "✅  <#" + channelID + ">"
+	language := m.LanguageNames[0]
+	if cfg.Language == i18n.EN {
+		language = m.LanguageNames[1]
 	}
-	roleValue := "❌  Non configure"
-	if roleID != "" {
-		roleValue = "✅  <@&" + roleID + ">"
+	channelValue := m.NotConfigured
+	if cfg.ChannelID != "" {
+		channelValue = "✅  <#" + cfg.ChannelID + ">"
+	}
+	roleValue := m.NotConfigured
+	if cfg.RoleID != "" {
+		roleValue = "✅  <@&" + cfg.RoleID + ">"
 	}
 
 	return &discordgo.MessageEmbed{
@@ -40,32 +46,33 @@ func BuildHelpPanelEmbed(title, description string, color int, cfg *guildconfig.
 		Description: description,
 		Color:       color,
 		Fields: []*discordgo.MessageEmbedField{
-			{Name: "📢  Salon des dispos", Value: channelValue, Inline: true},
-			{Name: "🏷️  Role a mentionner", Value: roleValue, Inline: true},
-			{Name: "🕒  Creneaux", Value: cfg.SlotLayout.Summary() + "\n" + display, Inline: true},
+			{Name: m.PanelChannel, Value: channelValue, Inline: true},
+			{Name: m.PanelRole, Value: roleValue, Inline: true},
+			{Name: m.PanelMessage, Value: m.LayoutSummary(cfg.SlotLayout) + "\n" + display + "\n" + language, Inline: true},
 		},
-		Footer:    &discordgo.MessageEmbedFooter{Text: "🔒 Reservé aux administrateurs"},
+		Footer:    &discordgo.MessageEmbedFooter{Text: m.PanelFooter},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 }
 
-// BuildHelpPanelComponents returns the action row with the channel, role and slots config buttons.
-func BuildHelpPanelComponents() []discordgo.MessageComponent {
+// BuildHelpPanelComponents returns the action row with the channel, role and message config buttons.
+func BuildHelpPanelComponents(cfg *guildconfig.GuildConfig) []discordgo.MessageComponent {
+	m := cfg.Messages()
 	return []discordgo.MessageComponent{
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
 				discordgo.Button{
-					Label:    "📢  Configurer le salon",
+					Label:    m.BtnConfigChannel,
 					Style:    discordgo.PrimaryButton,
 					CustomID: HelpPanelOpenChannelModalID,
 				},
 				discordgo.Button{
-					Label:    "🏷️  Configurer le role",
+					Label:    m.BtnConfigRole,
 					Style:    discordgo.PrimaryButton,
 					CustomID: HelpPanelOpenRoleModalID,
 				},
 				discordgo.Button{
-					Label:    "🕒  Configurer les creneaux",
+					Label:    m.BtnConfigMessage,
 					Style:    discordgo.PrimaryButton,
 					CustomID: HelpPanelOpenSlotsModalID,
 				},

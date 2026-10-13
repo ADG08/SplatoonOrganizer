@@ -30,25 +30,25 @@ func (h *SelectDisposHandler) CustomID() string {
 var _ discord.InteractionHandler = (*SelectDisposHandler)(nil)
 
 func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg := loadGuildConfig(s, i, h.guildCfg)
+	if cfg == nil {
+		return nil
+	}
+	m, layout := cfg.Messages(), cfg.SlotLayout
 	userID := getUserID(i)
 	if userID == "" {
 		log.Printf("select dispos handler: could not determine user ID from interaction")
-		return respondWithError(s, i, "Impossible de déterminer ton utilisateur Discord pour cette interaction.")
+		return respondWithError(s, i, m.ErrUnknownUser)
 	}
 	dayIndex, err := parseSelectDisposCustomID(i.MessageComponentData().CustomID)
 	if err != nil {
 		log.Printf("invalid select custom id: %v", err)
-		return respondWithError(s, i, "Interaction invalide.")
+		return respondWithError(s, i, m.ErrInvalid)
 	}
 
 	ctx := context.Background()
 
 	// Values are 1-based slot indexes of the layout ("1" = first slot)
-	layout, err := h.guildCfg.SlotLayout(ctx, i.GuildID)
-	if err != nil {
-		log.Printf("error getting slot layout: %v", err)
-		return respondWithError(s, i, "Erreur lors de la récupération de la configuration du serveur.")
-	}
 	slots := make([]bool, layout.Len())
 	for _, v := range i.MessageComponentData().Values {
 		n, err := strconv.Atoi(v)
@@ -62,32 +62,36 @@ func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interact
 	week, err := h.svc.SetDayAvailability(ctx, i.GuildID, userID, dayIndex, slots)
 	if err != nil {
 		log.Printf("error setting day availability: %v", err)
-		return respondWithError(s, i, "Erreur lors de la mise à jour de vos disponibilités.")
+		return respondWithError(s, i, m.ErrGeneric)
 	}
 
 	_, userSlots, err := h.svc.GetUserAvailability(ctx, i.GuildID, userID)
 	if err != nil {
 		log.Printf("error getting user availability after select: %v", err)
-		return respondWithError(s, i, "Erreur lors du rafraîchissement.")
+		return respondWithError(s, i, m.ErrGeneric)
 	}
 	loc, err := h.svc.UserTimezone(ctx, userID)
 	if err != nil {
 		log.Printf("error getting user timezone after select: %v", err)
 	}
-	label := func(day, slot int) string { return h.svc.SlotLabelIn(layout, week, day, slot, loc) }
+	label := func(day, slot int) string { return h.svc.SlotLabelIn(m, layout, week, day, slot, loc) }
 
-	// Update the ephemeral message: same chunk as the interacted menu (5 first days or 2 last days)
+	// Update the ephemeral message: same chunk as the interacted menu (5 first days or 2 last
+	// days, the latter followed by the "change my timezone" button for hourly slots).
 	var components []discordgo.MessageComponent
 	if dayIndex < 5 {
-		components = buildUserDisposSelectMenus(layout, userSlots, 0, 5, label)
+		components = buildUserDisposSelectMenus(m, layout, userSlots, 0, 5, label)
 	} else {
-		components = buildUserDisposSelectMenus(layout, userSlots, 5, 2, label)
+		components = buildUserDisposSelectMenus(m, layout, userSlots, 5, 2, label)
+		if layout.IsHourly() {
+			components = append(components, editTimezoneButton(m, tzNextDispos))
+		}
 	}
 
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
-			Content:    withLegend("Tes disponibilités ont été mises à jour.", timezoneLegend(layout, loc)),
+			Content:    withLegend(m.DisposUpdated, timezoneLegend(m, layout, loc)),
 			Components: components,
 		},
 	}); err != nil {

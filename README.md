@@ -84,7 +84,7 @@ docker compose down
 |---|---|---|
 | `/dispos` | Tous | Affiche le détail des disponibilités de la semaine avec les mentions des joueurs (message éphémère). |
 | `/fuseau` | Tous | Choisit son fuseau horaire (autocomplétion, ou décalage comme `UTC+5:30`) pour voir les créneaux à son heure. |
-| `/help` | Admin | Ouvre un panneau de configuration moderne avec sélecteurs interactifs (salon, rôle à ping, créneaux et affichage). |
+| `/help` | Admin | Ouvre un panneau de configuration moderne avec sélecteurs interactifs (salon, rôle à ping, créneaux, affichage et langue). |
 | `/post-dispos` | Tous | Déclenche manuellement la publication du message hebdomadaire. |
 | `/set-message-channel channel:<#salon>` | Admin | Définit le salon où le message hebdomadaire est publié. |
 | `/set-role-to-ping role:<@role>` | Admin | Définit le rôle à mentionner lors de la publication. |
@@ -99,14 +99,16 @@ Lorsque le message hebdomadaire est publié, un bouton **✏️ Mes dispos** est
 
 ### Créneaux et affichage
 
-Depuis `/help` → **🕒 Configurer les créneaux**, un admin choisit :
+Depuis `/help` → **🕒 Créneaux, affichage, langue**, un admin choisit :
+
+- la **langue** du bot sur le serveur : **Français** (par défaut) ou **English**. Tout le bot suit ce choix (message de la semaine, menus, réponses privées, `/help`). Seules les descriptions des commandes slash suivent la langue de l'application Discord de chaque membre, Discord ne permettant pas de les régler par serveur ;
 
 - le **découpage** : **Après-midi / Soir** (par défaut) ou **Par heure**, un créneau par heure entre une première heure et une heure de fin (heure de Paris, 20h → minuit par défaut ; ces deux champs sont ignorés en « Après-midi / Soir ») ;
 - l'**affichage** du message de la semaine :
   - **Classique** (par défaut) : l'embed d'origine avec le tableau en texte ;
   - **Image** : la grille dessinée en image (PNG générée par le bot, cases colorées selon le nombre de dispos) dans un message Components V2, avec un menu **👀 Voir qui est dispo…** qui affiche en privé qui est dispo un jour donné.
 
-Changer le découpage réinitialise les dispos de la semaine en cours ; changer l'affichage republie le message. Le réglage est stocké par serveur dans `guild_config`. La grille publique est à l'heure de Paris (Discord ne convertit pas les heures dans un bloc de code ni dans une image) ; les listes « Voir les dispos » utilisent les timestamps Discord, affichés dans le fuseau de chacun.
+Changer le découpage réinitialise les dispos de la semaine en cours ; changer l'affichage ou la langue republie le message. Le réglage est stocké par serveur dans `guild_config`. La grille publique est à l'heure de Paris (Discord ne convertit pas les heures dans un bloc de code ni dans une image) ; les listes « Voir les dispos » utilisent les timestamps Discord, affichés dans le fuseau de chacun.
 
 ### Fuseaux horaires (mode Par heure)
 
@@ -199,7 +201,8 @@ CREATE TABLE guild_config (
     slot_mode       TEXT,      -- NULL/'halfday' = Après-midi/Soir, 'hourly' = par heure
     slot_start_hour SMALLINT,  -- mode hourly : première heure (0-23)
     slot_end_hour   SMALLINT,  -- mode hourly : fin du dernier créneau (1-24, 24 = minuit)
-    display_style   TEXT       -- NULL/'classic' = embed texte, 'image' = grille en image
+    display_style   TEXT,      -- NULL/'classic' = embed texte, 'image' = grille en image
+    language        TEXT       -- NULL/'fr' = français, 'en' = anglais
 );
 
 -- Fuseau horaire choisi par chaque membre (mode Par heure)

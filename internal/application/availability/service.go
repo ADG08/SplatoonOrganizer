@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 )
 
 // Service implements availability use cases. Except members' timezones, everything is
@@ -126,9 +127,9 @@ func (s *Service) GetAvailabilityUsers(ctx context.Context, guildID string, week
 }
 
 // FormatUsersBySlot formats users per slot as a human-readable string.
-func (s *Service) FormatUsersBySlot(layout availability.Layout, week availability.WeekKey, users []availability.SlotUsers) string {
+func (s *Service) FormatUsersBySlot(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, users []availability.SlotUsers) string {
 	if layout.IsHourly() {
-		return s.formatUsersByHour(layout, week, users)
+		return s.formatUsersByHour(m, layout, week, users)
 	}
 
 	type key struct {
@@ -154,26 +155,26 @@ func (s *Service) FormatUsersBySlot(layout availability.Layout, week availabilit
 			if len(mentions) > 0 {
 				value = strings.Join(mentions, ", ")
 			}
-			parts = append(parts, layout.Label(slot)+" : "+value)
+			parts = append(parts, m.SlotLabel(layout, slot)+" : "+value)
 		}
-		fmt.Fprintf(&b, "• **%s** · %s\n", dayLabels[day], strings.Join(parts, " · "))
+		fmt.Fprintf(&b, "• **%s** · %s\n", m.Days[day], strings.Join(parts, " · "))
 	}
 	return b.String()
 }
 
 // formatUsersByHour lists, per day, each user with their ranges of consecutive hours.
-func (s *Service) formatUsersByHour(layout availability.Layout, week availability.WeekKey, users []availability.SlotUsers) string {
+func (s *Service) formatUsersByHour(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, users []availability.SlotUsers) string {
 	byDay := usersByDay(layout, users)
 
 	var b strings.Builder
-	b.WriteString("*🕒 Heures affichées dans ton fuseau horaire*\n")
+	b.WriteString("*" + m.YourTimezoneNote + "*\n")
 	for day := 0; day < availability.DaysPerWeek; day++ {
 		if len(byDay[day]) == 0 {
-			fmt.Fprintf(&b, "\n**%s** · —\n", dayLabels[day])
+			fmt.Fprintf(&b, "\n**%s** · —\n", m.Days[day])
 			continue
 		}
-		fmt.Fprintf(&b, "\n**%s**\n", dayLabels[day])
-		for _, line := range s.dayUserLines(layout, week, day, byDay[day]) {
+		fmt.Fprintf(&b, "\n**%s**\n", m.Days[day])
+		for _, line := range s.dayUserLines(m, layout, week, day, byDay[day]) {
 			b.WriteString(line + "\n")
 		}
 	}
@@ -181,17 +182,17 @@ func (s *Service) formatUsersByHour(layout availability.Layout, week availabilit
 }
 
 // FormatDayUsers lists who is available on one day, one line per user with their ranges.
-func (s *Service) FormatDayUsers(layout availability.Layout, week availability.WeekKey, users []availability.SlotUsers, dayIndex int) string {
+func (s *Service) FormatDayUsers(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, users []availability.SlotUsers, dayIndex int) string {
 	byUser := usersByDay(layout, users)[dayIndex]
 	if len(byUser) == 0 {
-		return "Personne n'est dispo ce jour-là pour l'instant."
+		return m.NobodyThatDay
 	}
 
 	var b strings.Builder
 	if layout.IsHourly() {
-		b.WriteString("-# 🕒 Heures affichées dans ton fuseau horaire\n")
+		b.WriteString("-# " + m.YourTimezoneNote + "\n")
 	}
-	b.WriteString(strings.Join(s.dayUserLines(layout, week, dayIndex, byUser), "\n"))
+	b.WriteString(strings.Join(s.dayUserLines(m, layout, week, dayIndex, byUser), "\n"))
 	return b.String()
 }
 
@@ -217,7 +218,7 @@ func usersByDay(layout availability.Layout, users []availability.SlotUsers) []ma
 
 // dayUserLines renders one line per user of a day, earliest availability first.
 // Consecutive hours are merged into one range: 14h to minuit shows as "14:00 – 00:00".
-func (s *Service) dayUserLines(layout availability.Layout, week availability.WeekKey, day int, byUser map[string][]bool) []string {
+func (s *Service) dayUserLines(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, day int, byUser map[string][]bool) []string {
 	firstSlot := func(slots []bool) int {
 		for slot, ok := range slots {
 			if ok {
@@ -247,14 +248,14 @@ func (s *Service) dayUserLines(layout availability.Layout, week availability.Wee
 				continue
 			}
 			if !layout.IsHourly() {
-				ranges = append(ranges, layout.Label(slot))
+				ranges = append(ranges, m.SlotLabel(layout, slot))
 				continue
 			}
 			end := slot + 1
 			for end < len(slots) && slots[end] {
 				end++
 			}
-			ranges = append(ranges, s.slotTime(layout, week, day, slot)+" – "+s.slotTime(layout, week, day, end))
+			ranges = append(ranges, s.slotTime(m, layout, week, day, slot)+" – "+s.slotTime(m, layout, week, day, end))
 			slot = end
 		}
 		lines = append(lines, fmt.Sprintf("<@%s> : %s", id, strings.Join(ranges, ", ")))
@@ -264,17 +265,17 @@ func (s *Service) dayUserLines(layout availability.Layout, week availability.Wee
 
 // slotTime renders the start of a slot (or the end of the previous one) as a Discord
 // timestamp, which each member sees in their own timezone.
-func (s *Service) slotTime(layout availability.Layout, week availability.WeekKey, dayIndex, slot int) string {
+func (s *Service) slotTime(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, dayIndex, slot int) string {
 	t, err := layout.SlotStart(week, dayIndex, slot, s.loc)
 	if err != nil {
-		return fmt.Sprintf("%dh", (layout.StartHour+slot)%24)
+		return m.HourLabel(layout.StartHour + slot)
 	}
 	return fmt.Sprintf("<t:%d:t>", t.Unix())
 }
 
 // FormatUnavailableUsers formats the users marked unavailable for the week as a mention list.
 // Returns an empty string when nobody is marked unavailable.
-func (s *Service) FormatUnavailableUsers(userIDs []string) string {
+func (s *Service) FormatUnavailableUsers(m *i18n.Messages, userIDs []string) string {
 	if len(userIDs) == 0 {
 		return ""
 	}
@@ -282,15 +283,5 @@ func (s *Service) FormatUnavailableUsers(userIDs []string) string {
 	for _, id := range userIDs {
 		mentions = append(mentions, "<@"+id+">")
 	}
-	return "🚫 **Indisponibles cette semaine** : " + strings.Join(mentions, ", ")
-}
-
-var (
-	dayLabels      = []string{"Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"}
-	shortDayLabels = []string{"Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"}
-)
-
-// DayLabel returns the full French name of a day (0 = Lundi).
-func DayLabel(dayIndex int) string {
-	return dayLabels[dayIndex]
+	return fmt.Sprintf(m.UnavailableUsers, strings.Join(mentions, ", "))
 }

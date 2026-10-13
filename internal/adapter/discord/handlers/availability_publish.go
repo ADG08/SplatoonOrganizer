@@ -32,7 +32,8 @@ func PublishWeeklyMessage(ctx context.Context, s *discordgo.Session, svc *appava
 	if err != nil {
 		return fmt.Errorf("get availability summary: %w", err)
 	}
-	payload, err := BuildWeeklyPayload(svc.BuildWeeklyView(cfg.SlotLayout, week, counts), cfg.RoleID, cfg.Display)
+	m := cfg.Messages()
+	payload, err := BuildWeeklyPayload(m, svc.BuildWeeklyView(m, cfg.SlotLayout, week, counts), cfg.RoleID, cfg.Display)
 	if err != nil {
 		return err
 	}
@@ -128,7 +129,8 @@ func (r *WeeklyRefresher) refresh(ctx context.Context, s *discordgo.Session, gui
 		log.Printf("guild %s: get availability summary: %v", guildID, err)
 		return
 	}
-	payload, err := BuildWeeklyPayload(r.svc.BuildWeeklyView(cfg.SlotLayout, week, counts), cfg.RoleID, cfg.Display)
+	m := cfg.Messages()
+	payload, err := BuildWeeklyPayload(m, r.svc.BuildWeeklyView(m, cfg.SlotLayout, week, counts), cfg.RoleID, cfg.Display)
 	if err != nil {
 		log.Printf("guild %s: build weekly message: %v", guildID, err)
 		return

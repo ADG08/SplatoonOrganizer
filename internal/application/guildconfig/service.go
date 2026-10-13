@@ -6,6 +6,7 @@ import (
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 )
 
 // Service implements guild configuration use cases.
@@ -63,8 +64,9 @@ func (s *Service) SlotLayout(ctx context.Context, guildID string) (availability.
 	return cfg.SlotLayout, nil
 }
 
-// SetSlotSettings updates how days are split into slots and how the weekly message is shown.
-func (s *Service) SetSlotSettings(ctx context.Context, guildID string, layout availability.Layout, display guildconfig.Display) error {
+// SetMessageSettings updates how days are split into slots, how the weekly message is
+// shown and the language of the bot in the guild.
+func (s *Service) SetMessageSettings(ctx context.Context, guildID string, layout availability.Layout, display guildconfig.Display, lang i18n.Lang) error {
 	defer s.cache.Delete(guildID)
-	return s.repo.SetSlotSettings(ctx, guildID, layout, display)
+	return s.repo.SetMessageSettings(ctx, guildID, layout, display, lang)
 }

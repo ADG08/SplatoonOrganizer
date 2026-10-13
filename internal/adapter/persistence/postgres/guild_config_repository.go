@@ -9,6 +9,7 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/db"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,7 +34,7 @@ func (r *GuildConfigRepository) Get(ctx context.Context, guildID string) (*guild
 	row, err := r.queries.GetGuildConfig(ctx, guildID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return &guildconfig.GuildConfig{GuildID: guildID, SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic}, nil
+			return &guildconfig.GuildConfig{GuildID: guildID, SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic, Language: i18n.FR}, nil
 		}
 		return nil, err
 	}
@@ -57,7 +58,12 @@ func (r *GuildConfigRepository) ListWithChannel(ctx context.Context) ([]*guildco
 }
 
 func toGuildConfig(row db.GuildConfig) (*guildconfig.GuildConfig, error) {
-	cfg := &guildconfig.GuildConfig{GuildID: row.GuildID, SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic}
+	cfg := &guildconfig.GuildConfig{
+		GuildID:    row.GuildID,
+		SlotLayout: availability.HalfDayLayout(),
+		Display:    guildconfig.DisplayClassic,
+		Language:   i18n.Parse(row.Language.String),
+	}
 	if guildconfig.Display(row.DisplayStyle.String) == guildconfig.DisplayImage {
 		cfg.Display = guildconfig.DisplayImage
 	}
@@ -77,17 +83,18 @@ func toGuildConfig(row db.GuildConfig) (*guildconfig.GuildConfig, error) {
 	return cfg, nil
 }
 
-func (r *GuildConfigRepository) SetSlotSettings(ctx context.Context, guildID string, layout availability.Layout, display guildconfig.Display) error {
-	params := db.SetGuildConfigSlotSettingsParams{
+func (r *GuildConfigRepository) SetMessageSettings(ctx context.Context, guildID string, layout availability.Layout, display guildconfig.Display, lang i18n.Lang) error {
+	params := db.SetGuildConfigMessageSettingsParams{
 		GuildID:      guildID,
 		SlotMode:     pgtype.Text{String: string(layout.Mode), Valid: layout.Mode != ""},
 		DisplayStyle: pgtype.Text{String: string(display), Valid: display != ""},
+		Language:     pgtype.Text{String: string(lang), Valid: lang != ""},
 	}
 	if layout.IsHourly() {
 		params.SlotStartHour = pgtype.Int2{Int16: int16(layout.StartHour), Valid: true}
 		params.SlotEndHour = pgtype.Int2{Int16: int16(layout.EndHour), Valid: true}
 	}
-	return r.queries.SetGuildConfigSlotSettings(ctx, params)
+	return r.queries.SetGuildConfigMessageSettings(ctx, params)
 }
 
 func (r *GuildConfigRepository) SetChannel(ctx context.Context, guildID, channelID string) error {

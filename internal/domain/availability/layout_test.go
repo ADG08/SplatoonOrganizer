@@ -38,8 +38,8 @@ func TestHourlySlotStart(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if layout.Len() != 11 || layout.Label(10) != "23h – minuit" {
-		t.Fatalf("unexpected layout: len=%d last=%q", layout.Len(), layout.Label(10))
+	if layout.Len() != 11 {
+		t.Fatalf("unexpected layout: len=%d", layout.Len())
 	}
 
 	// 2026-W43: Europe switches to winter time on Sunday 2026-10-25.
@@ -74,18 +74,18 @@ func TestHourlyLayoutValidation(t *testing.T) {
 func TestCountriesTimezonesExist(t *testing.T) {
 	for _, c := range Countries {
 		if _, err := time.LoadLocation(c.Zone); err != nil {
-			t.Errorf("%s (%s): %v", c.Where, c.Zone, err)
+			t.Errorf("%s (%s): %v", c.Fr, c.Zone, err)
 		}
 	}
 }
 
-func TestCountriesAtFollowDaylightSaving(t *testing.T) {
+func TestCountriesByOffsetFollowDaylightSaving(t *testing.T) {
 	summer := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
 	winter := time.Date(2026, 12, 1, 12, 0, 0, 0, time.UTC)
-	if got := CountriesByOffset(summer)[2*3600]; len(got) == 0 || got[0] != "France" {
+	if got := CountriesByOffset(summer)[2*3600]; len(got) == 0 || got[0].Zone != "Europe/Paris" {
 		t.Errorf("summer UTC+2: %v", got)
 	}
-	if got := CountriesByOffset(winter)[3600]; len(got) == 0 || got[0] != "France" {
+	if got := CountriesByOffset(winter)[3600]; len(got) == 0 || got[0].Zone != "Europe/Paris" {
 		t.Errorf("winter UTC+1: %v", got)
 	}
 }

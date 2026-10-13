@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strconv"
 
@@ -32,28 +33,27 @@ var _ discord.InteractionHandler = (*WhoDisposHandler)(nil)
 
 func (h *WhoDisposHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	values := i.MessageComponentData().Values
-	if len(values) == 0 {
-		return respondWithError(s, i, "Interaction invalide.")
-	}
-	if values[0] == whoDisposAllValue {
+	if len(values) > 0 && values[0] == whoDisposAllValue {
 		return h.week.Handle(s, i)
+	}
+	cfg := loadGuildConfig(s, i, h.guildCfg)
+	if cfg == nil {
+		return nil
+	}
+	m := cfg.Messages()
+	if len(values) == 0 {
+		return respondWithError(s, i, m.ErrInvalid)
 	}
 	day, err := strconv.Atoi(values[0])
 	if err != nil || day < 0 || day >= availability.DaysPerWeek {
-		return respondWithError(s, i, "Interaction invalide.")
+		return respondWithError(s, i, m.ErrInvalid)
 	}
 
-	ctx := context.Background()
 	week := h.svc.CurrentWeek()
-	users, err := h.svc.GetAvailabilityUsers(ctx, i.GuildID, week)
+	users, err := h.svc.GetAvailabilityUsers(context.Background(), i.GuildID, week)
 	if err != nil {
 		log.Printf("error getting availability users from select: %v", err)
-		return respondWithError(s, i, "Erreur lors de la récupération des disponibilités.")
-	}
-	layout, err := h.guildCfg.SlotLayout(ctx, i.GuildID)
-	if err != nil {
-		log.Printf("error getting slot layout: %v", err)
-		return respondWithError(s, i, "Erreur lors de la récupération de la configuration du serveur.")
+		return respondWithError(s, i, m.ErrGeneric)
 	}
 
 	accent := weeklyAccentColor
@@ -66,8 +66,8 @@ func (h *WhoDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interaction
 				discordgo.Container{
 					AccentColor: &accent,
 					Components: []discordgo.MessageComponent{
-						discordgo.TextDisplay{Content: "### Qui est dispo " + appavailability.DayLabel(day) + " ?"},
-						discordgo.TextDisplay{Content: h.svc.FormatDayUsers(layout, week, users, day)},
+						discordgo.TextDisplay{Content: "### " + fmt.Sprintf(m.WhoTitle, m.Days[day])},
+						discordgo.TextDisplay{Content: h.svc.FormatDayUsers(m, cfg.SlotLayout, week, users, day)},
 					},
 				},
 			},

@@ -23,8 +23,6 @@ const (
 	DefaultEndHour   = 24
 )
 
-var halfDayLabels = []string{"Après-midi", "Soir"}
-
 // Layout describes the slots of a day. Slot indexes go from 0 to Len()-1.
 type Layout struct {
 	Mode      SlotMode
@@ -58,37 +56,12 @@ func (l Layout) Len() int {
 	if l.IsHourly() {
 		return l.EndHour - l.StartHour
 	}
-	return len(halfDayLabels)
+	return 2
 }
 
 // Valid reports whether slot is a valid slot index for this layout.
 func (l Layout) Valid(slot int) bool {
 	return slot >= 0 && slot < l.Len()
-}
-
-// Label returns the label of a slot in the reference timezone (e.g. "Soir" or "20h – 21h").
-func (l Layout) Label(slot int) string {
-	if !l.IsHourly() {
-		return halfDayLabels[slot]
-	}
-	start := l.StartHour + slot
-	return HourLabel(start) + " – " + HourLabel(start+1)
-}
-
-// Summary describes the layout for the admin panel (e.g. "Par heure · 20h → minuit").
-func (l Layout) Summary() string {
-	if !l.IsHourly() {
-		return "Après-midi / Soir"
-	}
-	return fmt.Sprintf("Par heure · %s → %s", HourLabel(l.StartHour), HourLabel(l.EndHour))
-}
-
-// HourLabel formats an hour of the day, 24 being "minuit" (end of the day).
-func HourLabel(hour int) string {
-	if hour == 24 {
-		return "minuit"
-	}
-	return fmt.Sprintf("%dh", hour)
 }
 
 // SlotStart returns the start time of a slot of the given week, in loc. Hourly layouts only.

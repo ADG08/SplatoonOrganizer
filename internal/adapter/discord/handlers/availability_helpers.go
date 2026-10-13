@@ -1,12 +1,17 @@
 package handlers
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
+	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -48,6 +53,20 @@ func withLegend(content, legend string) string {
 		return content
 	}
 	return content + "\n" + legend
+}
+
+// loadGuildConfig returns the config (and so the language) of the interaction's guild.
+// When it can't be read, it answers the member in French and returns nil.
+func loadGuildConfig(s *discordgo.Session, i *discordgo.InteractionCreate, guildCfg *appguildconfig.Service) *guildconfig.GuildConfig {
+	cfg, err := guildCfg.Get(context.Background(), i.GuildID)
+	if err != nil {
+		log.Printf("guild %s: get guild config: %v", i.GuildID, err)
+		if err := respondWithError(s, i, i18n.For(i18n.FR).ErrGeneric); err != nil {
+			log.Printf("respond: %v", err)
+		}
+		return nil
+	}
+	return cfg
 }
 
 func respondWithError(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) error {

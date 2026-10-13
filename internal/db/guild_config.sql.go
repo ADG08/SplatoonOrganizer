@@ -12,7 +12,7 @@ import (
 )
 
 const getGuildConfig = `-- name: GetGuildConfig :one
-SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style
+SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language
 FROM guild_config
 WHERE guild_id = $1
 `
@@ -28,12 +28,13 @@ func (q *Queries) GetGuildConfig(ctx context.Context, guildID string) (GuildConf
 		&i.SlotStartHour,
 		&i.SlotEndHour,
 		&i.DisplayStyle,
+		&i.Language,
 	)
 	return i, err
 }
 
 const listGuildConfigsWithChannel = `-- name: ListGuildConfigsWithChannel :many
-SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style
+SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language
 FROM guild_config
 WHERE channel_id IS NOT NULL
 ORDER BY guild_id
@@ -56,6 +57,7 @@ func (q *Queries) ListGuildConfigsWithChannel(ctx context.Context) ([]GuildConfi
 			&i.SlotStartHour,
 			&i.SlotEndHour,
 			&i.DisplayStyle,
+			&i.Language,
 		); err != nil {
 			return nil, err
 		}
@@ -84,6 +86,38 @@ func (q *Queries) SetGuildConfigChannel(ctx context.Context, arg SetGuildConfigC
 	return err
 }
 
+const setGuildConfigMessageSettings = `-- name: SetGuildConfigMessageSettings :exec
+INSERT INTO guild_config (guild_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language)
+VALUES ($1, $2, $3, $4, $5, $6)
+ON CONFLICT (guild_id) DO UPDATE
+SET slot_mode       = EXCLUDED.slot_mode,
+    slot_start_hour = EXCLUDED.slot_start_hour,
+    slot_end_hour   = EXCLUDED.slot_end_hour,
+    display_style   = EXCLUDED.display_style,
+    language        = EXCLUDED.language
+`
+
+type SetGuildConfigMessageSettingsParams struct {
+	GuildID       string      `json:"guild_id"`
+	SlotMode      pgtype.Text `json:"slot_mode"`
+	SlotStartHour pgtype.Int2 `json:"slot_start_hour"`
+	SlotEndHour   pgtype.Int2 `json:"slot_end_hour"`
+	DisplayStyle  pgtype.Text `json:"display_style"`
+	Language      pgtype.Text `json:"language"`
+}
+
+func (q *Queries) SetGuildConfigMessageSettings(ctx context.Context, arg SetGuildConfigMessageSettingsParams) error {
+	_, err := q.db.Exec(ctx, setGuildConfigMessageSettings,
+		arg.GuildID,
+		arg.SlotMode,
+		arg.SlotStartHour,
+		arg.SlotEndHour,
+		arg.DisplayStyle,
+		arg.Language,
+	)
+	return err
+}
+
 const setGuildConfigRole = `-- name: SetGuildConfigRole :exec
 INSERT INTO guild_config (guild_id, role_id)
 VALUES ($1, $2)
@@ -98,34 +132,5 @@ type SetGuildConfigRoleParams struct {
 
 func (q *Queries) SetGuildConfigRole(ctx context.Context, arg SetGuildConfigRoleParams) error {
 	_, err := q.db.Exec(ctx, setGuildConfigRole, arg.GuildID, arg.RoleID)
-	return err
-}
-
-const setGuildConfigSlotSettings = `-- name: SetGuildConfigSlotSettings :exec
-INSERT INTO guild_config (guild_id, slot_mode, slot_start_hour, slot_end_hour, display_style)
-VALUES ($1, $2, $3, $4, $5)
-ON CONFLICT (guild_id) DO UPDATE
-SET slot_mode       = EXCLUDED.slot_mode,
-    slot_start_hour = EXCLUDED.slot_start_hour,
-    slot_end_hour   = EXCLUDED.slot_end_hour,
-    display_style   = EXCLUDED.display_style
-`
-
-type SetGuildConfigSlotSettingsParams struct {
-	GuildID       string      `json:"guild_id"`
-	SlotMode      pgtype.Text `json:"slot_mode"`
-	SlotStartHour pgtype.Int2 `json:"slot_start_hour"`
-	SlotEndHour   pgtype.Int2 `json:"slot_end_hour"`
-	DisplayStyle  pgtype.Text `json:"display_style"`
-}
-
-func (q *Queries) SetGuildConfigSlotSettings(ctx context.Context, arg SetGuildConfigSlotSettingsParams) error {
-	_, err := q.db.Exec(ctx, setGuildConfigSlotSettings,
-		arg.GuildID,
-		arg.SlotMode,
-		arg.SlotStartHour,
-		arg.SlotEndHour,
-		arg.DisplayStyle,
-	)
 	return err
 }

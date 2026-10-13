@@ -9,6 +9,7 @@ import (
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -34,15 +35,15 @@ type WeeklyPayload struct {
 
 // BuildWeeklyPayload builds the weekly message. If roleID is not empty, the message
 // mentions the role (<@&roleID>) to ping it.
-func BuildWeeklyPayload(view appavailability.WeeklyView, roleID string, display guildconfig.Display) (*WeeklyPayload, error) {
+func BuildWeeklyPayload(m *i18n.Messages, view appavailability.WeeklyView, roleID string, display guildconfig.Display) (*WeeklyPayload, error) {
 	p := &WeeklyPayload{AllowedMentions: &discordgo.MessageAllowedMentions{}}
 	if roleID != "" {
 		p.AllowedMentions.Roles = []string{roleID}
 	}
 
 	if display != guildconfig.DisplayImage {
-		p.Embeds = []*discordgo.MessageEmbed{buildClassicEmbed(view)}
-		p.Components = buildClassicComponents(view.Hourly)
+		p.Embeds = []*discordgo.MessageEmbed{buildClassicEmbed(m, view)}
+		p.Components = buildClassicComponents(m, view.Hourly)
 		if roleID != "" {
 			p.Content = "<@&" + roleID + ">"
 		}
@@ -58,7 +59,7 @@ func BuildWeeklyPayload(view appavailability.WeeklyView, roleID string, display 
 	if roleID != "" {
 		p.Components = append(p.Components, discordgo.TextDisplay{Content: "<@&" + roleID + ">"})
 	}
-	p.Components = append(p.Components, buildImageContainer(view))
+	p.Components = append(p.Components, buildImageContainer(m, view))
 	return p, nil
 }
 
@@ -101,13 +102,13 @@ func (p *WeeklyPayload) MessageEdit(channelID, messageID string) *discordgo.Mess
 
 // buildClassicEmbed is the original embed: the text table, plus the timezone hint for
 // hourly layouts.
-func buildClassicEmbed(view appavailability.WeeklyView) *discordgo.MessageEmbed {
+func buildClassicEmbed(m *i18n.Messages, view appavailability.WeeklyView) *discordgo.MessageEmbed {
 	description := view.Table
 	if view.Legend != "" {
 		description = "*" + view.Legend + "*\n" + view.Table
 	}
 	return &discordgo.MessageEmbed{
-		Title:       "Disponibilités de la semaine",
+		Title:       m.ClassicTitle,
 		Description: description,
 		Color:       weeklyAccentColor,
 	}
@@ -115,59 +116,59 @@ func buildClassicEmbed(view appavailability.WeeklyView) *discordgo.MessageEmbed 
 
 // buildClassicComponents returns the action row with the original weekly buttons,
 // plus "Mon fuseau" when the slots are hours.
-func buildClassicComponents(hourly bool) []discordgo.MessageComponent {
+func buildClassicComponents(m *i18n.Messages, hourly bool) []discordgo.MessageComponent {
 	buttons := []discordgo.MessageComponent{
 		discordgo.Button{
-			Label:    "✏️ Mes dispos",
+			Label:    m.BtnMyDispos,
 			Style:    discordgo.PrimaryButton,
 			CustomID: OpenDisposCustomIDPrefix,
 		},
 		discordgo.Button{
-			Label:    "📋 Voir les dispos",
+			Label:    m.BtnViewDispos,
 			Style:    discordgo.SecondaryButton,
 			CustomID: ViewDisposCustomIDPrefix,
 		},
 		discordgo.Button{
-			Label:    "🚫 Pas dispo cette semaine",
+			Label:    m.BtnUnavailable,
 			Style:    discordgo.SecondaryButton,
 			CustomID: UnavailableCustomIDPrefix,
 		},
 	}
 	if hourly {
-		buttons = append(buttons, myTimeButton())
+		buttons = append(buttons, myTimeButton(m))
 	}
 	return []discordgo.MessageComponent{discordgo.ActionsRow{Components: buttons}}
 }
 
 // myTimeButton shows the week's grid in the member's own timezone.
-func myTimeButton() discordgo.Button {
+func myTimeButton(m *i18n.Messages) discordgo.Button {
 	return discordgo.Button{
-		Label:    "🌍 Mon fuseau",
+		Label:    m.BtnMyTimezone,
 		Style:    discordgo.SecondaryButton,
 		CustomID: MyTimeCustomIDPrefix,
 	}
 }
 
 // buildImageContainer lays out the "image" display: title, grid image, actions.
-func buildImageContainer(view appavailability.WeeklyView) discordgo.Container {
-	legend := "🟩 beaucoup · 🟨 moyen · ⬛ peu"
+func buildImageContainer(m *i18n.Messages, view appavailability.WeeklyView) discordgo.Container {
+	legend := m.ImageLegend
 	if view.Legend != "" {
 		legend = view.Legend + " · " + legend
 	}
 	buttons := []discordgo.MessageComponent{
 		discordgo.Button{
-			Label:    "✏️ Mes dispos",
+			Label:    m.BtnMyDispos,
 			Style:    discordgo.PrimaryButton,
 			CustomID: OpenDisposCustomIDPrefix,
 		},
 		discordgo.Button{
-			Label:    "🚫 Pas dispo cette semaine",
+			Label:    m.BtnUnavailable,
 			Style:    discordgo.SecondaryButton,
 			CustomID: UnavailableCustomIDPrefix,
 		},
 	}
 	if view.Hourly {
-		buttons = append(buttons, myTimeButton())
+		buttons = append(buttons, myTimeButton(m))
 	}
 
 	accent := weeklyAccentColor
@@ -180,7 +181,7 @@ func buildImageContainer(view appavailability.WeeklyView) discordgo.Container {
 			},
 			discordgo.ActionsRow{Components: buttons},
 			discordgo.ActionsRow{
-				Components: []discordgo.MessageComponent{buildWhoDisposSelect()},
+				Components: []discordgo.MessageComponent{buildWhoDisposSelect(m)},
 			},
 		},
 	}
@@ -188,19 +189,19 @@ func buildImageContainer(view appavailability.WeeklyView) discordgo.Container {
 
 // buildWhoDisposSelect lets members see who is available on a given day (answered in ephemeral).
 // Discord has no clickable grid, so this select replaces "clicking a cell".
-func buildWhoDisposSelect() discordgo.SelectMenu {
+func buildWhoDisposSelect(m *i18n.Messages) discordgo.SelectMenu {
 	options := []discordgo.SelectMenuOption{
-		{Label: "Toute la semaine", Value: whoDisposAllValue, Emoji: &discordgo.ComponentEmoji{Name: "📋"}},
+		{Label: m.WhoWholeWeek, Value: whoDisposAllValue, Emoji: &discordgo.ComponentEmoji{Name: "📋"}},
 	}
 	for day := 0; day < availability.DaysPerWeek; day++ {
 		options = append(options, discordgo.SelectMenuOption{
-			Label: appavailability.DayLabel(day),
+			Label: m.Days[day],
 			Value: strconv.Itoa(day),
 		})
 	}
 	return discordgo.SelectMenu{
 		CustomID:    WhoDisposCustomIDPrefix,
-		Placeholder: "👀 Voir qui est dispo…",
+		Placeholder: m.WhoPlaceholder,
 		Options:     options,
 	}
 }

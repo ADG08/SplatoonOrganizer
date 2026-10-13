@@ -88,7 +88,7 @@ func main() {
 		log.Fatalf("register view dispos handler: %v", err)
 	}
 
-	if err := reg.RegisterCommand(commands.NewFuseauCommand(availSvc)); err != nil {
+	if err := reg.RegisterCommand(commands.NewFuseauCommand(availSvc, guildConfigSvc)); err != nil {
 		log.Fatalf("register fuseau command: %v", err)
 	}
 
@@ -96,7 +96,7 @@ func main() {
 		log.Fatalf("register timezone select handler: %v", err)
 	}
 
-	if err := reg.RegisterHandler(handlers.NewTimezoneEditHandler()); err != nil {
+	if err := reg.RegisterHandler(handlers.NewTimezoneEditHandler(guildConfigSvc)); err != nil {
 		log.Fatalf("register timezone edit handler: %v", err)
 	}
 
@@ -111,7 +111,7 @@ func main() {
 	if err := reg.RegisterHandler(handlers.NewSelectDisposHandler(availSvc, guildConfigSvc, refresher)); err != nil {
 		log.Fatalf("register select dispos handler: %v", err)
 	}
-	if err := reg.RegisterHandler(handlers.NewUnavailableDisposHandler(availSvc, refresher)); err != nil {
+	if err := reg.RegisterHandler(handlers.NewUnavailableDisposHandler(availSvc, guildConfigSvc, refresher)); err != nil {
 		log.Fatalf("register unavailable dispos handler: %v", err)
 	}
 	if err := reg.RegisterHandler(handlers.NewHelpConfigHandler(guildConfigSvc, availSvc, cfg.DiscordOwnerID)); err != nil {

@@ -5,6 +5,7 @@ import (
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 )
 
 // Repository is the outbound port for guild configuration persistence.
@@ -14,5 +15,5 @@ type Repository interface {
 	ListWithChannel(ctx context.Context) ([]*guildconfig.GuildConfig, error)
 	SetChannel(ctx context.Context, guildID, channelID string) error
 	SetRole(ctx context.Context, guildID, roleID string) error
-	SetSlotSettings(ctx context.Context, guildID string, layout availability.Layout, display guildconfig.Display) error
+	SetMessageSettings(ctx context.Context, guildID string, layout availability.Layout, display guildconfig.Display, lang i18n.Lang) error
 }

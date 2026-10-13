@@ -9,10 +9,11 @@ import (
 	"time"
 )
 
-// Timezone ties a place to its IANA timezone.
+// Timezone ties a place, named in French and English, to its IANA timezone.
 type Timezone struct {
-	Zone  string // IANA name, e.g. "Europe/Paris"
-	Where string // e.g. "France"
+	Zone string // IANA name, e.g. "Europe/Paris"
+	Fr   string // e.g. "Allemagne"
+	En   string // e.g. "Germany"
 }
 
 // Countries maps places to their timezone, francophone places first: they come first in
@@ -20,111 +21,111 @@ type Timezone struct {
 // the current date, so daylight saving time moves a country to the right offset by itself.
 var Countries = []Timezone{
 	// Francophonie
-	{"Europe/Paris", "France"},
-	{"Europe/Brussels", "Belgique"},
-	{"Europe/Zurich", "Suisse"},
-	{"Europe/Luxembourg", "Luxembourg"},
-	{"America/Toronto", "Québec"},
-	{"America/Martinique", "Martinique"},
-	{"America/Guadeloupe", "Guadeloupe"},
-	{"America/Cayenne", "Guyane"},
-	{"America/Miquelon", "Saint-Pierre-et-Miquelon"},
-	{"America/Port-au-Prince", "Haïti"},
-	{"Indian/Reunion", "La Réunion"},
-	{"Indian/Mayotte", "Mayotte"},
-	{"Indian/Mauritius", "Maurice"},
-	{"Indian/Antananarivo", "Madagascar"},
-	{"Pacific/Noumea", "Nouvelle-Calédonie"},
-	{"Pacific/Tahiti", "Tahiti"},
-	{"Pacific/Marquesas", "Marquises"},
-	{"Pacific/Wallis", "Wallis-et-Futuna"},
-	{"Africa/Casablanca", "Maroc"},
-	{"Africa/Algiers", "Algérie"},
-	{"Africa/Tunis", "Tunisie"},
-	{"Africa/Dakar", "Sénégal"},
-	{"Africa/Abidjan", "Côte d'Ivoire"},
-	{"Africa/Douala", "Cameroun"},
-	{"Africa/Kinshasa", "RD Congo"},
+	{"Europe/Paris", "France", "France"},
+	{"Europe/Brussels", "Belgique", "Belgium"},
+	{"Europe/Zurich", "Suisse", "Switzerland"},
+	{"Europe/Luxembourg", "Luxembourg", "Luxembourg"},
+	{"America/Toronto", "Québec", "Quebec"},
+	{"America/Martinique", "Martinique", "Martinique"},
+	{"America/Guadeloupe", "Guadeloupe", "Guadeloupe"},
+	{"America/Cayenne", "Guyane", "French Guiana"},
+	{"America/Miquelon", "Saint-Pierre-et-Miquelon", "Saint Pierre and Miquelon"},
+	{"America/Port-au-Prince", "Haïti", "Haiti"},
+	{"Indian/Reunion", "La Réunion", "Réunion"},
+	{"Indian/Mayotte", "Mayotte", "Mayotte"},
+	{"Indian/Mauritius", "Maurice", "Mauritius"},
+	{"Indian/Antananarivo", "Madagascar", "Madagascar"},
+	{"Pacific/Noumea", "Nouvelle-Calédonie", "New Caledonia"},
+	{"Pacific/Tahiti", "Tahiti", "Tahiti"},
+	{"Pacific/Marquesas", "Marquises", "Marquesas Islands"},
+	{"Pacific/Wallis", "Wallis-et-Futuna", "Wallis and Futuna"},
+	{"Africa/Casablanca", "Maroc", "Morocco"},
+	{"Africa/Algiers", "Algérie", "Algeria"},
+	{"Africa/Tunis", "Tunisie", "Tunisia"},
+	{"Africa/Dakar", "Sénégal", "Senegal"},
+	{"Africa/Abidjan", "Côte d'Ivoire", "Ivory Coast"},
+	{"Africa/Douala", "Cameroun", "Cameroon"},
+	{"Africa/Kinshasa", "RD Congo", "DR Congo"},
 	// Europe
-	{"Europe/London", "Royaume-Uni"},
-	{"Europe/Dublin", "Irlande"},
-	{"Europe/Lisbon", "Portugal"},
-	{"Atlantic/Reykjavik", "Islande"},
-	{"Europe/Madrid", "Espagne"},
-	{"Europe/Rome", "Italie"},
-	{"Europe/Berlin", "Allemagne"},
-	{"Europe/Amsterdam", "Pays-Bas"},
-	{"Europe/Warsaw", "Pologne"},
-	{"Europe/Stockholm", "Suède"},
-	{"Europe/Athens", "Grèce"},
-	{"Europe/Helsinki", "Finlande"},
-	{"Europe/Bucharest", "Roumanie"},
-	{"Europe/Kyiv", "Ukraine"},
-	{"Europe/Istanbul", "Turquie"},
-	{"Europe/Moscow", "Russie (Moscou)"},
-	{"Atlantic/Azores", "Açores"},
-	{"Atlantic/Cape_Verde", "Cap-Vert"},
+	{"Europe/London", "Royaume-Uni", "United Kingdom"},
+	{"Europe/Dublin", "Irlande", "Ireland"},
+	{"Europe/Lisbon", "Portugal", "Portugal"},
+	{"Atlantic/Reykjavik", "Islande", "Iceland"},
+	{"Europe/Madrid", "Espagne", "Spain"},
+	{"Europe/Rome", "Italie", "Italy"},
+	{"Europe/Berlin", "Allemagne", "Germany"},
+	{"Europe/Amsterdam", "Pays-Bas", "Netherlands"},
+	{"Europe/Warsaw", "Pologne", "Poland"},
+	{"Europe/Stockholm", "Suède", "Sweden"},
+	{"Europe/Athens", "Grèce", "Greece"},
+	{"Europe/Helsinki", "Finlande", "Finland"},
+	{"Europe/Bucharest", "Roumanie", "Romania"},
+	{"Europe/Kyiv", "Ukraine", "Ukraine"},
+	{"Europe/Istanbul", "Turquie", "Turkey"},
+	{"Europe/Moscow", "Russie (Moscou)", "Russia (Moscow)"},
+	{"Atlantic/Azores", "Açores", "Azores"},
+	{"Atlantic/Cape_Verde", "Cap-Vert", "Cape Verde"},
 	// Afrique, Moyen-Orient
-	{"Africa/Cairo", "Égypte"},
-	{"Africa/Johannesburg", "Afrique du Sud"},
-	{"Asia/Jerusalem", "Israël"},
-	{"Asia/Riyadh", "Arabie saoudite"},
-	{"Asia/Tehran", "Iran"},
-	{"Asia/Dubai", "Émirats arabes unis"},
-	{"Asia/Kabul", "Afghanistan"},
+	{"Africa/Cairo", "Égypte", "Egypt"},
+	{"Africa/Johannesburg", "Afrique du Sud", "South Africa"},
+	{"Asia/Jerusalem", "Israël", "Israel"},
+	{"Asia/Riyadh", "Arabie saoudite", "Saudi Arabia"},
+	{"Asia/Tehran", "Iran", "Iran"},
+	{"Asia/Dubai", "Émirats arabes unis", "United Arab Emirates"},
+	{"Asia/Kabul", "Afghanistan", "Afghanistan"},
 	// Asie
-	{"Asia/Karachi", "Pakistan"},
-	{"Asia/Kolkata", "Inde"},
-	{"Asia/Kathmandu", "Népal"},
-	{"Asia/Dhaka", "Bangladesh"},
-	{"Asia/Yangon", "Myanmar"},
-	{"Asia/Bangkok", "Thaïlande"},
-	{"Asia/Ho_Chi_Minh", "Vietnam"},
-	{"Asia/Jakarta", "Indonésie (Jakarta)"},
-	{"Asia/Shanghai", "Chine"},
-	{"Asia/Singapore", "Singapour"},
-	{"Asia/Manila", "Philippines"},
-	{"Asia/Taipei", "Taïwan"},
-	{"Asia/Hong_Kong", "Hong Kong"},
-	{"Asia/Tokyo", "Japon"},
-	{"Asia/Seoul", "Corée du Sud"},
-	{"Asia/Kamchatka", "Russie (Kamtchatka)"},
+	{"Asia/Karachi", "Pakistan", "Pakistan"},
+	{"Asia/Kolkata", "Inde", "India"},
+	{"Asia/Kathmandu", "Népal", "Nepal"},
+	{"Asia/Dhaka", "Bangladesh", "Bangladesh"},
+	{"Asia/Yangon", "Myanmar", "Myanmar"},
+	{"Asia/Bangkok", "Thaïlande", "Thailand"},
+	{"Asia/Ho_Chi_Minh", "Vietnam", "Vietnam"},
+	{"Asia/Jakarta", "Indonésie (Jakarta)", "Indonesia (Jakarta)"},
+	{"Asia/Shanghai", "Chine", "China"},
+	{"Asia/Singapore", "Singapour", "Singapore"},
+	{"Asia/Manila", "Philippines", "Philippines"},
+	{"Asia/Taipei", "Taïwan", "Taiwan"},
+	{"Asia/Hong_Kong", "Hong Kong", "Hong Kong"},
+	{"Asia/Tokyo", "Japon", "Japan"},
+	{"Asia/Seoul", "Corée du Sud", "South Korea"},
+	{"Asia/Kamchatka", "Russie (Kamtchatka)", "Russia (Kamchatka)"},
 	// Océanie
-	{"Australia/Perth", "Australie (Perth)"},
-	{"Australia/Darwin", "Australie (Darwin)"},
-	{"Australia/Adelaide", "Australie (Adélaïde)"},
-	{"Australia/Brisbane", "Australie (Brisbane)"},
-	{"Australia/Sydney", "Australie (Sydney)"},
-	{"Australia/Lord_Howe", "Île Lord Howe"},
-	{"Pacific/Guadalcanal", "Îles Salomon"},
-	{"Pacific/Auckland", "Nouvelle-Zélande"},
-	{"Pacific/Fiji", "Fidji"},
-	{"Pacific/Tongatapu", "Tonga"},
-	{"Pacific/Apia", "Samoa"},
-	{"Pacific/Kiritimati", "Kiribati (Line)"},
-	{"Pacific/Pago_Pago", "Samoa américaines"},
-	{"Pacific/Niue", "Niue"},
-	{"Pacific/Honolulu", "Hawaï"},
-	{"Etc/GMT+12", "Îles Baker et Howland (inhabitées)"}, // Etc/GMT+12 is UTC-12 (POSIX sign)
+	{"Australia/Perth", "Australie (Perth)", "Australia (Perth)"},
+	{"Australia/Darwin", "Australie (Darwin)", "Australia (Darwin)"},
+	{"Australia/Adelaide", "Australie (Adélaïde)", "Australia (Adelaide)"},
+	{"Australia/Brisbane", "Australie (Brisbane)", "Australia (Brisbane)"},
+	{"Australia/Sydney", "Australie (Sydney)", "Australia (Sydney)"},
+	{"Australia/Lord_Howe", "Île Lord Howe", "Lord Howe Island"},
+	{"Pacific/Guadalcanal", "Îles Salomon", "Solomon Islands"},
+	{"Pacific/Auckland", "Nouvelle-Zélande", "New Zealand"},
+	{"Pacific/Fiji", "Fidji", "Fiji"},
+	{"Pacific/Tongatapu", "Tonga", "Tonga"},
+	{"Pacific/Apia", "Samoa", "Samoa"},
+	{"Pacific/Kiritimati", "Kiribati (Line)", "Kiribati (Line Islands)"},
+	{"Pacific/Pago_Pago", "Samoa américaines", "American Samoa"},
+	{"Pacific/Niue", "Niue", "Niue"},
+	{"Pacific/Honolulu", "Hawaï", "Hawaii"},
+	{"Etc/GMT+12", "Îles Baker et Howland (inhabitées)", "Baker and Howland Islands (uninhabited)"}, // Etc/GMT+12 is UTC-12 (POSIX sign)
 	// Amériques
-	{"America/Anchorage", "Alaska"},
-	{"America/Los_Angeles", "USA (Los Angeles)"},
-	{"America/Vancouver", "Canada (Vancouver)"},
-	{"America/Phoenix", "USA (Arizona)"},
-	{"America/Denver", "USA (Denver)"},
-	{"America/Mexico_City", "Mexique"},
-	{"America/Chicago", "USA (Chicago, Texas)"},
-	{"America/New_York", "USA (New York)"},
-	{"America/Bogota", "Colombie"},
-	{"America/Lima", "Pérou"},
-	{"America/Caracas", "Venezuela"},
-	{"America/Santiago", "Chili"},
-	{"America/St_Johns", "Terre-Neuve"},
-	{"America/Sao_Paulo", "Brésil (São Paulo)"},
-	{"America/Argentina/Buenos_Aires", "Argentine"},
-	{"America/Montevideo", "Uruguay"},
-	{"America/Noronha", "Brésil (Noronha)"},
-	{"America/Nuuk", "Groenland"},
+	{"America/Anchorage", "Alaska", "Alaska"},
+	{"America/Los_Angeles", "USA (Los Angeles)", "USA (Los Angeles)"},
+	{"America/Vancouver", "Canada (Vancouver)", "Canada (Vancouver)"},
+	{"America/Phoenix", "USA (Arizona)", "USA (Arizona)"},
+	{"America/Denver", "USA (Denver)", "USA (Denver)"},
+	{"America/Mexico_City", "Mexique", "Mexico"},
+	{"America/Chicago", "USA (Chicago, Texas)", "USA (Chicago, Texas)"},
+	{"America/New_York", "USA (New York)", "USA (New York)"},
+	{"America/Bogota", "Colombie", "Colombia"},
+	{"America/Lima", "Pérou", "Peru"},
+	{"America/Caracas", "Venezuela", "Venezuela"},
+	{"America/Santiago", "Chili", "Chile"},
+	{"America/St_Johns", "Terre-Neuve", "Newfoundland"},
+	{"America/Sao_Paulo", "Brésil (São Paulo)", "Brazil (São Paulo)"},
+	{"America/Argentina/Buenos_Aires", "Argentine", "Argentina"},
+	{"America/Montevideo", "Uruguay", "Uruguay"},
+	{"America/Noronha", "Brésil (Noronha)", "Brazil (Noronha)"},
+	{"America/Nuuk", "Groenland", "Greenland"},
 }
 
 // countryLocations are the locations of Countries, loaded once (LoadLocation reads and
@@ -139,14 +140,14 @@ var countryLocations = sync.OnceValue(func() []*time.Location {
 
 // CountriesByOffset groups the places of Countries by their UTC offset (in seconds) at the
 // given time, in list order.
-func CountriesByOffset(at time.Time) map[int][]string {
-	byOffset := make(map[int][]string)
+func CountriesByOffset(at time.Time) map[int][]Timezone {
+	byOffset := make(map[int][]Timezone)
 	for i, loc := range countryLocations() {
 		if loc == nil {
 			continue
 		}
 		_, offset := at.In(loc).Zone()
-		byOffset[offset] = append(byOffset[offset], Countries[i].Where)
+		byOffset[offset] = append(byOffset[offset], Countries[i])
 	}
 	return byOffset
 }
@@ -196,23 +197,4 @@ func FormatUTCOffset(offset int) string {
 		return fmt.Sprintf("UTC%s%d:%02d", sign, offset/3600, m)
 	}
 	return fmt.Sprintf("UTC%s%d", sign, offset/3600)
-}
-
-// TimezoneName describes a location for members: the place of Countries when known,
-// else the IANA name or the UTC offset.
-func TimezoneName(loc *time.Location) string {
-	for _, tz := range Countries {
-		if tz.Zone == loc.String() {
-			return tz.Where
-		}
-	}
-	return loc.String()
-}
-
-// ClockLabel formats a time of day the French way: "20h", "20h30".
-func ClockLabel(t time.Time) string {
-	if t.Minute() == 0 {
-		return fmt.Sprintf("%dh", t.Hour())
-	}
-	return fmt.Sprintf("%dh%02d", t.Hour(), t.Minute())
 }

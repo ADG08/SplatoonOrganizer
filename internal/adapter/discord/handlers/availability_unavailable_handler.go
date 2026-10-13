@@ -6,18 +6,20 @@ import (
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
+	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/bwmarrin/discordgo"
 )
 
 // UnavailableDisposHandler handles the "Pas dispo cette semaine" button click.
 type UnavailableDisposHandler struct {
 	svc       *appavailability.Service
+	guildCfg  *appguildconfig.Service
 	refresher *WeeklyRefresher
 }
 
 // NewUnavailableDisposHandler creates a new unavailable dispos handler.
-func NewUnavailableDisposHandler(svc *appavailability.Service, refresher *WeeklyRefresher) *UnavailableDisposHandler {
-	return &UnavailableDisposHandler{svc: svc, refresher: refresher}
+func NewUnavailableDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service, refresher *WeeklyRefresher) *UnavailableDisposHandler {
+	return &UnavailableDisposHandler{svc: svc, guildCfg: guildCfg, refresher: refresher}
 }
 
 func (h *UnavailableDisposHandler) CustomID() string {
@@ -27,22 +29,26 @@ func (h *UnavailableDisposHandler) CustomID() string {
 var _ discord.InteractionHandler = (*UnavailableDisposHandler)(nil)
 
 func (h *UnavailableDisposHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg := loadGuildConfig(s, i, h.guildCfg)
+	if cfg == nil {
+		return nil
+	}
+	m := cfg.Messages()
 	userID := getUserID(i)
 	if userID == "" {
 		log.Printf("unavailable dispos handler: could not determine user ID from interaction")
-		return respondWithError(s, i, "Impossible de déterminer ton utilisateur Discord pour cette interaction.")
+		return respondWithError(s, i, m.ErrUnknownUser)
 	}
-	ctx := context.Background()
 
-	nowUnavailable, err := h.svc.ToggleWeekUnavailable(ctx, i.GuildID, userID)
+	nowUnavailable, err := h.svc.ToggleWeekUnavailable(context.Background(), i.GuildID, userID)
 	if err != nil {
 		log.Printf("error toggling week unavailability: %v", err)
-		return respondWithError(s, i, "Erreur lors de la mise à jour de ta disponibilité.")
+		return respondWithError(s, i, m.ErrGeneric)
 	}
 
-	content := "✅ Tu es de nouveau disponible cette semaine. Configure tes créneaux avec **✏️ Mes dispos**."
+	content := m.AvailableAgain
 	if nowUnavailable {
-		content = "🚫 Tu es marqué **indisponible** pour toute la semaine. Tes créneaux ont été effacés. Reclique sur le bouton (ou coche un créneau) pour revenir disponible."
+		content = m.UnavailableNow
 	}
 
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{

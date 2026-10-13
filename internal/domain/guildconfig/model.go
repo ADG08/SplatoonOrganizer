@@ -1,6 +1,9 @@
 package guildconfig
 
-import "github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
+import (
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
+)
 
 // Display selects how the weekly availability message is shown.
 type Display string
@@ -20,4 +23,10 @@ type GuildConfig struct {
 	RoleID     string
 	SlotLayout availability.Layout // how days are split into slots (half-day by default)
 	Display    Display             // how the weekly message is shown (classic by default)
+	Language   i18n.Lang           // language of the bot in the guild (French by default)
+}
+
+// Messages returns the texts in the guild's language.
+func (c *GuildConfig) Messages() *i18n.Messages {
+	return i18n.For(c.Language)
 }
