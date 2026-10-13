@@ -83,7 +83,8 @@ docker compose down
 | Commande | Permission | Description |
 |---|---|---|
 | `/dispos` | Tous | Affiche le détail des disponibilités de la semaine avec les mentions des joueurs (message éphémère). |
-| `/help` | Admin | Ouvre un panneau de configuration moderne avec sélecteurs interactifs (salon + rôle à ping). |
+| `/fuseau` | Tous | Choisit son fuseau horaire (autocomplétion, ou décalage comme `UTC+5:30`) pour voir les créneaux à son heure. |
+| `/help` | Admin | Ouvre un panneau de configuration moderne avec sélecteurs interactifs (salon, rôle à ping, créneaux et affichage). |
 | `/post-dispos` | Tous | Déclenche manuellement la publication du message hebdomadaire. |
 | `/set-message-channel channel:<#salon>` | Admin | Définit le salon où le message hebdomadaire est publié. |
 | `/set-role-to-ping role:<@role>` | Admin | Définit le rôle à mentionner lors de la publication. |
@@ -93,8 +94,29 @@ docker compose down
 Lorsque le message hebdomadaire est publié, un bouton **✏️ Mes dispos** est affiché. En cliquant dessus :
 
 1. Des menus déroulants privés (éphémères) s'ouvrent, un par jour de la semaine (Lundi–Dimanche).
-2. Pour chaque jour, l'utilisateur peut sélectionner **Après-midi**, **Soir**, les deux, ou aucun.
+2. Pour chaque jour, l'utilisateur peut sélectionner **Après-midi**, **Soir**, les deux, ou aucun (en mode **Par heure** : n'importe quelle combinaison d'heures, affichées à son heure).
 3. Les choix sont enregistrés en base de données et le tableau public est mis à jour en temps réel.
+
+### Créneaux et affichage
+
+Depuis `/help` → **🕒 Configurer les créneaux**, un admin choisit :
+
+- le **découpage** : **Après-midi / Soir** (par défaut) ou **Par heure**, un créneau par heure entre une première heure et une heure de fin (heure de Paris, `minuit` possible) ;
+- l'**affichage** du message de la semaine :
+  - **Classique** (par défaut) : l'embed d'origine avec le tableau en texte ;
+  - **Image** : la grille dessinée en image (WebP générée par le bot, cases colorées selon le nombre de dispos) dans un message Components V2, avec un menu **👀 Voir qui est dispo…** qui affiche en privé qui est dispo un jour donné.
+
+Changer le découpage réinitialise les dispos de la semaine en cours ; changer l'affichage republie le message. Le réglage est stocké par serveur dans `guild_config`. La grille publique est à l'heure de Paris (Discord ne convertit pas les heures dans un bloc de code ni dans une image) ; les listes « Voir les dispos » utilisent les timestamps Discord, affichés dans le fuseau de chacun.
+
+### Fuseaux horaires (mode Par heure)
+
+Le bot ne peut pas connaître le fuseau d'un membre (Discord ne le transmet pas). Au premier clic sur **✏️ Mes dispos** ou **🌍 Mon fuseau**, il lui demande son décalage UTC (deux menus : UTC-12 → UTC-1 et UTC+0 → UTC+14, demi-heures comprises, chacun avec l'heure actuelle), puis le retient (table `user_timezone`) :
+
+- les menus **✏️ Mes dispos** affichent les créneaux à l'heure du membre (ex. « 14h – 15h » à Montréal pour 20h à Paris, « Mar 3h – 4h » à Tokyo) ;
+- le bouton **🌍 Mon fuseau** lui renvoie en privé la grille de la semaine recalculée à son heure, avec un bouton **⚙️ Modifier mon fuseau** ;
+- le message public reste à l'heure de Paris, puisqu'il est partagé par tous.
+
+Un décalage fixe ne suit pas l'heure d'été : `/fuseau` accepte aussi un fuseau nommé (ex. `Europe/Paris`) qui, lui, la suit automatiquement.
 
 ## Planification automatique
 
@@ -154,7 +176,7 @@ CREATE TABLE sondage_messages (
 CREATE TABLE dispos (
     user_id    TEXT     NOT NULL,
     day_index  SMALLINT NOT NULL,  -- 0=Lundi … 6=Dimanche
-    slot_index SMALLINT NOT NULL,  -- 0=Après-midi, 1=Soir
+    slot_index SMALLINT NOT NULL,  -- Après-midi/Soir : 0, 1 · Par heure : 0 = première heure, 1 = +1h…
     week       TEXT     NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     CONSTRAINT dispos_unique_per_week UNIQUE (user_id, day_index, slot_index, week)
@@ -164,7 +186,18 @@ CREATE TABLE dispos (
 CREATE TABLE guild_config (
     guild_id   TEXT PRIMARY KEY,
     channel_id TEXT,  -- Salon de publication
-    role_id    TEXT   -- Rôle à mentionner
+    role_id    TEXT,  -- Rôle à mentionner
+    slot_mode       TEXT,      -- NULL/'halfday' = Après-midi/Soir, 'hourly' = par heure
+    slot_start_hour SMALLINT,  -- mode hourly : première heure (0-23)
+    slot_end_hour   SMALLINT,  -- mode hourly : fin du dernier créneau (1-24, 24 = minuit)
+    display_style   TEXT       -- NULL/'classic' = embed texte, 'image' = grille en image
+);
+
+-- Fuseau horaire choisi par chaque membre (mode Par heure)
+CREATE TABLE user_timezone (
+    user_id    TEXT PRIMARY KEY,
+    timezone   TEXT NOT NULL,  -- "UTC+2" ou nom IANA ("Europe/Paris")
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 ```
 
