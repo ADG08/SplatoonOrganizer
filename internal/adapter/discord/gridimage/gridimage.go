@@ -9,6 +9,7 @@ import (
 	"image/color"
 	"image/draw"
 	"image/png"
+	"math"
 	"sync"
 
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
@@ -141,29 +142,18 @@ func cellColor(count, peak int) color.RGBA {
 }
 
 // fillRoundRect paints r with rounded corners of the given radius, blending over dst.
+// Corner pixels are anti-aliased: their opacity is the part of the pixel inside the arc.
 func fillRoundRect(dst *image.RGBA, r image.Rectangle, rad int, c color.RGBA) {
-	mask := image.NewAlpha(image.Rect(0, 0, r.Dx(), r.Dy()))
 	w, h := r.Dx(), r.Dy()
+	mask := image.NewAlpha(image.Rect(0, 0, w, h))
+	radius := float64(rad)
 	for y := 0; y < h; y++ {
 		for x := 0; x < w; x++ {
-			// Distance to the nearest corner center, only relevant inside the corner squares.
-			cx, cy := x, y
-			switch {
-			case x < rad:
-				cx = rad
-			case x >= w-rad:
-				cx = w - rad - 1
-			}
-			switch {
-			case y < rad:
-				cy = rad
-			case y >= h-rad:
-				cy = h - rad - 1
-			}
-			dx, dy := x-cx, y-cy
-			if dx*dx+dy*dy <= rad*rad {
-				mask.SetAlpha(x, y, color.Alpha{A: 0xff})
-			}
+			// Pixel center relative to the nearest corner's arc center; zero outside corners.
+			dx := max(radius-(float64(x)+0.5), (float64(x)+0.5)-float64(w-rad), 0)
+			dy := max(radius-(float64(y)+0.5), (float64(y)+0.5)-float64(h-rad), 0)
+			coverage := min(max(radius-math.Hypot(dx, dy)+0.5, 0), 1)
+			mask.SetAlpha(x, y, color.Alpha{A: uint8(coverage * 0xff)})
 		}
 	}
 	draw.DrawMask(dst, r, image.NewUniform(c), image.Point{}, mask, image.Point{}, draw.Over)
