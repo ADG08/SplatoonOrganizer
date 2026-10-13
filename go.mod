@@ -3,7 +3,6 @@ module github.com/ADG08/SplatoonOrganizer
 go 1.26.0
 
 require (
-	github.com/HugoSmits86/nativewebp v1.3.0
 	github.com/bwmarrin/discordgo v0.29.1-0.20260214123928-f43dd94faaac
 	github.com/jackc/pgx/v5 v5.9.1
 	github.com/joho/godotenv v1.5.1

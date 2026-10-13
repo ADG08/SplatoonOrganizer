@@ -15,7 +15,7 @@ import (
 const (
 	weeklyAccentColor = 0xFEE75C
 	// weeklyImageName is the attachment holding the grid image of the "image" display.
-	weeklyImageName = "dispos.webp"
+	weeklyImageName = "dispos.png"
 	// whoDisposAllValue is the "who is available" option showing the whole week.
 	whoDisposAllValue = "all"
 )
@@ -53,7 +53,7 @@ func BuildWeeklyPayload(view appavailability.WeeklyView, roleID string, display 
 	if err != nil {
 		return nil, fmt.Errorf("render grid image: %w", err)
 	}
-	p.Files = []*discordgo.File{{Name: weeklyImageName, ContentType: "image/webp", Reader: bytes.NewReader(img)}}
+	p.Files = []*discordgo.File{{Name: weeklyImageName, ContentType: "image/png", Reader: bytes.NewReader(img)}}
 	p.Flags = discordgo.MessageFlagsIsComponentsV2
 	if roleID != "" {
 		p.Components = append(p.Components, discordgo.TextDisplay{Content: "<@&" + roleID + ">"})

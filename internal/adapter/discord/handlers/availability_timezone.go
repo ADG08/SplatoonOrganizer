@@ -137,7 +137,7 @@ func sendLocalGrid(s *discordgo.Session, i *discordgo.InteractionCreate, svc *ap
 		}
 		accent := weeklyAccentColor
 		params.Flags |= discordgo.MessageFlagsIsComponentsV2
-		params.Files = []*discordgo.File{{Name: weeklyImageName, ContentType: "image/webp", Reader: bytes.NewReader(img)}}
+		params.Files = []*discordgo.File{{Name: weeklyImageName, ContentType: "image/png", Reader: bytes.NewReader(img)}}
 		params.Components = []discordgo.MessageComponent{discordgo.Container{
 			AccentColor: &accent,
 			Components: []discordgo.MessageComponent{

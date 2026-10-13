@@ -1,4 +1,4 @@
-// Package gridimage draws the weekly availability grid as a WebP image, for the "image" style
+// Package gridimage draws the weekly availability grid as a PNG image, for the "image" style
 // of the weekly message (colored rounded cells, like a heatmap).
 package gridimage
 
@@ -8,10 +8,10 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
+	"image/png"
 	"sync"
 
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
-	"github.com/HugoSmits86/nativewebp"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/gobold"
 	"golang.org/x/image/font/gofont/goregular"
@@ -74,18 +74,18 @@ func loadFonts() {
 	rowFace = face(bold, rowSize)
 }
 
-// Render draws view.Counts as a lossless WebP: one row per day, one rounded cell per slot,
+// Render draws view.Counts as a PNG: one row per day, one rounded cell per slot,
 // colored by headcount relative to the best slot of the week.
 func Render(view appavailability.WeeklyView) ([]byte, error) {
 	img, err := drawGrid(view)
 	if err != nil {
 		return nil, err
 	}
-	// The encoding time hardly depends on the level, and on these flat colors the fastest
-	// level gives the smallest file.
+	// PNG at the fastest level: a few milliseconds where the pure Go WebP encoder took
+	// ~300 ms, for a file a few dozen KB heavier that Discord converts for display anyway.
 	var buf bytes.Buffer
-	if err := nativewebp.Encode(&buf, img, &nativewebp.Options{CompressionLevel: nativewebp.BestSpeed}); err != nil {
-		return nil, fmt.Errorf("encode webp: %w", err)
+	if err := (&png.Encoder{CompressionLevel: png.BestSpeed}).Encode(&buf, img); err != nil {
+		return nil, fmt.Errorf("encode png: %w", err)
 	}
 	return buf.Bytes(), nil
 }

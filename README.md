@@ -104,7 +104,7 @@ Depuis `/help` → **🕒 Configurer les créneaux**, un admin choisit :
 - le **découpage** : **Après-midi / Soir** (par défaut) ou **Par heure**, un créneau par heure entre une première heure et une heure de fin (heure de Paris, `minuit` possible) ;
 - l'**affichage** du message de la semaine :
   - **Classique** (par défaut) : l'embed d'origine avec le tableau en texte ;
-  - **Image** : la grille dessinée en image (WebP générée par le bot, cases colorées selon le nombre de dispos) dans un message Components V2, avec un menu **👀 Voir qui est dispo…** qui affiche en privé qui est dispo un jour donné.
+  - **Image** : la grille dessinée en image (PNG générée par le bot, cases colorées selon le nombre de dispos) dans un message Components V2, avec un menu **👀 Voir qui est dispo…** qui affiche en privé qui est dispo un jour donné.
 
 Changer le découpage réinitialise les dispos de la semaine en cours ; changer l'affichage republie le message. Le réglage est stocké par serveur dans `guild_config`. La grille publique est à l'heure de Paris (Discord ne convertit pas les heures dans un bloc de code ni dans une image) ; les listes « Voir les dispos » utilisent les timestamps Discord, affichés dans le fuseau de chacun.
 
