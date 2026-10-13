@@ -81,6 +81,14 @@ func splitLines(text string, limit int) []string {
 	return chunks
 }
 
+// withLegend appends the optional timezone legend to an ephemeral message content.
+func withLegend(content, legend string) string {
+	if legend == "" {
+		return content
+	}
+	return content + "\n" + legend
+}
+
 func respondWithError(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) error {
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,

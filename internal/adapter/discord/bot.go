@@ -79,6 +79,17 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		if err := cmd.Execute(s, i); err != nil {
 			log.Printf("error executing command %q: %v", data.Name, err)
 		}
+	case discordgo.InteractionApplicationCommandAutocomplete:
+		data := i.ApplicationCommandData()
+		cmd, ok := b.registry.GetCommand(data.Name)
+		if !ok {
+			return
+		}
+		if ac, ok := cmd.(Autocompleter); ok {
+			if err := ac.Autocomplete(s, i); err != nil {
+				log.Printf("error autocompleting command %q: %v", data.Name, err)
+			}
+		}
 	case discordgo.InteractionMessageComponent:
 		data := i.MessageComponentData()
 		handler, ok := b.registry.GetHandler(data.CustomID)

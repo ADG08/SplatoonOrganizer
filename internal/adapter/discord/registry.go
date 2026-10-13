@@ -14,6 +14,11 @@ type Command interface {
 	Execute(s *discordgo.Session, i *discordgo.InteractionCreate) error
 }
 
+// Autocompleter is implemented by commands whose options are autocompleted.
+type Autocompleter interface {
+	Autocomplete(s *discordgo.Session, i *discordgo.InteractionCreate) error
+}
+
 // InteractionHandler handles Discord message component interactions.
 type InteractionHandler interface {
 	CustomID() string

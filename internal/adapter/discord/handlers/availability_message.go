@@ -42,7 +42,7 @@ func BuildWeeklyPayload(view appavailability.WeeklyView, roleID string, display 
 
 	if display != guildconfig.DisplayImage {
 		p.Embeds = []*discordgo.MessageEmbed{buildClassicEmbed(view)}
-		p.Components = buildClassicComponents()
+		p.Components = buildClassicComponents(view.Hourly)
 		if roleID != "" {
 			p.Content = "<@&" + roleID + ">"
 		}
@@ -113,8 +113,9 @@ func buildClassicEmbed(view appavailability.WeeklyView) *discordgo.MessageEmbed 
 	}
 }
 
-// buildClassicComponents returns the action row with the original weekly buttons.
-func buildClassicComponents() []discordgo.MessageComponent {
+// buildClassicComponents returns the action row with the original weekly buttons,
+// plus "Mon fuseau" when the slots are hours.
+func buildClassicComponents(hourly bool) []discordgo.MessageComponent {
 	buttons := []discordgo.MessageComponent{
 		discordgo.Button{
 			Label:    "✏️ Mes dispos",
@@ -132,7 +133,19 @@ func buildClassicComponents() []discordgo.MessageComponent {
 			CustomID: UnavailableCustomIDPrefix,
 		},
 	}
+	if hourly {
+		buttons = append(buttons, myTimeButton())
+	}
 	return []discordgo.MessageComponent{discordgo.ActionsRow{Components: buttons}}
+}
+
+// myTimeButton shows the week's grid in the member's own timezone.
+func myTimeButton() discordgo.Button {
+	return discordgo.Button{
+		Label:    "🌍 Mon fuseau",
+		Style:    discordgo.SecondaryButton,
+		CustomID: MyTimeCustomIDPrefix,
+	}
 }
 
 // buildImageContainer lays out the "image" display: title, grid image, actions.
@@ -152,6 +165,9 @@ func buildImageContainer(view appavailability.WeeklyView) discordgo.Container {
 			Style:    discordgo.SecondaryButton,
 			CustomID: UnavailableCustomIDPrefix,
 		},
+	}
+	if view.Hourly {
+		buttons = append(buttons, myTimeButton())
 	}
 
 	accent := weeklyAccentColor

@@ -24,4 +24,8 @@ type Repository interface {
 	DeleteWeekUnavailable(ctx context.Context, week availability.WeekKey, userID string) error
 	IsUserWeekUnavailable(ctx context.Context, week availability.WeekKey, userID string) (bool, error)
 	GetWeekUnavailableUsers(ctx context.Context, week availability.WeekKey) ([]string, error)
+
+	// GetUserTimezone returns the IANA name a member picked, or "" when they never did.
+	GetUserTimezone(ctx context.Context, userID string) (string, error)
+	SetUserTimezone(ctx context.Context, userID, timezone string) error
 }

@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+	_ "time/tzdata" // timezones of members, even on hosts without tzdata
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/commands"
@@ -72,6 +73,22 @@ func main() {
 
 	if err := reg.RegisterHandler(handlers.NewViewDisposHandler(availSvc, guildConfigSvc)); err != nil {
 		log.Fatalf("register view dispos handler: %v", err)
+	}
+
+	if err := reg.RegisterCommand(commands.NewFuseauCommand(availSvc)); err != nil {
+		log.Fatalf("register fuseau command: %v", err)
+	}
+
+	if err := reg.RegisterHandler(handlers.NewTimezoneSelectHandler(availSvc, guildConfigSvc)); err != nil {
+		log.Fatalf("register timezone select handler: %v", err)
+	}
+
+	if err := reg.RegisterHandler(handlers.NewTimezoneEditHandler()); err != nil {
+		log.Fatalf("register timezone edit handler: %v", err)
+	}
+
+	if err := reg.RegisterHandler(handlers.NewMyTimeHandler(availSvc, guildConfigSvc)); err != nil {
+		log.Fatalf("register my time handler: %v", err)
 	}
 
 	if err := reg.RegisterHandler(handlers.NewWhoDisposHandler(availSvc, guildConfigSvc)); err != nil {

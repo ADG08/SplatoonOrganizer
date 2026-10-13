@@ -70,3 +70,22 @@ func TestHourlyLayoutValidation(t *testing.T) {
 		t.Errorf("HourlyLayout(0, 24): %v", err)
 	}
 }
+
+func TestCountriesTimezonesExist(t *testing.T) {
+	for _, c := range Countries {
+		if _, err := time.LoadLocation(c.Zone); err != nil {
+			t.Errorf("%s (%s): %v", c.Where, c.Zone, err)
+		}
+	}
+}
+
+func TestCountriesAtFollowDaylightSaving(t *testing.T) {
+	summer := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
+	winter := time.Date(2026, 12, 1, 12, 0, 0, 0, time.UTC)
+	if got := CountriesByOffset(summer)[2*3600]; len(got) == 0 || got[0] != "France" {
+		t.Errorf("summer UTC+2: %v", got)
+	}
+	if got := CountriesByOffset(winter)[3600]; len(got) == 0 || got[0] != "France" {
+		t.Errorf("winter UTC+1: %v", got)
+	}
+}

@@ -74,7 +74,11 @@ func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interact
 		log.Printf("error getting user availability after select: %v", err)
 		return respondWithError(s, i, "Erreur lors du rafraîchissement.")
 	}
-	label := func(day, slot int) string { return layout.Label(slot) }
+	loc, err := h.svc.UserTimezone(ctx, userID)
+	if err != nil {
+		log.Printf("error getting user timezone after select: %v", err)
+	}
+	label := func(day, slot int) string { return h.svc.SlotLabelIn(layout, week, day, slot, loc) }
 
 	// Update the ephemeral message: same chunk as the interacted menu (5 first days or 2 last days)
 	var components []discordgo.MessageComponent
@@ -87,7 +91,7 @@ func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interact
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
-			Content:    "Tes disponibilités ont été mises à jour.",
+			Content:    withLegend("Tes disponibilités ont été mises à jour.", timezoneLegend(layout, loc)),
 			Components: components,
 		},
 	}); err != nil {

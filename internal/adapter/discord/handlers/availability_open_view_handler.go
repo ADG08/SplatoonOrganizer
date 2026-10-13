@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"log"
+	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
@@ -47,33 +48,54 @@ func (h *OpenDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 		log.Printf("error getting slot layout: %v", err)
 		return respondWithError(s, i, "Erreur lors de la récupération de la configuration du serveur.")
 	}
-	return sendDisposMenus(s, i, h.svc, layout, userID)
+
+	// Hourly slots are shown in the member's timezone: ask for it the first time.
+	var loc *time.Location
+	if layout.IsHourly() {
+		if loc, err = h.svc.UserTimezone(ctx, userID); err != nil {
+			log.Printf("error getting user timezone: %v", err)
+			return respondWithError(s, i, "Erreur lors de la récupération de ton fuseau.")
+		}
+		if loc == nil {
+			return respondTimezonePicker(s, i, tzNextDispos)
+		}
+	}
+	return sendDisposMenus(s, i, h.svc, layout, userID, loc, false)
 }
 
 // sendDisposMenus sends the "Mes dispos" menus (5 days, then 2 days because of Discord's
-// 5 rows limit).
-func sendDisposMenus(s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, layout availability.Layout, userID string) error {
-	_, userSlots, err := svc.GetUserAvailability(context.Background(), userID)
+// 5 rows limit), labelled in the member's timezone. With followup, both are follow-ups.
+func sendDisposMenus(s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, layout availability.Layout, userID string, loc *time.Location, followup bool) error {
+	week, userSlots, err := svc.GetUserAvailability(context.Background(), userID)
 	if err != nil {
 		log.Printf("error getting user availability: %v", err)
 		return respondWithError(s, i, "Erreur lors de la récupération de vos disponibilités.")
 	}
-	label := func(day, slot int) string { return layout.Label(slot) }
+	label := func(day, slot int) string { return svc.SlotLabelIn(layout, week, day, slot, loc) }
 
-	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+	first := &discordgo.WebhookParams{
+		Content:    withLegend("Configure tes disponibilités pour la semaine en cours :", timezoneLegend(layout, loc)),
+		Flags:      discordgo.MessageFlagsEphemeral,
+		Components: buildUserDisposSelectMenus(layout, userSlots, 0, 5, label),
+	}
+	if followup {
+		if _, err := s.FollowupMessageCreate(i.Interaction, true, first); err != nil {
+			return err
+		}
+	} else if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content:    "Configure tes disponibilités pour la semaine en cours :",
-			Flags:      discordgo.MessageFlagsEphemeral,
-			Components: buildUserDisposSelectMenus(layout, userSlots, 0, 5, label),
-		},
+		Data: &discordgo.InteractionResponseData{Content: first.Content, Flags: first.Flags, Components: first.Components},
 	}); err != nil {
 		return err
+	}
+	second := buildUserDisposSelectMenus(layout, userSlots, 5, 2, label)
+	if layout.IsHourly() {
+		second = append(second, editTimezoneButton(tzNextDispos))
 	}
 	_, err = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
 		Content:    "Suite :",
 		Flags:      discordgo.MessageFlagsEphemeral,
-		Components: buildUserDisposSelectMenus(layout, userSlots, 5, 2, label),
+		Components: second,
 	})
 	return err
 }

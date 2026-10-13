@@ -2,11 +2,13 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/db"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -151,6 +153,24 @@ func (r *AvailabilityRepository) GetWeekUnavailableUsers(ctx context.Context, we
 		return nil, fmt.Errorf("get week unavailable users: %w", err)
 	}
 	return users, nil
+}
+
+func (r *AvailabilityRepository) GetUserTimezone(ctx context.Context, userID string) (string, error) {
+	zone, err := r.queries.GetUserTimezone(ctx, userID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("get user timezone: %w", err)
+	}
+	return zone, nil
+}
+
+func (r *AvailabilityRepository) SetUserTimezone(ctx context.Context, userID, timezone string) error {
+	if err := r.queries.SetUserTimezone(ctx, db.SetUserTimezoneParams{UserID: userID, Timezone: timezone}); err != nil {
+		return fmt.Errorf("set user timezone: %w", err)
+	}
+	return nil
 }
 
 func (r *AvailabilityRepository) GetAvailabilityCounts(ctx context.Context, week availability.WeekKey) ([]availability.SlotCount, error) {

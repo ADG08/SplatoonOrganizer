@@ -15,6 +15,11 @@ func respondWithError(s *discordgo.Session, i *discordgo.InteractionCreate, msg 
 	})
 }
 
+// respondEphemeral sends an ephemeral message only the user sees.
+func respondEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) error {
+	return respondWithError(s, i, msg)
+}
+
 // ErrAdminOrOwner is the message shown when the user is neither admin nor bot owner.
 const ErrAdminOrOwner = "Tu dois être administrateur du serveur ou le créateur du bot pour utiliser cette commande."
 

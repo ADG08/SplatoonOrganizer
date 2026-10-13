@@ -31,6 +31,12 @@ type SondageMessage struct {
 	MessageID string `json:"message_id"`
 }
 
+type UserTimezone struct {
+	UserID    string             `json:"user_id"`
+	Timezone  string             `json:"timezone"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type WeekUnavailable struct {
 	UserID    string             `json:"user_id"`
 	Week      string             `json:"week"`
