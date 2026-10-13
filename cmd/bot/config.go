@@ -6,8 +6,8 @@ import "os"
 type Config struct {
 	DiscordToken     string
 	DiscordClientID  string
-	DiscordGuildID   string
-	DiscordChannelID string
+	DiscordGuildID   string // Optional: the guild of single-guild versions, migrated on startup (see main).
+	DiscordChannelID string // Optional: that guild's channel, used when /help never set one.
 	DiscordOwnerID   string // Optional: Discord user ID of the bot creator (can use admin commands without being server admin).
 	DatabaseURL      string
 	CronSchedule     string
@@ -39,9 +39,6 @@ func LoadConfig() (*Config, error) {
 	}
 	if cfg.DiscordClientID == "" {
 		return nil, ErrEnv("DISCORD_CLIENT_ID is required")
-	}
-	if cfg.DiscordGuildID == "" {
-		return nil, ErrEnv("DISCORD_GUILD_ID is required")
 	}
 	if cfg.DatabaseURL == "" {
 		return nil, ErrEnv("DATABASE_URL is required")

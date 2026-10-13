@@ -17,15 +17,14 @@ const HelpConfigCustomIDPrefix = "help:config"
 
 // HelpConfigHandler handles channel/role/slots config from /help panel.
 type HelpConfigHandler struct {
-	svc            *appguildconfig.Service
-	availSvc       *appavailability.Service
-	ownerID        string
-	defaultChannel string
+	svc      *appguildconfig.Service
+	availSvc *appavailability.Service
+	ownerID  string
 }
 
-// NewHelpConfigHandler creates a new help config handler. ownerID and defaultChannelID are optional.
-func NewHelpConfigHandler(svc *appguildconfig.Service, availSvc *appavailability.Service, ownerID, defaultChannelID string) *HelpConfigHandler {
-	return &HelpConfigHandler{svc: svc, availSvc: availSvc, ownerID: ownerID, defaultChannel: defaultChannelID}
+// NewHelpConfigHandler creates a new help config handler. ownerID is optional.
+func NewHelpConfigHandler(svc *appguildconfig.Service, availSvc *appavailability.Service, ownerID string) *HelpConfigHandler {
+	return &HelpConfigHandler{svc: svc, availSvc: availSvc, ownerID: ownerID}
 }
 
 func (h *HelpConfigHandler) CustomID() string {
@@ -278,7 +277,7 @@ func (h *HelpConfigHandler) handleSlotsSubmit(s *discordgo.Session, i *discordgo
 	message := "Affichage mis a jour : le message de la semaine a ete republie."
 	if layoutChanged {
 		// Slot indexes of the old layout would be misread with the new one: start the week over.
-		if err := h.availSvc.ResetWeek(ctx, h.availSvc.CurrentWeek()); err != nil {
+		if err := h.availSvc.ResetWeek(ctx, guildID, h.availSvc.CurrentWeek()); err != nil {
 			log.Printf("help config modal: reset week: %v", err)
 			return respondWithError(s, i, "Creneaux enregistres, mais impossible de reinitialiser les dispos de la semaine.")
 		}
@@ -288,15 +287,11 @@ func (h *HelpConfigHandler) handleSlotsSubmit(s *discordgo.Session, i *discordgo
 	// The message may switch between an embed and Components V2: post it again rather than edit it.
 	cfg := previous
 	cfg.SlotLayout, cfg.Display = layout, display
-	channelID := h.defaultChannel
-	if cfg.ChannelID != "" {
-		channelID = cfg.ChannelID
-	}
-	if channelID == "" {
+	if cfg.ChannelID == "" {
 		message += " (aucun salon configure : rien n'a ete publie)"
 	} else {
 		go func() {
-			if err := PublishWeeklyMessage(context.Background(), s, h.availSvc, cfg, channelID); err != nil {
+			if err := PublishWeeklyMessage(context.Background(), s, h.availSvc, cfg); err != nil {
 				log.Printf("help config modal: republish weekly message: %v", err)
 			}
 		}()

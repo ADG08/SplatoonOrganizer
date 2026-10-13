@@ -1,53 +1,14 @@
 package handlers
 
 import (
-	"context"
 	"fmt"
-	"log"
 	"strconv"
 	"strings"
 	"unicode/utf8"
 
-	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
-	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/bwmarrin/discordgo"
 )
-
-// refreshWeeklyMessage re-renders the main weekly availability message (best-effort).
-func refreshWeeklyMessage(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, guildCfg *appguildconfig.Service, guildID string, week availability.WeekKey, channelID string) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("panic while refreshing main table: %v", r)
-		}
-	}()
-
-	counts, err := svc.GetAvailabilitySummary(ctx, week)
-	if err != nil {
-		log.Printf("error getting availability summary: %v", err)
-		return
-	}
-
-	cfg, err := guildCfg.Get(ctx, guildID)
-	if err != nil {
-		log.Printf("error getting guild config: %v", err)
-		return
-	}
-	msgID, err := svc.GetSondageMessageID(ctx, week)
-	if err != nil {
-		log.Printf("error getting sondage message id: %v", err)
-		return
-	}
-
-	payload, err := BuildWeeklyPayload(svc.BuildWeeklyView(cfg.SlotLayout, week, counts), cfg.RoleID, cfg.Display)
-	if err != nil {
-		log.Printf("error building weekly message: %v", err)
-		return
-	}
-	if _, err := s.ChannelMessageEditComplex(payload.MessageEdit(channelID, msgID)); err != nil {
-		log.Printf("error editing weekly message: %v", err)
-	}
-}
 
 // embedDescriptionLimit is Discord's maximum length of an embed description.
 const embedDescriptionLimit = 4096

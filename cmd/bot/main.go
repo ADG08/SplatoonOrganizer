@@ -56,14 +56,27 @@ func main() {
 	availSvc := appavailability.NewService(availRepo, loc)
 	guildConfigSvc := appguildconfig.NewService(guildConfigRepo)
 
+	// Single-guild versions took the weekly channel from the environment: keep it as that
+	// guild's configured channel, the only source of channels now.
+	if cfg.DiscordGuildID != "" && cfg.DiscordChannelID != "" {
+		if gc, err := guildConfigSvc.Get(ctx, cfg.DiscordGuildID); err != nil {
+			log.Fatalf("get guild config: %v", err)
+		} else if gc.ChannelID == "" {
+			if err := guildConfigSvc.SetChannel(ctx, cfg.DiscordGuildID, cfg.DiscordChannelID); err != nil {
+				log.Fatalf("set guild channel from env: %v", err)
+			}
+		}
+	}
+
 	// Adapters (primary / driving): Discord
 	reg := discord.NewRegistry()
+	refresher := handlers.NewWeeklyRefresher(availSvc, guildConfigSvc)
 
 	if err := reg.RegisterCommand(commands.NewHelpCommand(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
 		log.Fatalf("register help command: %v", err)
 	}
 
-	if err := reg.RegisterCommand(commands.NewAnnonceCommand(guildConfigSvc, cfg.DiscordOwnerID, cfg.DiscordChannelID)); err != nil {
+	if err := reg.RegisterCommand(commands.NewAnnonceCommand(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
 		log.Fatalf("register annonce command: %v", err)
 	}
 
@@ -95,13 +108,13 @@ func main() {
 		log.Fatalf("register who dispos handler: %v", err)
 	}
 
-	if err := reg.RegisterHandler(handlers.NewSelectDisposHandler(availSvc, guildConfigSvc, cfg.DiscordChannelID)); err != nil {
+	if err := reg.RegisterHandler(handlers.NewSelectDisposHandler(availSvc, guildConfigSvc, refresher)); err != nil {
 		log.Fatalf("register select dispos handler: %v", err)
 	}
-	if err := reg.RegisterHandler(handlers.NewUnavailableDisposHandler(availSvc, guildConfigSvc, cfg.DiscordChannelID)); err != nil {
+	if err := reg.RegisterHandler(handlers.NewUnavailableDisposHandler(availSvc, refresher)); err != nil {
 		log.Fatalf("register unavailable dispos handler: %v", err)
 	}
-	if err := reg.RegisterHandler(handlers.NewHelpConfigHandler(guildConfigSvc, availSvc, cfg.DiscordOwnerID, cfg.DiscordChannelID)); err != nil {
+	if err := reg.RegisterHandler(handlers.NewHelpConfigHandler(guildConfigSvc, availSvc, cfg.DiscordOwnerID)); err != nil {
 		log.Fatalf("register help config handler: %v", err)
 	}
 
@@ -116,7 +129,7 @@ func main() {
 	}
 
 	// Scheduler for weekly posting
-	weeklyPoster := scheduler.NewScheduler(availSvc, guildConfigSvc, b.Session(), cfg.DiscordGuildID, cfg.DiscordChannelID)
+	weeklyPoster := scheduler.NewScheduler(availSvc, guildConfigSvc, b.Session())
 	if err := weeklyPoster.Start(ctx, cfg.CronSchedule); err != nil {
 		log.Fatalf("start weekly scheduler: %v", err)
 	}

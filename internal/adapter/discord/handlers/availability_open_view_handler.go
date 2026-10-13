@@ -38,7 +38,7 @@ func (h *OpenDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 	ctx := context.Background()
 
 	// Opening "Mes dispos" means the user is available again: clear any week-unavailable status.
-	if err := h.svc.ClearWeekUnavailable(ctx, userID); err != nil {
+	if err := h.svc.ClearWeekUnavailable(ctx, i.GuildID, userID); err != nil {
 		log.Printf("error clearing week unavailability on open: %v", err)
 		return respondWithError(s, i, "Erreur lors de la mise à jour de vos disponibilités.")
 	}
@@ -66,7 +66,7 @@ func (h *OpenDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 // sendDisposMenus sends the "Mes dispos" menus (5 days, then 2 days because of Discord's
 // 5 rows limit), labelled in the member's timezone. With followup, both are follow-ups.
 func sendDisposMenus(s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, layout availability.Layout, userID string, loc *time.Location, followup bool) error {
-	week, userSlots, err := svc.GetUserAvailability(context.Background(), userID)
+	week, userSlots, err := svc.GetUserAvailability(context.Background(), i.GuildID, userID)
 	if err != nil {
 		log.Printf("error getting user availability: %v", err)
 		return respondWithError(s, i, "Erreur lors de la récupération de vos disponibilités.")
@@ -121,13 +121,13 @@ func (h *ViewDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 	ctx := context.Background()
 	week := h.svc.CurrentWeek()
 
-	users, err := h.svc.GetAvailabilityUsers(ctx, week)
+	users, err := h.svc.GetAvailabilityUsers(ctx, i.GuildID, week)
 	if err != nil {
 		log.Printf("error getting availability users from button: %v", err)
 		return respondWithError(s, i, "Erreur lors de la récupération des disponibilités.")
 	}
 
-	unavailableUsers, err := h.svc.GetWeekUnavailableUsers(ctx, week)
+	unavailableUsers, err := h.svc.GetWeekUnavailableUsers(ctx, i.GuildID, week)
 	if err != nil {
 		log.Printf("error getting week unavailable users from button: %v", err)
 		return respondWithError(s, i, "Erreur lors de la récupération des disponibilités.")

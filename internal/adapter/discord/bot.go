@@ -117,12 +117,12 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 
 // RegisterSlashCommands syncs slash commands with Discord using a bulk overwrite,
 // which removes any previously registered commands that are no longer in the registry.
-func (b *Bot) RegisterSlashCommands(appID, guildID string) error {
+// Commands are global, so every guild that adds the bot gets them. legacyGuildID, when
+// set, is a guild that had them registered as guild commands (single-guild versions of
+// the bot): they are removed there, else members would see each command twice.
+func (b *Bot) RegisterSlashCommands(appID, legacyGuildID string) error {
 	if appID == "" {
 		return fmt.Errorf("application ID is empty")
-	}
-	if guildID == "" {
-		return fmt.Errorf("guild ID is empty")
 	}
 
 	var acs []*discordgo.ApplicationCommand
@@ -137,8 +137,13 @@ func (b *Bot) RegisterSlashCommands(appID, guildID string) error {
 		acs = append(acs, ac)
 	}
 
-	if _, err := b.session.ApplicationCommandBulkOverwrite(appID, guildID, acs); err != nil {
+	if _, err := b.session.ApplicationCommandBulkOverwrite(appID, "", acs); err != nil {
 		return fmt.Errorf("bulk overwriting slash commands: %w", err)
+	}
+	if legacyGuildID != "" {
+		if _, err := b.session.ApplicationCommandBulkOverwrite(appID, legacyGuildID, nil); err != nil {
+			return fmt.Errorf("removing guild slash commands: %w", err)
+		}
 	}
 
 	return nil

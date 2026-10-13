@@ -17,16 +17,14 @@ func NewService(repo Repository) *Service {
 	return &Service{repo: repo}
 }
 
-// Get returns the guild configuration. Returns empty config if not found.
+// Get returns the guild configuration, with defaults when the guild has none.
 func (s *Service) Get(ctx context.Context, guildID string) (*guildconfig.GuildConfig, error) {
-	cfg, err := s.repo.Get(ctx, guildID)
-	if err != nil {
-		return nil, err
-	}
-	if cfg == nil {
-		return &guildconfig.GuildConfig{}, nil
-	}
-	return cfg, nil
+	return s.repo.Get(ctx, guildID)
+}
+
+// ListWithChannel returns the guilds that configured a channel for the weekly message.
+func (s *Service) ListWithChannel(ctx context.Context) ([]*guildconfig.GuildConfig, error) {
+	return s.repo.ListWithChannel(ctx)
 }
 
 // SetChannel updates the message channel for a guild.

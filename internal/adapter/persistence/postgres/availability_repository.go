@@ -27,36 +27,34 @@ func NewAvailabilityRepository(pool *pgxpool.Pool) *AvailabilityRepository {
 // Ensure AvailabilityRepository implements the interface.
 var _ appavailability.Repository = (*AvailabilityRepository)(nil)
 
-func (r *AvailabilityRepository) UpsertSondageMessage(ctx context.Context, week availability.WeekKey, messageID string) error {
-	if err := r.queries.UpsertSondageMessage(ctx, db.UpsertSondageMessageParams{
-		Week:      string(week),
-		MessageID: messageID,
+func (r *AvailabilityRepository) GetWeeklyMessage(ctx context.Context, guildID string) (*availability.WeeklyMessage, error) {
+	row, err := r.queries.GetWeeklyMessage(ctx, guildID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("get weekly message: %w", err)
+	}
+	return &availability.WeeklyMessage{Week: availability.WeekKey(row.Week), ChannelID: row.ChannelID, MessageID: row.MessageID}, nil
+}
+
+func (r *AvailabilityRepository) SetWeeklyMessage(ctx context.Context, guildID string, msg availability.WeeklyMessage) error {
+	if err := r.queries.UpsertWeeklyMessage(ctx, db.UpsertWeeklyMessageParams{
+		GuildID:   guildID,
+		Week:      string(msg.Week),
+		ChannelID: msg.ChannelID,
+		MessageID: msg.MessageID,
 	}); err != nil {
-		return fmt.Errorf("upsert sondage message: %w", err)
+		return fmt.Errorf("upsert weekly message: %w", err)
 	}
 	return nil
 }
 
-func (r *AvailabilityRepository) GetSondageMessage(ctx context.Context, week availability.WeekKey) (string, error) {
-	row, err := r.queries.GetSondageMessageByWeek(ctx, string(week))
-	if err != nil {
-		return "", fmt.Errorf("get sondage message: %w", err)
-	}
-	return row.MessageID, nil
-}
-
-func (r *AvailabilityRepository) ListSondageMessageIDs(ctx context.Context) ([]string, error) {
-	ids, err := r.queries.ListSondageMessageIDs(ctx)
-	if err != nil {
-		return nil, fmt.Errorf("list sondage message ids: %w", err)
-	}
-	return ids, nil
-}
-
-func (r *AvailabilityRepository) GetUserAvailability(ctx context.Context, week availability.WeekKey, userID string) (map[int]map[int]bool, error) {
+func (r *AvailabilityRepository) GetUserAvailability(ctx context.Context, guildID string, week availability.WeekKey, userID string) (map[int]map[int]bool, error) {
 	rows, err := r.queries.GetUserAvailability(ctx, db.GetUserAvailabilityParams{
-		Week:   string(week),
-		UserID: userID,
+		GuildID: guildID,
+		Week:    string(week),
+		UserID:  userID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("get user availability: %w", err)
@@ -75,71 +73,71 @@ func (r *AvailabilityRepository) GetUserAvailability(ctx context.Context, week a
 	return result, nil
 }
 
-func (r *AvailabilityRepository) SetAvailability(ctx context.Context, week availability.WeekKey, userID string, dayIndex, slotIndex int, available bool) error {
-	if available {
-		if err := r.queries.InsertAvailability(ctx, db.InsertAvailabilityParams{
-			UserID:    userID,
-			DayIndex:  int16(dayIndex),
-			SlotIndex: int16(slotIndex),
-			Week:      string(week),
-		}); err != nil {
-			return fmt.Errorf("insert availability: %w", err)
-		}
-		return nil
+func (r *AvailabilityRepository) SetDayAvailability(ctx context.Context, guildID string, week availability.WeekKey, userID string, dayIndex int, slots []int) error {
+	selected := make([]int16, len(slots))
+	for i, slot := range slots {
+		selected[i] = int16(slot)
 	}
-
-	if err := r.queries.DeleteAvailability(ctx, db.DeleteAvailabilityParams{
-		UserID:    userID,
-		DayIndex:  int16(dayIndex),
-		SlotIndex: int16(slotIndex),
-		Week:      string(week),
+	if err := r.queries.SetDayAvailability(ctx, db.SetDayAvailabilityParams{
+		GuildID:  guildID,
+		Week:     string(week),
+		UserID:   userID,
+		DayIndex: int16(dayIndex),
+		Slots:    selected,
 	}); err != nil {
-		return fmt.Errorf("delete availability: %w", err)
+		return fmt.Errorf("set day availability: %w", err)
 	}
 	return nil
 }
 
-func (r *AvailabilityRepository) DeleteAllUserAvailability(ctx context.Context, week availability.WeekKey, userID string) error {
+func (r *AvailabilityRepository) DeleteAllUserAvailability(ctx context.Context, guildID string, week availability.WeekKey, userID string) error {
 	if err := r.queries.DeleteAllUserAvailability(ctx, db.DeleteAllUserAvailabilityParams{
-		UserID: userID,
-		Week:   string(week),
+		GuildID: guildID,
+		Week:    string(week),
+		UserID:  userID,
 	}); err != nil {
 		return fmt.Errorf("delete all user availability: %w", err)
 	}
 	return nil
 }
 
-func (r *AvailabilityRepository) DeleteWeekAvailability(ctx context.Context, week availability.WeekKey) error {
-	if err := r.queries.DeleteWeekAvailability(ctx, string(week)); err != nil {
+func (r *AvailabilityRepository) DeleteWeekAvailability(ctx context.Context, guildID string, week availability.WeekKey) error {
+	if err := r.queries.DeleteWeekAvailability(ctx, db.DeleteWeekAvailabilityParams{
+		GuildID: guildID,
+		Week:    string(week),
+	}); err != nil {
 		return fmt.Errorf("delete week availability: %w", err)
 	}
 	return nil
 }
 
-func (r *AvailabilityRepository) SetWeekUnavailable(ctx context.Context, week availability.WeekKey, userID string) error {
+func (r *AvailabilityRepository) SetWeekUnavailable(ctx context.Context, guildID string, week availability.WeekKey, userID string) error {
 	if err := r.queries.SetWeekUnavailable(ctx, db.SetWeekUnavailableParams{
-		UserID: userID,
-		Week:   string(week),
+		GuildID: guildID,
+		Week:    string(week),
+		UserID:  userID,
 	}); err != nil {
 		return fmt.Errorf("set week unavailable: %w", err)
 	}
 	return nil
 }
 
-func (r *AvailabilityRepository) DeleteWeekUnavailable(ctx context.Context, week availability.WeekKey, userID string) error {
+func (r *AvailabilityRepository) DeleteWeekUnavailable(ctx context.Context, guildID string, week availability.WeekKey, userID string) error {
 	if err := r.queries.DeleteWeekUnavailable(ctx, db.DeleteWeekUnavailableParams{
-		UserID: userID,
-		Week:   string(week),
+		GuildID: guildID,
+		Week:    string(week),
+		UserID:  userID,
 	}); err != nil {
 		return fmt.Errorf("delete week unavailable: %w", err)
 	}
 	return nil
 }
 
-func (r *AvailabilityRepository) IsUserWeekUnavailable(ctx context.Context, week availability.WeekKey, userID string) (bool, error) {
+func (r *AvailabilityRepository) IsUserWeekUnavailable(ctx context.Context, guildID string, week availability.WeekKey, userID string) (bool, error) {
 	unavailable, err := r.queries.IsUserWeekUnavailable(ctx, db.IsUserWeekUnavailableParams{
-		UserID: userID,
-		Week:   string(week),
+		GuildID: guildID,
+		Week:    string(week),
+		UserID:  userID,
 	})
 	if err != nil {
 		return false, fmt.Errorf("is user week unavailable: %w", err)
@@ -147,8 +145,11 @@ func (r *AvailabilityRepository) IsUserWeekUnavailable(ctx context.Context, week
 	return unavailable, nil
 }
 
-func (r *AvailabilityRepository) GetWeekUnavailableUsers(ctx context.Context, week availability.WeekKey) ([]string, error) {
-	users, err := r.queries.GetWeekUnavailableUsers(ctx, string(week))
+func (r *AvailabilityRepository) GetWeekUnavailableUsers(ctx context.Context, guildID string, week availability.WeekKey) ([]string, error) {
+	users, err := r.queries.GetWeekUnavailableUsers(ctx, db.GetWeekUnavailableUsersParams{
+		GuildID: guildID,
+		Week:    string(week),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get week unavailable users: %w", err)
 	}
@@ -173,8 +174,11 @@ func (r *AvailabilityRepository) SetUserTimezone(ctx context.Context, userID, ti
 	return nil
 }
 
-func (r *AvailabilityRepository) GetAvailabilityCounts(ctx context.Context, week availability.WeekKey) ([]availability.SlotCount, error) {
-	rows, err := r.queries.GetAvailabilityCounts(ctx, string(week))
+func (r *AvailabilityRepository) GetAvailabilityCounts(ctx context.Context, guildID string, week availability.WeekKey) ([]availability.SlotCount, error) {
+	rows, err := r.queries.GetAvailabilityCounts(ctx, db.GetAvailabilityCountsParams{
+		GuildID: guildID,
+		Week:    string(week),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get availability counts: %w", err)
 	}
@@ -190,8 +194,11 @@ func (r *AvailabilityRepository) GetAvailabilityCounts(ctx context.Context, week
 	return counts, nil
 }
 
-func (r *AvailabilityRepository) GetAvailabilityUsers(ctx context.Context, week availability.WeekKey) ([]availability.SlotUsers, error) {
-	rows, err := r.queries.GetAvailabilityUsers(ctx, string(week))
+func (r *AvailabilityRepository) GetAvailabilityUsers(ctx context.Context, guildID string, week availability.WeekKey) ([]availability.SlotUsers, error) {
+	rows, err := r.queries.GetAvailabilityUsers(ctx, db.GetAvailabilityUsersParams{
+		GuildID: guildID,
+		Week:    string(week),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("get availability users: %w", err)
 	}

@@ -13,18 +13,14 @@ import (
 
 // SelectDisposHandler handles select menu interactions for day availability.
 type SelectDisposHandler struct {
-	svc            *appavailability.Service
-	guildCfg       *appguildconfig.Service
-	defaultChannel string
+	svc       *appavailability.Service
+	guildCfg  *appguildconfig.Service
+	refresher *WeeklyRefresher
 }
 
 // NewSelectDisposHandler creates a new select dispos handler.
-func NewSelectDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service, defaultChannelID string) *SelectDisposHandler {
-	return &SelectDisposHandler{
-		svc:            svc,
-		guildCfg:       guildCfg,
-		defaultChannel: defaultChannelID,
-	}
+func NewSelectDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service, refresher *WeeklyRefresher) *SelectDisposHandler {
+	return &SelectDisposHandler{svc: svc, guildCfg: guildCfg, refresher: refresher}
 }
 
 func (h *SelectDisposHandler) CustomID() string {
@@ -63,13 +59,13 @@ func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interact
 		slots[n-1] = true
 	}
 
-	week, err := h.svc.SetDayAvailability(ctx, userID, dayIndex, slots)
+	week, err := h.svc.SetDayAvailability(ctx, i.GuildID, userID, dayIndex, slots)
 	if err != nil {
 		log.Printf("error setting day availability: %v", err)
 		return respondWithError(s, i, "Erreur lors de la mise à jour de vos disponibilités.")
 	}
 
-	_, userSlots, err := h.svc.GetUserAvailability(ctx, userID)
+	_, userSlots, err := h.svc.GetUserAvailability(ctx, i.GuildID, userID)
 	if err != nil {
 		log.Printf("error getting user availability after select: %v", err)
 		return respondWithError(s, i, "Erreur lors du rafraîchissement.")
@@ -99,11 +95,7 @@ func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interact
 	}
 
 	// Refresh main weekly table (best-effort)
-	channelID := h.defaultChannel
-	if i.ChannelID != "" {
-		channelID = i.ChannelID
-	}
-	go refreshWeeklyMessage(context.Background(), s, h.svc, h.guildCfg, i.GuildID, week, channelID)
+	h.refresher.Request(s, i.GuildID)
 
 	return nil
 }

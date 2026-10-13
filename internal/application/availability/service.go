@@ -10,7 +10,8 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 )
 
-// Service implements availability use cases.
+// Service implements availability use cases. Except members' timezones, everything is
+// scoped to a guild.
 type Service struct {
 	repo Repository
 	loc  *time.Location
@@ -37,129 +38,86 @@ func (s *Service) CurrentWeek() availability.WeekKey {
 	return availability.CurrentWeekKey(s.loc)
 }
 
-// ToggleAvailability toggles a user's availability for a given day/slot.
-func (s *Service) ToggleAvailability(ctx context.Context, userID string, dayIndex, slotIndex int) (availability.WeekKey, error) {
-	week := s.CurrentWeek()
-
-	current, err := s.repo.GetUserAvailability(ctx, week, userID)
-	if err != nil {
-		return "", err
-	}
-
-	daySlots := current[dayIndex]
-	available := !daySlots[slotIndex]
-
-	if err := s.repo.SetAvailability(ctx, week, userID, dayIndex, slotIndex, available); err != nil {
-		return "", err
-	}
-
-	return week, nil
-}
-
-// SetDayAvailability sets a user's availability for an entire day.
+// SetDayAvailability sets a member's availability for an entire day, in one round trip.
 // slots has one entry per slot of the guild's layout.
 // Selecting at least one slot clears any "unavailable for the week" status.
-func (s *Service) SetDayAvailability(ctx context.Context, userID string, dayIndex int, slots []bool) (availability.WeekKey, error) {
+func (s *Service) SetDayAvailability(ctx context.Context, guildID, userID string, dayIndex int, slots []bool) (availability.WeekKey, error) {
 	week := s.CurrentWeek()
-	anyAvailable := false
-	for slotIndex := range slots {
-		if err := s.repo.SetAvailability(ctx, week, userID, dayIndex, slotIndex, slots[slotIndex]); err != nil {
-			return "", err
-		}
-		if slots[slotIndex] {
-			anyAvailable = true
+	var selected []int
+	for slot, ok := range slots {
+		if ok {
+			selected = append(selected, slot)
 		}
 	}
-	if anyAvailable {
-		if err := s.repo.DeleteWeekUnavailable(ctx, week, userID); err != nil {
-			return "", err
-		}
-	}
-	return week, nil
+	return week, s.repo.SetDayAvailability(ctx, guildID, week, userID, dayIndex, selected)
 }
 
-// ToggleWeekUnavailable toggles a user's "unavailable for the whole week" status.
-// Marking unavailable also clears all the user's slot selections for the week.
+// ToggleWeekUnavailable toggles a member's "unavailable for the whole week" status.
+// Marking unavailable also clears all the member's slot selections for the week.
 // It returns the new state (true = now marked unavailable).
-func (s *Service) ToggleWeekUnavailable(ctx context.Context, userID string) (availability.WeekKey, bool, error) {
+func (s *Service) ToggleWeekUnavailable(ctx context.Context, guildID, userID string) (bool, error) {
 	week := s.CurrentWeek()
 
-	unavailable, err := s.repo.IsUserWeekUnavailable(ctx, week, userID)
+	unavailable, err := s.repo.IsUserWeekUnavailable(ctx, guildID, week, userID)
 	if err != nil {
-		return "", false, err
+		return false, err
 	}
 
 	if unavailable {
-		if err := s.repo.DeleteWeekUnavailable(ctx, week, userID); err != nil {
-			return "", false, err
-		}
-		return week, false, nil
+		return false, s.repo.DeleteWeekUnavailable(ctx, guildID, week, userID)
 	}
 
-	if err := s.repo.DeleteAllUserAvailability(ctx, week, userID); err != nil {
-		return "", false, err
+	if err := s.repo.DeleteAllUserAvailability(ctx, guildID, week, userID); err != nil {
+		return false, err
 	}
-	if err := s.repo.SetWeekUnavailable(ctx, week, userID); err != nil {
-		return "", false, err
-	}
-	return week, true, nil
+	return true, s.repo.SetWeekUnavailable(ctx, guildID, week, userID)
 }
 
-// IsUserWeekUnavailable reports whether the user is marked unavailable for the current week.
-func (s *Service) IsUserWeekUnavailable(ctx context.Context, userID string) (bool, error) {
-	return s.repo.IsUserWeekUnavailable(ctx, s.CurrentWeek(), userID)
+// ClearWeekUnavailable removes a member's "unavailable for the week" status for the current week.
+// Opening "Mes dispos" makes the member available again.
+func (s *Service) ClearWeekUnavailable(ctx context.Context, guildID, userID string) error {
+	return s.repo.DeleteWeekUnavailable(ctx, guildID, s.CurrentWeek(), userID)
 }
 
-// ClearWeekUnavailable removes a user's "unavailable for the week" status for the current week.
-// Opening "Mes dispos" makes the user available again.
-func (s *Service) ClearWeekUnavailable(ctx context.Context, userID string) error {
-	return s.repo.DeleteWeekUnavailable(ctx, s.CurrentWeek(), userID)
+// ResetWeek deletes every slot selection of the guild's week. Used when the slot layout
+// changes, since slot indexes of the old layout would be misread with the new one.
+func (s *Service) ResetWeek(ctx context.Context, guildID string, week availability.WeekKey) error {
+	return s.repo.DeleteWeekAvailability(ctx, guildID, week)
 }
 
-// ResetWeek deletes every slot selection of the week. Used when the slot layout changes,
-// since slot indexes of the old layout would be misread with the new one.
-func (s *Service) ResetWeek(ctx context.Context, week availability.WeekKey) error {
-	return s.repo.DeleteWeekAvailability(ctx, week)
+// GetWeekUnavailableUsers returns the members marked unavailable for a week.
+func (s *Service) GetWeekUnavailableUsers(ctx context.Context, guildID string, week availability.WeekKey) ([]string, error) {
+	return s.repo.GetWeekUnavailableUsers(ctx, guildID, week)
 }
 
-// GetWeekUnavailableUsers returns the user IDs marked unavailable for a week.
-func (s *Service) GetWeekUnavailableUsers(ctx context.Context, week availability.WeekKey) ([]string, error) {
-	return s.repo.GetWeekUnavailableUsers(ctx, week)
-}
-
-// GetUserAvailability returns a user's availability for the current week.
-func (s *Service) GetUserAvailability(ctx context.Context, userID string) (availability.WeekKey, map[int]map[int]bool, error) {
+// GetUserAvailability returns a member's availability for the current week.
+func (s *Service) GetUserAvailability(ctx context.Context, guildID, userID string) (availability.WeekKey, map[int]map[int]bool, error) {
 	week := s.CurrentWeek()
-	data, err := s.repo.GetUserAvailability(ctx, week, userID)
+	data, err := s.repo.GetUserAvailability(ctx, guildID, week, userID)
 	if err != nil {
 		return "", nil, err
 	}
 	return week, data, nil
 }
 
-// UpsertSondageMessage stores the sondage message ID for a week.
-func (s *Service) UpsertSondageMessage(ctx context.Context, week availability.WeekKey, messageID string) error {
-	return s.repo.UpsertSondageMessage(ctx, week, messageID)
+// WeeklyMessage returns the guild's latest weekly message, or nil when there is none.
+func (s *Service) WeeklyMessage(ctx context.Context, guildID string) (*availability.WeeklyMessage, error) {
+	return s.repo.GetWeeklyMessage(ctx, guildID)
 }
 
-// GetSondageMessageID returns the sondage message ID for a week.
-func (s *Service) GetSondageMessageID(ctx context.Context, week availability.WeekKey) (string, error) {
-	return s.repo.GetSondageMessage(ctx, week)
-}
-
-// ListSondageMessageIDs returns all known sondage message IDs.
-func (s *Service) ListSondageMessageIDs(ctx context.Context) ([]string, error) {
-	return s.repo.ListSondageMessageIDs(ctx)
+// SetWeeklyMessage remembers the guild's latest weekly message.
+func (s *Service) SetWeeklyMessage(ctx context.Context, guildID string, msg availability.WeeklyMessage) error {
+	return s.repo.SetWeeklyMessage(ctx, guildID, msg)
 }
 
 // GetAvailabilitySummary returns availability counts per slot for a week.
-func (s *Service) GetAvailabilitySummary(ctx context.Context, week availability.WeekKey) ([]availability.SlotCount, error) {
-	return s.repo.GetAvailabilityCounts(ctx, week)
+func (s *Service) GetAvailabilitySummary(ctx context.Context, guildID string, week availability.WeekKey) ([]availability.SlotCount, error) {
+	return s.repo.GetAvailabilityCounts(ctx, guildID, week)
 }
 
-// GetAvailabilityUsers returns users per slot for a week.
-func (s *Service) GetAvailabilityUsers(ctx context.Context, week availability.WeekKey) ([]availability.SlotUsers, error) {
-	return s.repo.GetAvailabilityUsers(ctx, week)
+// GetAvailabilityUsers returns members per slot for a week.
+func (s *Service) GetAvailabilityUsers(ctx context.Context, guildID string, week availability.WeekKey) ([]availability.SlotUsers, error) {
+	return s.repo.GetAvailabilityUsers(ctx, guildID, week)
 }
 
 // FormatUsersBySlot formats users per slot as a human-readable string.

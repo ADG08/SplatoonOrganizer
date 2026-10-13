@@ -2,14 +2,13 @@ package scheduler
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log"
+	"sync"
 
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/handlers"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
-	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/handlers"
-	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
 	"github.com/bwmarrin/discordgo"
 	"github.com/robfig/cron/v3"
 )
@@ -19,31 +18,27 @@ type Scheduler struct {
 	availSvc    *appavailability.Service
 	guildConfig *appguildconfig.Service
 	session     *discordgo.Session
-	guildID     string
-	channelID   string // default from env
 }
 
-// NewScheduler creates a scheduler. channelID is the default channel (e.g. from env).
+// NewScheduler creates a scheduler.
 func NewScheduler(
 	availSvc *appavailability.Service,
 	guildConfig *appguildconfig.Service,
 	session *discordgo.Session,
-	guildID, channelID string,
 ) *Scheduler {
 	return &Scheduler{
 		availSvc:    availSvc,
 		guildConfig: guildConfig,
 		session:     session,
-		guildID:     guildID,
-		channelID:   channelID,
 	}
 }
 
 // DefaultCronSchedule is the production schedule: every Monday at 10:00.
 const DefaultCronSchedule = "0 10 * * MON"
 
-// ErrChannelNotConfigured is returned when no channel is set (neither env nor /set-message-channel).
-var ErrChannelNotConfigured = errors.New("channel not configured")
+// publishConcurrency bounds the guilds published in parallel: each one renders its
+// message (possibly an image) and calls Discord.
+const publishConcurrency = 4
 
 // Start starts the cron scheduler.
 func (s *Scheduler) Start(ctx context.Context, schedule string) error {
@@ -79,25 +74,25 @@ func (s *Scheduler) RunWeeklyNow(ctx context.Context) error {
 	return s.runWeeklyJob(ctx)
 }
 
+// runWeeklyJob posts the new weekly message in every guild that configured a channel.
 func (s *Scheduler) runWeeklyJob(ctx context.Context) error {
-	channelID := s.channelID
-	cfg := &guildconfig.GuildConfig{}
+	cfgs, err := s.guildConfig.ListWithChannel(ctx)
+	if err != nil {
+		return fmt.Errorf("list guild configs: %w", err)
+	}
 
-	if s.guildConfig != nil && s.guildID != "" {
-		got, err := s.guildConfig.Get(ctx, s.guildID)
-		if err != nil {
-			log.Printf("get guild config: %v", err)
-		} else if got != nil {
-			cfg = got
-			if cfg.ChannelID != "" {
-				channelID = cfg.ChannelID
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, publishConcurrency)
+	for _, cfg := range cfgs {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer func() { <-sem; wg.Done() }()
+			if err := handlers.PublishWeeklyMessage(ctx, s.session, s.availSvc, cfg); err != nil {
+				log.Printf("guild %s: publish weekly message: %v", cfg.GuildID, err)
 			}
-		}
+		}()
 	}
-
-	if channelID == "" {
-		return ErrChannelNotConfigured
-	}
-
-	return handlers.PublishWeeklyMessage(ctx, s.session, s.availSvc, cfg, channelID)
+	wg.Wait()
+	return nil
 }

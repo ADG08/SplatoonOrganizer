@@ -14,6 +14,7 @@ type Dispo struct {
 	SlotIndex int16              `json:"slot_index"`
 	Week      string             `json:"week"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	GuildID   string             `json:"guild_id"`
 }
 
 type GuildConfig struct {
@@ -26,11 +27,6 @@ type GuildConfig struct {
 	DisplayStyle  pgtype.Text `json:"display_style"`
 }
 
-type SondageMessage struct {
-	Week      string `json:"week"`
-	MessageID string `json:"message_id"`
-}
-
 type UserTimezone struct {
 	UserID    string             `json:"user_id"`
 	Timezone  string             `json:"timezone"`
@@ -41,4 +37,12 @@ type WeekUnavailable struct {
 	UserID    string             `json:"user_id"`
 	Week      string             `json:"week"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	GuildID   string             `json:"guild_id"`
+}
+
+type WeeklyMessage struct {
+	GuildID   string `json:"guild_id"`
+	Week      string `json:"week"`
+	ChannelID string `json:"channel_id"`
+	MessageID string `json:"message_id"`
 }

@@ -121,7 +121,7 @@ func timezoneLegend(layout availability.Layout, loc *time.Location) string {
 // text table depending on the guild's display.
 func sendLocalGrid(s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, cfg *guildconfig.GuildConfig, loc *time.Location, followup bool) error {
 	week := svc.CurrentWeek()
-	counts, err := svc.GetAvailabilitySummary(context.Background(), week)
+	counts, err := svc.GetAvailabilitySummary(context.Background(), cfg.GuildID, week)
 	if err != nil {
 		log.Printf("error getting availability summary: %v", err)
 		return respondWithError(s, i, "Erreur lors de la récupération des disponibilités.")

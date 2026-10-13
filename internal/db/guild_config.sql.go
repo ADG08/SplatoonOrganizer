@@ -32,6 +32,41 @@ func (q *Queries) GetGuildConfig(ctx context.Context, guildID string) (GuildConf
 	return i, err
 }
 
+const listGuildConfigsWithChannel = `-- name: ListGuildConfigsWithChannel :many
+SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style
+FROM guild_config
+WHERE channel_id IS NOT NULL
+ORDER BY guild_id
+`
+
+func (q *Queries) ListGuildConfigsWithChannel(ctx context.Context) ([]GuildConfig, error) {
+	rows, err := q.db.Query(ctx, listGuildConfigsWithChannel)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GuildConfig
+	for rows.Next() {
+		var i GuildConfig
+		if err := rows.Scan(
+			&i.GuildID,
+			&i.ChannelID,
+			&i.RoleID,
+			&i.SlotMode,
+			&i.SlotStartHour,
+			&i.SlotEndHour,
+			&i.DisplayStyle,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setGuildConfigChannel = `-- name: SetGuildConfigChannel :exec
 INSERT INTO guild_config (guild_id, channel_id)
 VALUES ($1, $2)

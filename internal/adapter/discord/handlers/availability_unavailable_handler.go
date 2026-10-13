@@ -6,24 +6,18 @@ import (
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
-	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/bwmarrin/discordgo"
 )
 
 // UnavailableDisposHandler handles the "Pas dispo cette semaine" button click.
 type UnavailableDisposHandler struct {
-	svc            *appavailability.Service
-	guildCfg       *appguildconfig.Service
-	defaultChannel string
+	svc       *appavailability.Service
+	refresher *WeeklyRefresher
 }
 
 // NewUnavailableDisposHandler creates a new unavailable dispos handler.
-func NewUnavailableDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service, defaultChannelID string) *UnavailableDisposHandler {
-	return &UnavailableDisposHandler{
-		svc:            svc,
-		guildCfg:       guildCfg,
-		defaultChannel: defaultChannelID,
-	}
+func NewUnavailableDisposHandler(svc *appavailability.Service, refresher *WeeklyRefresher) *UnavailableDisposHandler {
+	return &UnavailableDisposHandler{svc: svc, refresher: refresher}
 }
 
 func (h *UnavailableDisposHandler) CustomID() string {
@@ -40,7 +34,7 @@ func (h *UnavailableDisposHandler) Handle(s *discordgo.Session, i *discordgo.Int
 	}
 	ctx := context.Background()
 
-	week, nowUnavailable, err := h.svc.ToggleWeekUnavailable(ctx, userID)
+	nowUnavailable, err := h.svc.ToggleWeekUnavailable(ctx, i.GuildID, userID)
 	if err != nil {
 		log.Printf("error toggling week unavailability: %v", err)
 		return respondWithError(s, i, "Erreur lors de la mise à jour de ta disponibilité.")
@@ -62,11 +56,7 @@ func (h *UnavailableDisposHandler) Handle(s *discordgo.Session, i *discordgo.Int
 	}
 
 	// Marking unavailable clears slots, so refresh the main weekly table (best-effort).
-	channelID := h.defaultChannel
-	if i.ChannelID != "" {
-		channelID = i.ChannelID
-	}
-	go refreshWeeklyMessage(context.Background(), s, h.svc, h.guildCfg, i.GuildID, week, channelID)
+	h.refresher.Request(s, i.GuildID)
 
 	return nil
 }

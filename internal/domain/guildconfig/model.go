@@ -15,6 +15,7 @@ const (
 // GuildConfig holds optional channel and role IDs for a guild.
 // Empty strings mean use default channel / no role ping.
 type GuildConfig struct {
+	GuildID    string
 	ChannelID  string
 	RoleID     string
 	SlotLayout availability.Layout // how days are split into slots (half-day by default)

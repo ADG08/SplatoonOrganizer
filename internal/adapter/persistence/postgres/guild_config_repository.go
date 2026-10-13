@@ -6,9 +6,9 @@ import (
 	"fmt"
 
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/db"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
-	"github.com/ADG08/SplatoonOrganizer/internal/db"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,12 +33,31 @@ func (r *GuildConfigRepository) Get(ctx context.Context, guildID string) (*guild
 	row, err := r.queries.GetGuildConfig(ctx, guildID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return &guildconfig.GuildConfig{SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic}, nil
+			return &guildconfig.GuildConfig{GuildID: guildID, SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic}, nil
 		}
 		return nil, err
 	}
+	return toGuildConfig(row)
+}
 
-	cfg := &guildconfig.GuildConfig{SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic}
+func (r *GuildConfigRepository) ListWithChannel(ctx context.Context) ([]*guildconfig.GuildConfig, error) {
+	rows, err := r.queries.ListGuildConfigsWithChannel(ctx)
+	if err != nil {
+		return nil, err
+	}
+	cfgs := make([]*guildconfig.GuildConfig, 0, len(rows))
+	for _, row := range rows {
+		cfg, err := toGuildConfig(row)
+		if err != nil {
+			return nil, err
+		}
+		cfgs = append(cfgs, cfg)
+	}
+	return cfgs, nil
+}
+
+func toGuildConfig(row db.GuildConfig) (*guildconfig.GuildConfig, error) {
+	cfg := &guildconfig.GuildConfig{GuildID: row.GuildID, SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic}
 	if guildconfig.Display(row.DisplayStyle.String) == guildconfig.DisplayImage {
 		cfg.Display = guildconfig.DisplayImage
 	}
@@ -51,7 +70,7 @@ func (r *GuildConfigRepository) Get(ctx context.Context, guildID string) (*guild
 	if availability.SlotMode(row.SlotMode.String) == availability.ModeHourly {
 		layout, err := availability.HourlyLayout(int(row.SlotStartHour.Int16), int(row.SlotEndHour.Int16))
 		if err != nil {
-			return nil, fmt.Errorf("guild %s: stored slot layout: %w", guildID, err)
+			return nil, fmt.Errorf("guild %s: stored slot layout: %w", row.GuildID, err)
 		}
 		cfg.SlotLayout = layout
 	}

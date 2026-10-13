@@ -15,14 +15,13 @@ const CommandNameAnnonce = "annonce"
 
 // AnnonceCommand handles the /annonce slash command for publishing an embed announcement.
 type AnnonceCommand struct {
-	svc            *appguildconfig.Service
-	ownerID        string
-	defaultChannel string
+	svc     *appguildconfig.Service
+	ownerID string
 }
 
-// NewAnnonceCommand creates a new annonce command. ownerID and defaultChannelID are optional.
-func NewAnnonceCommand(svc *appguildconfig.Service, ownerID, defaultChannelID string) *AnnonceCommand {
-	return &AnnonceCommand{svc: svc, ownerID: ownerID, defaultChannel: defaultChannelID}
+// NewAnnonceCommand creates a new annonce command. ownerID is optional.
+func NewAnnonceCommand(svc *appguildconfig.Service, ownerID string) *AnnonceCommand {
+	return &AnnonceCommand{svc: svc, ownerID: ownerID}
 }
 
 func (c *AnnonceCommand) Name() string {
@@ -75,9 +74,6 @@ func (c *AnnonceCommand) Execute(s *discordgo.Session, i *discordgo.InteractionC
 	}
 
 	channelID := cfg.ChannelID
-	if channelID == "" {
-		channelID = c.defaultChannel
-	}
 	if channelID == "" {
 		return respondWithError(s, i, "Aucun salon configuré. Utilise `/help` pour définir le salon des dispos.")
 	}
