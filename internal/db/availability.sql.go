@@ -50,6 +50,16 @@ func (q *Queries) DeleteAvailability(ctx context.Context, arg DeleteAvailability
 	return err
 }
 
+const deleteWeekAvailability = `-- name: DeleteWeekAvailability :exec
+DELETE FROM dispos
+WHERE week = $1
+`
+
+func (q *Queries) DeleteWeekAvailability(ctx context.Context, week string) error {
+	_, err := q.db.Exec(ctx, deleteWeekAvailability, week)
+	return err
+}
+
 const deleteWeekUnavailable = `-- name: DeleteWeekUnavailable :exec
 DELETE FROM week_unavailable
 WHERE user_id = $1

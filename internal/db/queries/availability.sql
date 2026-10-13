@@ -49,6 +49,10 @@ DELETE FROM dispos
 WHERE user_id = $1
   AND week = $2;
 
+-- name: DeleteWeekAvailability :exec
+DELETE FROM dispos
+WHERE week = $1;
+
 -- name: SetWeekUnavailable :exec
 INSERT INTO week_unavailable (user_id, week)
 VALUES ($1, $2)
