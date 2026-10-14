@@ -232,6 +232,20 @@ Après modification des requêtes SQL dans `internal/db/queries/` :
 sqlc generate
 ```
 
+### Lancer les tests
+
+```bash
+go test ./...
+```
+
+Les tests du dépôt PostgreSQL ont besoin d'une base : ils créent un schéma temporaire, y appliquent les migrations, puis le suppriment. Avec la base de dev lancée :
+
+```bash
+TEST_DATABASE_URL=postgres://splatoon:splatoon@localhost:5432/splatoon?sslmode=disable go test ./...
+```
+
+Sans `TEST_DATABASE_URL`, ils sont ignorés.
+
 ### Appliquer les migrations manuellement (local dev)
 
 ```bash
