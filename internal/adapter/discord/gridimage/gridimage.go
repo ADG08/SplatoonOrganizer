@@ -46,33 +46,36 @@ var (
 	colorHigh  = color.RGBA{0x24, 0x80, 0x46, 0xff}
 )
 
-var (
-	fontsOnce                      sync.Once
-	fontsErr                       error
-	countFace, headerFace, rowFace font.Face
-)
+// parseFonts parses the fonts once; they can be shared, unlike the faces drawn with them.
+var parseFonts = sync.OnceValues(func() (fonts [2]*opentype.Font, err error) {
+	if fonts[0], err = opentype.Parse(gobold.TTF); err != nil {
+		return fonts, err
+	}
+	fonts[1], err = opentype.Parse(goregular.TTF)
+	return fonts, err
+})
 
-func loadFonts() {
-	bold, err := opentype.Parse(gobold.TTF)
+type faces struct {
+	count, header, row font.Face
+}
+
+// newFaces returns the faces of one image: a font.Face is not safe for concurrent use,
+// and guilds render their grid in parallel.
+func newFaces() (faces, error) {
+	fonts, err := parseFonts()
 	if err != nil {
-		fontsErr = err
-		return
+		return faces{}, err
 	}
-	regular, err := opentype.Parse(goregular.TTF)
-	if err != nil {
-		fontsErr = err
-		return
-	}
+	bold, regular := fonts[0], fonts[1]
 	face := func(f *opentype.Font, size float64) font.Face {
-		fc, err := opentype.NewFace(f, &opentype.FaceOptions{Size: size * scale, DPI: 72, Hinting: font.HintingFull})
-		if err != nil && fontsErr == nil {
-			fontsErr = err
+		fc, faceErr := opentype.NewFace(f, &opentype.FaceOptions{Size: size * scale, DPI: 72, Hinting: font.HintingFull})
+		if err == nil {
+			err = faceErr
 		}
 		return fc
 	}
-	countFace = face(bold, countSize)
-	headerFace = face(regular, headerSize)
-	rowFace = face(bold, rowSize)
+	fs := faces{count: face(bold, countSize), header: face(regular, headerSize), row: face(bold, rowSize)}
+	return fs, err
 }
 
 // Render draws view.Counts as a PNG: one row per day, one rounded cell per slot,
@@ -92,9 +95,9 @@ func Render(view appavailability.WeeklyView) ([]byte, error) {
 }
 
 func drawGrid(view appavailability.WeeklyView) (*image.RGBA, error) {
-	fontsOnce.Do(loadFonts)
-	if fontsErr != nil {
-		return nil, fmt.Errorf("load fonts: %w", fontsErr)
+	fs, err := newFaces()
+	if err != nil {
+		return nil, fmt.Errorf("load fonts: %w", err)
 	}
 
 	cellW := hourCellW
@@ -107,18 +110,18 @@ func drawGrid(view appavailability.WeeklyView) (*image.RGBA, error) {
 
 	for col, label := range view.Columns {
 		x := padding + rowLabelW + col*(cellW+gap)
-		drawText(img, headerFace, label, colorLabel, (x+cellW/2)*scale, (padding+headerH/2-2)*scale)
+		drawText(img, fs.header, label, colorLabel, (x+cellW/2)*scale, (padding+headerH/2-2)*scale)
 	}
 	for row, label := range view.Rows {
 		y := padding + headerH + row*(cellH+gap)
-		drawTextLeft(img, rowFace, label, colorLabel, padding*scale, (y+cellH/2)*scale)
+		drawTextLeft(img, fs.row, label, colorLabel, padding*scale, (y+cellH/2)*scale)
 		for col := range view.Columns {
 			count := view.Counts[row][col]
 			x := padding + rowLabelW + col*(cellW+gap)
 			cell := image.Rect(x*scale, y*scale, (x+cellW)*scale, (y+cellH)*scale)
 			fillRoundRect(img, cell, radius*scale, cellColor(count, view.Peak))
 			if count > 0 {
-				drawText(img, countFace, fmt.Sprint(count), colorText, (x+cellW/2)*scale, (y+cellH/2)*scale)
+				drawText(img, fs.count, fmt.Sprint(count), colorText, (x+cellW/2)*scale, (y+cellH/2)*scale)
 			}
 		}
 	}
