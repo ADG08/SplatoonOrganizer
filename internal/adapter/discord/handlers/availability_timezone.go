@@ -116,10 +116,10 @@ func timezoneLegend(m *i18n.Messages, layout availability.Layout, loc *time.Loca
 
 // sendLocalGrid sends the week's grid converted to the member's timezone, as an image or a
 // text table depending on the guild's display.
-func sendLocalGrid(s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, cfg *guildconfig.GuildConfig, loc *time.Location, followup bool) error {
+func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, cfg *guildconfig.GuildConfig, loc *time.Location, followup bool) error {
 	m := cfg.Messages()
 	week := svc.Week(cfg.Schedule)
-	counts, err := svc.AvailabilitySummary(context.Background(), cfg.GuildID, week)
+	counts, err := svc.AvailabilitySummary(ctx, cfg.GuildID, week)
 	if err != nil {
 		log.Printf("error getting availability summary: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)
@@ -184,8 +184,8 @@ func (h *TimezoneSelectHandler) CustomID() string {
 
 var _ discord.InteractionHandler = (*TimezoneSelectHandler)(nil)
 
-func (h *TimezoneSelectHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(s, i, h.guildCfg)
+func (h *TimezoneSelectHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
 	if cfg == nil {
 		return nil
 	}
@@ -202,7 +202,7 @@ func (h *TimezoneSelectHandler) Handle(s *discordgo.Session, i *discordgo.Intera
 		log.Printf("timezone picker: %q: %v", values[0], err)
 		return respondWithError(s, i, m.ErrInvalid)
 	}
-	if err := h.svc.SetUserTimezone(context.Background(), userID, loc); err != nil {
+	if err := h.svc.SetUserTimezone(ctx, userID, loc); err != nil {
 		log.Printf("error setting user timezone: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
@@ -212,9 +212,9 @@ func (h *TimezoneSelectHandler) Handle(s *discordgo.Session, i *discordgo.Intera
 
 	switch next {
 	case tzNextDispos:
-		return sendDisposMenus(s, i, h.svc, cfg, userID, loc, true)
+		return sendDisposMenus(ctx, s, i, h.svc, cfg, userID, loc, true)
 	case tzNextGrid:
-		return sendLocalGrid(s, i, h.svc, cfg, loc, true)
+		return sendLocalGrid(ctx, s, i, h.svc, cfg, loc, true)
 	}
 	return nil
 }
@@ -244,8 +244,8 @@ func (h *MyTimeHandler) CustomID() string {
 
 var _ discord.InteractionHandler = (*MyTimeHandler)(nil)
 
-func (h *MyTimeHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(s, i, h.guildCfg)
+func (h *MyTimeHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
 	if cfg == nil {
 		return nil
 	}
@@ -257,7 +257,7 @@ func (h *MyTimeHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCre
 	if !cfg.SlotLayout.IsHourly() {
 		return respondWithError(s, i, m.NoHoursToConvert)
 	}
-	loc, err := h.svc.UserTimezone(context.Background(), userID)
+	loc, err := h.svc.UserTimezone(ctx, userID)
 	if err != nil {
 		log.Printf("error getting user timezone: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)
@@ -265,7 +265,7 @@ func (h *MyTimeHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCre
 	if loc == nil {
 		return respondTimezonePicker(s, i, m, tzNextGrid)
 	}
-	return sendLocalGrid(s, i, h.svc, cfg, loc, false)
+	return sendLocalGrid(ctx, s, i, h.svc, cfg, loc, false)
 }
 
 // TimezoneEditHandler handles "⚙️ Modifier mon fuseau": it shows the picker again.
@@ -284,8 +284,8 @@ func (h *TimezoneEditHandler) CustomID() string {
 
 var _ discord.InteractionHandler = (*TimezoneEditHandler)(nil)
 
-func (h *TimezoneEditHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(s, i, h.guildCfg)
+func (h *TimezoneEditHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
 	if cfg == nil {
 		return nil
 	}

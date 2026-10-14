@@ -32,12 +32,12 @@ func (h *WhoDisposHandler) CustomID() string {
 
 var _ discord.InteractionHandler = (*WhoDisposHandler)(nil)
 
-func (h *WhoDisposHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+func (h *WhoDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	values := i.MessageComponentData().Values
 	if len(values) > 0 && values[0] == weekly.WhoAllValue {
-		return h.week.Handle(s, i)
+		return h.week.Handle(ctx, s, i)
 	}
-	cfg := loadGuildConfig(s, i, h.guildCfg)
+	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
 	if cfg == nil {
 		return nil
 	}
@@ -51,7 +51,7 @@ func (h *WhoDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interaction
 	}
 
 	week := h.svc.Week(cfg.Schedule)
-	users, err := h.svc.AvailabilityUsers(context.Background(), i.GuildID, week)
+	users, err := h.svc.AvailabilityUsers(ctx, i.GuildID, week)
 	if err != nil {
 		log.Printf("error getting availability users from select: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)

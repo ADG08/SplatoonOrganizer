@@ -50,8 +50,8 @@ func (c *AnnonceCommand) ApplicationCommand() *discordgo.ApplicationCommand {
 
 var _ discord.Command = (*AnnonceCommand)(nil)
 
-func (c *AnnonceCommand) Execute(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg, err := c.svc.Get(context.Background(), i.GuildID)
+func (c *AnnonceCommand) Execute(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg, err := c.svc.Get(ctx, i.GuildID)
 	if err != nil {
 		log.Printf("annonce: get guild config: %v", err)
 		return respondWithError(s, i, i18n.For(i18n.FR).ErrGeneric)

@@ -1,6 +1,7 @@
 package discord
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -11,13 +12,13 @@ import (
 type Command interface {
 	Name() string
 	ApplicationCommand() *discordgo.ApplicationCommand
-	Execute(s *discordgo.Session, i *discordgo.InteractionCreate) error
+	Execute(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error
 }
 
 // InteractionHandler handles Discord message component interactions.
 type InteractionHandler interface {
 	CustomID() string
-	Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error
+	Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error
 }
 
 // Registry holds commands and handlers.

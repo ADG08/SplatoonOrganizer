@@ -37,8 +37,8 @@ func (h *HelpConfigHandler) CustomID() string {
 
 var _ discord.InteractionHandler = (*HelpConfigHandler)(nil)
 
-func (h *HelpConfigHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(s, i, h.svc)
+func (h *HelpConfigHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg := loadGuildConfig(ctx, s, i, h.svc)
 	if cfg == nil {
 		return nil
 	}
@@ -51,7 +51,7 @@ func (h *HelpConfigHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 	}
 
 	if i.Type == discordgo.InteractionModalSubmit {
-		return h.handleModalSubmit(s, i, cfg)
+		return h.handleModalSubmit(ctx, s, i, cfg)
 	}
 
 	switch i.MessageComponentData().CustomID {
@@ -203,9 +203,8 @@ func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Message
 	}
 }
 
-func (h *HelpConfigHandler) handleModalSubmit(s *discordgo.Session, i *discordgo.InteractionCreate, cfg *guildconfig.GuildConfig) error {
+func (h *HelpConfigHandler) handleModalSubmit(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, cfg *guildconfig.GuildConfig) error {
 	data := i.ModalSubmitData()
-	ctx := context.Background()
 	m := cfg.Messages()
 
 	switch data.CustomID {
@@ -228,18 +227,17 @@ func (h *HelpConfigHandler) handleModalSubmit(s *discordgo.Session, i *discordgo
 			return respondWithError(s, i, m.ErrGeneric)
 		}
 	case discord.HelpPanelModalSlotsID:
-		return h.handleSlotsSubmit(s, i, cfg, data)
+		return h.handleSlotsSubmit(ctx, s, i, cfg, data)
 	case discord.HelpPanelModalPublishID:
-		return h.handlePublishSubmit(s, i, cfg, data)
+		return h.handlePublishSubmit(ctx, s, i, cfg, data)
 	default:
 		return respondWithError(s, i, m.ErrInvalid)
 	}
 
-	return h.refreshPanel(s, i, cfg.GuildID, m.ConfigSaved)
+	return h.refreshPanel(ctx, s, i, cfg.GuildID, m.ConfigSaved)
 }
 
-func (h *HelpConfigHandler) handleSlotsSubmit(s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, data discordgo.ModalSubmitInteractionData) error {
-	ctx := context.Background()
+func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, data discordgo.ModalSubmitInteractionData) error {
 	lang := i18n.Parse(modalSelectValue(data.Components, "language"))
 	m := i18n.For(lang) // answer in the language just picked
 
@@ -266,7 +264,7 @@ func (h *HelpConfigHandler) handleSlotsSubmit(s *discordgo.Session, i *discordgo
 
 	layoutChanged := layout != previous.SlotLayout
 	if !layoutChanged && display == previous.Display && lang == previous.Language {
-		return h.refreshPanel(s, i, previous.GuildID, m.NothingChanged)
+		return h.refreshPanel(ctx, s, i, previous.GuildID, m.NothingChanged)
 	}
 
 	if err := h.svc.SetMessageSettings(ctx, previous.GuildID, layout, display, lang); err != nil {
@@ -290,17 +288,13 @@ func (h *HelpConfigHandler) handleSlotsSubmit(s *discordgo.Session, i *discordgo
 	if cfg.ChannelID == "" {
 		message += m.NotPublished
 	} else {
-		go func() {
-			if err := weekly.Publish(context.Background(), s, h.availSvc, &cfg); err != nil {
-				log.Printf("help config modal: republish weekly message: %v", err)
-			}
-		}()
+		weekly.PublishInBackground(ctx, s, h.availSvc, &cfg)
 	}
 
-	return h.refreshPanel(s, i, previous.GuildID, message)
+	return h.refreshPanel(ctx, s, i, previous.GuildID, message)
 }
 
-func (h *HelpConfigHandler) handlePublishSubmit(s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, data discordgo.ModalSubmitInteractionData) error {
+func (h *HelpConfigHandler) handlePublishSubmit(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, data discordgo.ModalSubmitInteractionData) error {
 	m := previous.Messages()
 	weekday, errDay := strconv.Atoi(modalSelectValue(data.Components, "publish_weekday"))
 	hour, errHour := strconv.Atoi(modalSelectValue(data.Components, "publish_hour"))
@@ -309,10 +303,9 @@ func (h *HelpConfigHandler) handlePublishSubmit(s *discordgo.Session, i *discord
 		return respondWithError(s, i, m.ErrInvalid)
 	}
 	if schedule == previous.Schedule {
-		return h.refreshPanel(s, i, previous.GuildID, m.NothingChanged)
+		return h.refreshPanel(ctx, s, i, previous.GuildID, m.NothingChanged)
 	}
 
-	ctx := context.Background()
 	if err := h.svc.SetSchedule(ctx, previous.GuildID, schedule); err != nil {
 		log.Printf("help config modal: set schedule: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)
@@ -328,15 +321,11 @@ func (h *HelpConfigHandler) handlePublishSubmit(s *discordgo.Session, i *discord
 			log.Printf("help config modal: %v", err)
 		} else if due {
 			message += m.PublishedNow
-			go func() {
-				if err := weekly.Publish(context.Background(), s, h.availSvc, &cfg); err != nil {
-					log.Printf("help config modal: publish weekly message: %v", err)
-				}
-			}()
+			weekly.PublishInBackground(ctx, s, h.availSvc, &cfg)
 		}
 	}
 
-	return h.refreshPanel(s, i, previous.GuildID, message)
+	return h.refreshPanel(ctx, s, i, previous.GuildID, message)
 }
 
 // modalSelectValue returns the first selected value of a modal select menu, or "".
@@ -349,8 +338,8 @@ func modalSelectValue(components []discordgo.MessageComponent, customID string) 
 }
 
 // refreshPanel shows the panel again with the saved settings, in the guild's language.
-func (h *HelpConfigHandler) refreshPanel(s *discordgo.Session, i *discordgo.InteractionCreate, guildID, description string) error {
-	cfg := loadGuildConfig(s, i, h.svc)
+func (h *HelpConfigHandler) refreshPanel(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, guildID, description string) error {
+	cfg := loadGuildConfig(ctx, s, i, h.svc)
 	if cfg == nil {
 		return nil
 	}

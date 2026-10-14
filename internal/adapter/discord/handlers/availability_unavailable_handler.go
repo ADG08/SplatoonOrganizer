@@ -29,8 +29,8 @@ func (h *UnavailableDisposHandler) CustomID() string {
 
 var _ discord.InteractionHandler = (*UnavailableDisposHandler)(nil)
 
-func (h *UnavailableDisposHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(s, i, h.guildCfg)
+func (h *UnavailableDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
 	if cfg == nil {
 		return nil
 	}
@@ -41,7 +41,7 @@ func (h *UnavailableDisposHandler) Handle(s *discordgo.Session, i *discordgo.Int
 		return respondWithError(s, i, m.ErrUnknownUser)
 	}
 
-	nowUnavailable, err := h.svc.ToggleWeekUnavailable(context.Background(), i.GuildID, h.svc.Week(cfg.Schedule), userID)
+	nowUnavailable, err := h.svc.ToggleWeekUnavailable(ctx, i.GuildID, h.svc.Week(cfg.Schedule), userID)
 	if err != nil {
 		log.Printf("error toggling week unavailability: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)

@@ -30,8 +30,8 @@ func (h *SelectDisposHandler) CustomID() string {
 
 var _ discord.InteractionHandler = (*SelectDisposHandler)(nil)
 
-func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(s, i, h.guildCfg)
+func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
 	if cfg == nil {
 		return nil
 	}
@@ -46,8 +46,6 @@ func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interact
 		log.Printf("invalid select custom id: %v", err)
 		return respondWithError(s, i, m.ErrInvalid)
 	}
-
-	ctx := context.Background()
 
 	// Values are 1-based slot indexes of the layout ("1" = first slot)
 	slots := make([]bool, layout.Len())

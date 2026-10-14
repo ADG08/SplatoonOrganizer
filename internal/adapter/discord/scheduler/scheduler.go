@@ -74,6 +74,8 @@ func (s *Scheduler) run(ctx context.Context, force bool) {
 		sem <- struct{}{}
 		go func() {
 			defer func() { <-sem; wg.Done() }()
+			ctx, cancel := context.WithTimeout(ctx, weekly.Timeout)
+			defer cancel()
 			due, err := weekly.Due(ctx, s.availSvc, cfg)
 			if err == nil && (due || force) {
 				err = weekly.Publish(ctx, s.session, s.availSvc, cfg)

@@ -30,8 +30,8 @@ func (h *OpenDisposHandler) CustomID() string {
 
 var _ discord.InteractionHandler = (*OpenDisposHandler)(nil)
 
-func (h *OpenDisposHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(s, i, h.guildCfg)
+func (h *OpenDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
 	if cfg == nil {
 		return nil
 	}
@@ -41,7 +41,6 @@ func (h *OpenDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 		log.Printf("open dispos handler: could not determine user ID from interaction")
 		return respondWithError(s, i, m.ErrUnknownUser)
 	}
-	ctx := context.Background()
 
 	// Opening "Mes dispos" means the user is available again: clear any week-unavailable status.
 	if err := h.svc.ClearWeekUnavailable(ctx, i.GuildID, h.svc.Week(cfg.Schedule), userID); err != nil {
@@ -61,15 +60,15 @@ func (h *OpenDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 			return respondTimezonePicker(s, i, m, tzNextDispos)
 		}
 	}
-	return sendDisposMenus(s, i, h.svc, cfg, userID, loc, false)
+	return sendDisposMenus(ctx, s, i, h.svc, cfg, userID, loc, false)
 }
 
 // sendDisposMenus sends the "Mes dispos" menus (5 days, then 2 days because of Discord's
 // 5 rows limit), labelled in the member's timezone. With followup, both are follow-ups.
-func sendDisposMenus(s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, cfg *guildconfig.GuildConfig, userID string, loc *time.Location, followup bool) error {
+func sendDisposMenus(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, cfg *guildconfig.GuildConfig, userID string, loc *time.Location, followup bool) error {
 	m, layout := cfg.Messages(), cfg.SlotLayout
 	week := svc.Week(cfg.Schedule)
-	userSlots, err := svc.UserAvailability(context.Background(), i.GuildID, week, userID)
+	userSlots, err := svc.UserAvailability(ctx, i.GuildID, week, userID)
 	if err != nil {
 		log.Printf("error getting user availability: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)
@@ -120,13 +119,12 @@ func (h *ViewDisposHandler) CustomID() string {
 
 var _ discord.InteractionHandler = (*ViewDisposHandler)(nil)
 
-func (h *ViewDisposHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(s, i, h.guildCfg)
+func (h *ViewDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
 	if cfg == nil {
 		return nil
 	}
 	m := cfg.Messages()
-	ctx := context.Background()
 	week := h.svc.Week(cfg.Schedule)
 
 	users, err := h.svc.AvailabilityUsers(ctx, i.GuildID, week)

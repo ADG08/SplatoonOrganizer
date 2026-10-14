@@ -1,11 +1,17 @@
 package discord
 
 import (
+	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
+
+// interactionTimeout bounds the work done for one interaction: Discord drops an
+// interaction not answered within 3 seconds, so waiting longer on the database is useless.
+const interactionTimeout = 3 * time.Second
 
 // Bot wraps the Discord session and command registry.
 type Bot struct {
@@ -68,6 +74,9 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		}
 	}()
 
+	ctx, cancel := context.WithTimeout(context.Background(), interactionTimeout)
+	defer cancel()
+
 	switch i.Type {
 	case discordgo.InteractionApplicationCommand:
 		data := i.ApplicationCommandData()
@@ -76,7 +85,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			log.Printf("no command registered for %q", data.Name)
 			return
 		}
-		if err := cmd.Execute(s, i); err != nil {
+		if err := cmd.Execute(ctx, s, i); err != nil {
 			log.Printf("error executing command %q: %v", data.Name, err)
 		}
 	case discordgo.InteractionMessageComponent:
@@ -86,7 +95,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			log.Printf("no handler registered for %q", data.CustomID)
 			return
 		}
-		if err := handler.Handle(s, i); err != nil {
+		if err := handler.Handle(ctx, s, i); err != nil {
 			log.Printf("error handling interaction %q: %v", data.CustomID, err)
 		}
 	case discordgo.InteractionModalSubmit:
@@ -96,7 +105,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 			log.Printf("no handler registered for modal %q", data.CustomID)
 			return
 		}
-		if err := handler.Handle(s, i); err != nil {
+		if err := handler.Handle(ctx, s, i); err != nil {
 			log.Printf("error handling modal %q: %v", data.CustomID, err)
 		}
 	default:

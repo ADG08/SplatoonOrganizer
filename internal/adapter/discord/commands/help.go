@@ -38,8 +38,8 @@ func (c *HelpCommand) ApplicationCommand() *discordgo.ApplicationCommand {
 
 var _ discord.Command = (*HelpCommand)(nil)
 
-func (c *HelpCommand) Execute(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg, err := c.svc.Get(context.Background(), i.GuildID)
+func (c *HelpCommand) Execute(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg, err := c.svc.Get(ctx, i.GuildID)
 	if err != nil {
 		log.Printf("help: get guild config: %v", err)
 		return respondWithError(s, i, i18n.For(i18n.FR).ErrGeneric)

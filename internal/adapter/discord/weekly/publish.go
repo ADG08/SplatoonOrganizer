@@ -16,6 +16,9 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
+// Timeout bounds one publication or refresh: rendering the image, then a few Discord calls.
+const Timeout = 30 * time.Second
+
 // ErrNoChannel is returned when publishing for a guild that has no channel configured.
 var ErrNoChannel = errors.New("no channel configured")
 
@@ -42,16 +45,28 @@ func Publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Ser
 	if err != nil {
 		log.Printf("guild %s: get weekly message: %v", cfg.GuildID, err)
 	} else if previous != nil {
-		if err := s.ChannelMessageDelete(cmp.Or(previous.ChannelID, cfg.ChannelID), previous.MessageID); err != nil {
+		if err := s.ChannelMessageDelete(cmp.Or(previous.ChannelID, cfg.ChannelID), previous.MessageID, discordgo.WithContext(ctx)); err != nil {
 			log.Printf("guild %s: delete previous weekly message: %v", cfg.GuildID, err)
 		}
 	}
 
-	msg, err := s.ChannelMessageSendComplex(cfg.ChannelID, payload.MessageSend())
+	msg, err := s.ChannelMessageSendComplex(cfg.ChannelID, payload.MessageSend(), discordgo.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("send weekly message: %w", err)
 	}
 	return svc.SetWeeklyMessage(ctx, cfg.GuildID, availability.WeeklyMessage{Week: week, ChannelID: cfg.ChannelID, MessageID: msg.ID})
+}
+
+// PublishInBackground publishes for an interaction that is answered meanwhile: the
+// publication keeps ctx's values but not its cancellation, which comes with the answer.
+func PublishInBackground(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, cfg *guildconfig.GuildConfig) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), Timeout)
+		defer cancel()
+		if err := Publish(ctx, s, svc, cfg); err != nil {
+			log.Printf("guild %s: publish weekly message: %v", cfg.GuildID, err)
+		}
+	}()
 }
 
 // Due reports whether the guild's current week has no weekly message yet:
@@ -99,7 +114,9 @@ func (r *Refresher) Request(s *discordgo.Session, guildID string) {
 
 func (r *Refresher) run(s *discordgo.Session, guildID string) {
 	for {
-		r.refresh(context.Background(), s, guildID)
+		ctx, cancel := context.WithTimeout(context.Background(), Timeout)
+		r.refresh(ctx, s, guildID)
+		cancel()
 		time.Sleep(refreshCooldown)
 
 		r.mu.Lock()
@@ -145,7 +162,7 @@ func (r *Refresher) refresh(ctx context.Context, s *discordgo.Session, guildID s
 		log.Printf("guild %s: build weekly message: %v", guildID, err)
 		return
 	}
-	if _, err := s.ChannelMessageEditComplex(payload.MessageEdit(cmp.Or(msg.ChannelID, cfg.ChannelID), msg.MessageID)); err != nil {
+	if _, err := s.ChannelMessageEditComplex(payload.MessageEdit(cmp.Or(msg.ChannelID, cfg.ChannelID), msg.MessageID), discordgo.WithContext(ctx)); err != nil {
 		log.Printf("guild %s: edit weekly message: %v", guildID, err)
 	}
 }
