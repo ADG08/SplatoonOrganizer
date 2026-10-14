@@ -57,6 +57,21 @@ func Publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Ser
 	return svc.SetWeeklyMessage(ctx, cfg.GuildID, availability.WeeklyMessage{Week: week, ChannelID: cfg.ChannelID, MessageID: msg.ID})
 }
 
+// LostAccess reports whether err means the bot can no longer post in the guild's
+// channel: the channel or the guild is gone, or the bot lost its permissions there.
+func LostAccess(err error) bool {
+	var rest *discordgo.RESTError
+	if !errors.As(err, &rest) || rest.Message == nil {
+		return false
+	}
+	switch rest.Message.Code {
+	case discordgo.ErrCodeUnknownChannel, discordgo.ErrCodeUnknownGuild,
+		discordgo.ErrCodeMissingAccess, discordgo.ErrCodeMissingPermissions:
+		return true
+	}
+	return false
+}
+
 // PublishInBackground publishes for an interaction that is answered meanwhile: the
 // publication keeps ctx's values but not its cancellation, which comes with the answer.
 func PublishInBackground(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, cfg *guildconfig.GuildConfig) {

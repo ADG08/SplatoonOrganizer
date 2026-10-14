@@ -143,7 +143,7 @@ func TestGuildConfigRepository(t *testing.T) {
 
 	cfg, err := repo.Get(ctx, "g1")
 	must(t, err)
-	want := guildconfig.GuildConfig{GuildID: "g1", SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic, Language: i18n.FR, Schedule: availability.DefaultSchedule()}
+	want := guildconfig.GuildConfig{GuildID: "g1", SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic, Language: i18n.FR, Schedule: availability.DefaultSchedule(), Active: true}
 	if *cfg != want {
 		t.Errorf("defaults: got %+v, want %+v", *cfg, want)
 	}
@@ -158,7 +158,7 @@ func TestGuildConfigRepository(t *testing.T) {
 
 	cfg, err = repo.Get(ctx, "g1")
 	must(t, err)
-	want = guildconfig.GuildConfig{GuildID: "g1", ChannelID: "c1", RoleID: "r1", SlotLayout: layout, Display: guildconfig.DisplayImage, Language: i18n.EN, Schedule: schedule}
+	want = guildconfig.GuildConfig{GuildID: "g1", ChannelID: "c1", RoleID: "r1", SlotLayout: layout, Display: guildconfig.DisplayImage, Language: i18n.EN, Schedule: schedule, Active: true}
 	if *cfg != want {
 		t.Errorf("saved: got %+v, want %+v", *cfg, want)
 	}
@@ -167,6 +167,25 @@ func TestGuildConfigRepository(t *testing.T) {
 	must(t, err)
 	if len(list) != 1 || *list[0] != want {
 		t.Errorf("guilds with a channel: %v", list)
+	}
+
+	// A paused guild keeps its configuration and is not published until it comes back.
+	must(t, repo.SetActive(ctx, "g1", false))
+	must(t, repo.SetActive(ctx, "g3", false)) // no configuration: nothing to pause
+	if list, _ := repo.ListWithChannel(ctx); len(list) != 0 {
+		t.Errorf("paused guild still listed: %v", list)
+	}
+	cfg, err = repo.Get(ctx, "g1")
+	must(t, err)
+	if want.Active = false; *cfg != want {
+		t.Errorf("paused: got %+v, want %+v", *cfg, want)
+	}
+	if cfg, _ := repo.Get(ctx, "g3"); !cfg.Active {
+		t.Error("a guild without configuration is active")
+	}
+	must(t, repo.SetChannel(ctx, "g1", "c2")) // setting a channel resumes it
+	if list, _ := repo.ListWithChannel(ctx); len(list) != 1 || list[0].ChannelID != "c2" || !list[0].Active {
+		t.Errorf("resumed guild: %v", list)
 	}
 }
 

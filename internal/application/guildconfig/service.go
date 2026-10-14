@@ -38,15 +38,22 @@ func (s *Service) Get(ctx context.Context, guildID string) (*guildconfig.GuildCo
 	return cfg, nil
 }
 
-// ListWithChannel returns the guilds that configured a channel for the weekly message.
+// ListWithChannel returns the active guilds that configured a channel for the weekly message.
 func (s *Service) ListWithChannel(ctx context.Context) ([]*guildconfig.GuildConfig, error) {
 	return s.repo.ListWithChannel(ctx)
 }
 
-// SetChannel updates the message channel for a guild.
+// SetChannel updates the message channel for a guild, and makes it active again.
 func (s *Service) SetChannel(ctx context.Context, guildID, channelID string) error {
 	defer s.cache.Delete(guildID)
 	return s.repo.SetChannel(ctx, guildID, channelID)
+}
+
+// SetActive turns the publication of the weekly message on or off for a guild, keeping
+// its configuration.
+func (s *Service) SetActive(ctx context.Context, guildID string, active bool) error {
+	defer s.cache.Delete(guildID)
+	return s.repo.SetActive(ctx, guildID, active)
 }
 
 // SetRole updates the role to ping for a guild.

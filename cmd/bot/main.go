@@ -115,6 +115,9 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("create Discord bot: %w", err)
 	}
+	membership := handlers.NewGuildMembership(guildConfigSvc)
+	b.Session().AddHandler(membership.OnGuildCreate)
+	b.Session().AddHandler(membership.OnGuildDelete)
 	if err := b.Open(); err != nil {
 		return err
 	}

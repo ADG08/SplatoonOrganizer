@@ -1,6 +1,8 @@
 package weekly
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
@@ -58,5 +60,24 @@ func TestImagePayload(t *testing.T) {
 	edit := p.MessageEdit("c1", "m1")
 	if edit.Attachments == nil || len(*edit.Attachments) != 1 || (*edit.Attachments)[0].ID != "0" {
 		t.Errorf("attachments: %v", edit.Attachments)
+	}
+}
+
+func TestLostAccess(t *testing.T) {
+	restErr := func(code int) error {
+		return fmt.Errorf("send weekly message: %w", &discordgo.RESTError{Message: &discordgo.APIErrorMessage{Code: code}})
+	}
+	for code, want := range map[int]bool{
+		discordgo.ErrCodeUnknownChannel:     true,
+		discordgo.ErrCodeMissingAccess:      true,
+		discordgo.ErrCodeMissingPermissions: true,
+		discordgo.ErrCodeUnknownMessage:     false, // the previous message was deleted: harmless
+	} {
+		if got := LostAccess(restErr(code)); got != want {
+			t.Errorf("code %d: got %v, want %v", code, got, want)
+		}
+	}
+	if LostAccess(errors.New("timeout")) || LostAccess(nil) {
+		t.Error("errors other than Discord's are not a lost access")
 	}
 }

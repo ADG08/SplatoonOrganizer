@@ -58,8 +58,8 @@ func (s *Scheduler) Start(ctx context.Context, force bool) error {
 	return nil
 }
 
-// run publishes the weekly message of the guilds that configured a channel and are due
-// (all of them with force).
+// run publishes the weekly message of the active guilds that configured a channel and
+// are due (all of them with force). A guild whose channel is out of reach is paused.
 func (s *Scheduler) run(ctx context.Context, force bool) {
 	cfgs, err := s.guildConfig.ListWithChannel(ctx)
 	if err != nil {
@@ -80,7 +80,14 @@ func (s *Scheduler) run(ctx context.Context, force bool) {
 			if err == nil && (due || force) {
 				err = weekly.Publish(ctx, s.session, s.availSvc, cfg)
 			}
-			if err != nil {
+			switch {
+			case weekly.LostAccess(err):
+				// Paused until the bot is back in the guild or /help sets a channel again.
+				slog.WarnContext(ctx, "lost access to the weekly channel, pausing the guild", "guild", cfg.GuildID, "err", err)
+				if err := s.guildConfig.SetActive(ctx, cfg.GuildID, false); err != nil {
+					slog.ErrorContext(ctx, "pause guild", "guild", cfg.GuildID, "err", err)
+				}
+			case err != nil:
 				slog.ErrorContext(ctx, "publish weekly message", "guild", cfg.GuildID, "err", err)
 			}
 		}()

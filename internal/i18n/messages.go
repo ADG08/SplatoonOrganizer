@@ -64,6 +64,7 @@ type Messages struct {
 	PanelMessage      string
 	PanelFooter       string
 	NotConfigured     string
+	ChannelPaused     string
 	BtnConfigChannel  string
 	BtnConfigRole     string
 	BtnConfigMessage  string
@@ -183,6 +184,7 @@ var fr = Messages{
 	PanelMessage:      "🕒  Message",
 	PanelFooter:       "🔒 Réservé aux administrateurs",
 	NotConfigured:     "❌  Non configuré",
+	ChannelPaused:     "⏸️ Publication en pause : le bot ne peut plus publier dans ce salon. Vérifie ses permissions, puis choisis à nouveau le salon.",
 	BtnConfigChannel:  "📢  Configurer le salon",
 	BtnConfigRole:     "🏷️  Configurer le rôle",
 	BtnConfigMessage:  "🕒  Créneaux, affichage, langue",
@@ -299,6 +301,7 @@ var en = Messages{
 	PanelMessage:      "🕒  Message",
 	PanelFooter:       "🔒 Admins only",
 	NotConfigured:     "❌  Not set",
+	ChannelPaused:     "⏸️ Posting paused: the bot can no longer post in this channel. Check its permissions, then pick the channel again.",
 	BtnConfigChannel:  "📢  Set the channel",
 	BtnConfigRole:     "🏷️  Set the role",
 	BtnConfigMessage:  "🕒  Slots, display, language",

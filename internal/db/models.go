@@ -28,6 +28,7 @@ type GuildConfig struct {
 	Language       pgtype.Text `json:"language"`
 	PublishWeekday pgtype.Int2 `json:"publish_weekday"`
 	PublishHour    pgtype.Int2 `json:"publish_hour"`
+	Active         bool        `json:"active"`
 }
 
 type UserTimezone struct {

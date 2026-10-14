@@ -37,6 +37,9 @@ func BuildHelpPanelEmbed(title, description string, color int, cfg *guildconfig.
 	channelValue := m.NotConfigured
 	if cfg.ChannelID != "" {
 		channelValue = "✅  <#" + cfg.ChannelID + ">"
+		if !cfg.Active {
+			channelValue = "⚠️  <#" + cfg.ChannelID + ">\n" + m.ChannelPaused
+		}
 	}
 	roleValue := m.NotConfigured
 	if cfg.RoleID != "" {

@@ -35,7 +35,7 @@ func (r *GuildConfigRepository) Get(ctx context.Context, guildID string) (*guild
 	row, err := r.queries.GetGuildConfig(ctx, guildID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return &guildconfig.GuildConfig{GuildID: guildID, SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic, Language: i18n.FR, Schedule: availability.DefaultSchedule()}, nil
+			return &guildconfig.GuildConfig{GuildID: guildID, SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic, Language: i18n.FR, Schedule: availability.DefaultSchedule(), Active: true}, nil
 		}
 		return nil, err
 	}
@@ -65,6 +65,7 @@ func toGuildConfig(row db.GuildConfig) (*guildconfig.GuildConfig, error) {
 		Display:    guildconfig.DisplayClassic,
 		Language:   i18n.Parse(row.Language.String),
 		Schedule:   availability.DefaultSchedule(),
+		Active:     row.Active,
 	}
 	if guildconfig.Display(row.DisplayStyle.String) == guildconfig.DisplayImage {
 		cfg.Display = guildconfig.DisplayImage
@@ -112,6 +113,10 @@ func (r *GuildConfigRepository) SetSchedule(ctx context.Context, guildID string,
 		PublishWeekday: pgtype.Int2{Int16: int16(schedule.Weekday), Valid: true},
 		PublishHour:    pgtype.Int2{Int16: int16(schedule.Hour), Valid: true},
 	})
+}
+
+func (r *GuildConfigRepository) SetActive(ctx context.Context, guildID string, active bool) error {
+	return r.queries.SetGuildConfigActive(ctx, db.SetGuildConfigActiveParams{GuildID: guildID, Active: active})
 }
 
 func (r *GuildConfigRepository) SetChannel(ctx context.Context, guildID, channelID string) error {

@@ -13,7 +13,7 @@ import (
 
 const getGuildConfig = `-- name: GetGuildConfig :one
 SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language,
-       publish_weekday, publish_hour
+       publish_weekday, publish_hour, active
 FROM guild_config
 WHERE guild_id = $1
 `
@@ -32,15 +32,16 @@ func (q *Queries) GetGuildConfig(ctx context.Context, guildID string) (GuildConf
 		&i.Language,
 		&i.PublishWeekday,
 		&i.PublishHour,
+		&i.Active,
 	)
 	return i, err
 }
 
 const listGuildConfigsWithChannel = `-- name: ListGuildConfigsWithChannel :many
 SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language,
-       publish_weekday, publish_hour
+       publish_weekday, publish_hour, active
 FROM guild_config
-WHERE channel_id IS NOT NULL
+WHERE channel_id IS NOT NULL AND active
 ORDER BY guild_id
 `
 
@@ -64,6 +65,7 @@ func (q *Queries) ListGuildConfigsWithChannel(ctx context.Context) ([]GuildConfi
 			&i.Language,
 			&i.PublishWeekday,
 			&i.PublishHour,
+			&i.Active,
 		); err != nil {
 			return nil, err
 		}
@@ -75,11 +77,28 @@ func (q *Queries) ListGuildConfigsWithChannel(ctx context.Context) ([]GuildConfi
 	return items, nil
 }
 
+const setGuildConfigActive = `-- name: SetGuildConfigActive :exec
+UPDATE guild_config
+SET active = $2
+WHERE guild_id = $1
+`
+
+type SetGuildConfigActiveParams struct {
+	GuildID string `json:"guild_id"`
+	Active  bool   `json:"active"`
+}
+
+func (q *Queries) SetGuildConfigActive(ctx context.Context, arg SetGuildConfigActiveParams) error {
+	_, err := q.db.Exec(ctx, setGuildConfigActive, arg.GuildID, arg.Active)
+	return err
+}
+
 const setGuildConfigChannel = `-- name: SetGuildConfigChannel :exec
 INSERT INTO guild_config (guild_id, channel_id)
 VALUES ($1, $2)
 ON CONFLICT (guild_id) DO UPDATE
-SET channel_id = EXCLUDED.channel_id
+SET channel_id = EXCLUDED.channel_id,
+    active     = TRUE
 `
 
 type SetGuildConfigChannelParams struct {
