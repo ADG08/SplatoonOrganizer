@@ -14,6 +14,7 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/commands"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/handlers"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/scheduler"
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/persistence/postgres"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
@@ -70,7 +71,7 @@ func main() {
 
 	// Adapters (primary / driving): Discord
 	reg := discord.NewRegistry()
-	refresher := handlers.NewWeeklyRefresher(availSvc, guildConfigSvc)
+	refresher := weekly.NewRefresher(availSvc, guildConfigSvc)
 
 	if err := reg.RegisterCommand(commands.NewHelpCommand(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
 		log.Fatalf("register help command: %v", err)

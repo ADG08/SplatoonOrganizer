@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
@@ -26,14 +27,14 @@ func NewWhoDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.
 }
 
 func (h *WhoDisposHandler) CustomID() string {
-	return WhoDisposCustomIDPrefix
+	return weekly.WhoDisposCustomID
 }
 
 var _ discord.InteractionHandler = (*WhoDisposHandler)(nil)
 
 func (h *WhoDisposHandler) Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	values := i.MessageComponentData().Values
-	if len(values) > 0 && values[0] == whoDisposAllValue {
+	if len(values) > 0 && values[0] == weekly.WhoAllValue {
 		return h.week.Handle(s, i)
 	}
 	cfg := loadGuildConfig(s, i, h.guildCfg)
@@ -56,7 +57,7 @@ func (h *WhoDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interaction
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 
-	accent := weeklyAccentColor
+	accent := weekly.AccentColor
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{

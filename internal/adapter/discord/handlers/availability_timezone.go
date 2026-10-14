@@ -10,6 +10,7 @@ import (
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/gridimage"
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
@@ -133,14 +134,14 @@ func sendLocalGrid(s *discordgo.Session, i *discordgo.InteractionCreate, svc *ap
 			log.Printf("error rendering local grid: %v", err)
 			return respondWithError(s, i, m.ErrGeneric)
 		}
-		accent := weeklyAccentColor
+		accent := weekly.AccentColor
 		params.Flags |= discordgo.MessageFlagsIsComponentsV2
-		params.Files = []*discordgo.File{{Name: weeklyImageName, ContentType: "image/png", Reader: bytes.NewReader(img)}}
+		params.Files = []*discordgo.File{{Name: weekly.ImageName, ContentType: "image/png", Reader: bytes.NewReader(img)}}
 		params.Components = []discordgo.MessageComponent{discordgo.Container{
 			AccentColor: &accent,
 			Components: []discordgo.MessageComponent{
 				discordgo.TextDisplay{Content: "### " + title + "\n-# " + view.Legend},
-				discordgo.MediaGallery{Items: []discordgo.MediaGalleryItem{{Media: discordgo.UnfurledMediaItem{URL: "attachment://" + weeklyImageName}}}},
+				discordgo.MediaGallery{Items: []discordgo.MediaGalleryItem{{Media: discordgo.UnfurledMediaItem{URL: "attachment://" + weekly.ImageName}}}},
 				editTimezoneButton(m, tzNextGrid),
 			},
 		}}
@@ -148,7 +149,7 @@ func sendLocalGrid(s *discordgo.Session, i *discordgo.InteractionCreate, svc *ap
 		params.Embeds = []*discordgo.MessageEmbed{{
 			Title:       title,
 			Description: "*" + view.Legend + "*\n" + view.Table,
-			Color:       weeklyAccentColor,
+			Color:       weekly.AccentColor,
 		}}
 		params.Components = []discordgo.MessageComponent{editTimezoneButton(m, tzNextGrid)}
 	}
@@ -238,7 +239,7 @@ func NewMyTimeHandler(svc *appavailability.Service, guildCfg *appguildconfig.Ser
 }
 
 func (h *MyTimeHandler) CustomID() string {
-	return MyTimeCustomIDPrefix
+	return weekly.MyTimeCustomID
 }
 
 var _ discord.InteractionHandler = (*MyTimeHandler)(nil)

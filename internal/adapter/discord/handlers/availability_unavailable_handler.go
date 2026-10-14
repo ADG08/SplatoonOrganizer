@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/bwmarrin/discordgo"
@@ -14,16 +15,16 @@ import (
 type UnavailableDisposHandler struct {
 	svc       *appavailability.Service
 	guildCfg  *appguildconfig.Service
-	refresher *WeeklyRefresher
+	refresher *weekly.Refresher
 }
 
 // NewUnavailableDisposHandler creates a new unavailable dispos handler.
-func NewUnavailableDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service, refresher *WeeklyRefresher) *UnavailableDisposHandler {
+func NewUnavailableDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service, refresher *weekly.Refresher) *UnavailableDisposHandler {
 	return &UnavailableDisposHandler{svc: svc, guildCfg: guildCfg, refresher: refresher}
 }
 
 func (h *UnavailableDisposHandler) CustomID() string {
-	return UnavailableCustomIDPrefix
+	return weekly.UnavailableCustomID
 }
 
 var _ discord.InteractionHandler = (*UnavailableDisposHandler)(nil)

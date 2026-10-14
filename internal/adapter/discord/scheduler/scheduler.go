@@ -6,7 +6,7 @@ import (
 	"log"
 	"sync"
 
-	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/handlers"
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/bwmarrin/discordgo"
@@ -74,9 +74,9 @@ func (s *Scheduler) run(ctx context.Context, force bool) {
 		sem <- struct{}{}
 		go func() {
 			defer func() { <-sem; wg.Done() }()
-			due, err := handlers.WeeklyMessageDue(ctx, s.availSvc, cfg)
+			due, err := weekly.Due(ctx, s.availSvc, cfg)
 			if err == nil && (due || force) {
-				err = handlers.PublishWeeklyMessage(ctx, s.session, s.availSvc, cfg)
+				err = weekly.Publish(ctx, s.session, s.availSvc, cfg)
 			}
 			if err != nil {
 				log.Printf("guild %s: publish weekly message: %v", cfg.GuildID, err)

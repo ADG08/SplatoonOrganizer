@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
@@ -24,7 +25,7 @@ func NewOpenDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig
 }
 
 func (h *OpenDisposHandler) CustomID() string {
-	return OpenDisposCustomIDPrefix
+	return weekly.OpenDisposCustomID
 }
 
 var _ discord.InteractionHandler = (*OpenDisposHandler)(nil)
@@ -114,7 +115,7 @@ func NewViewDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig
 }
 
 func (h *ViewDisposHandler) CustomID() string {
-	return ViewDisposCustomIDPrefix
+	return weekly.ViewDisposCustomID
 }
 
 var _ discord.InteractionHandler = (*ViewDisposHandler)(nil)
@@ -153,7 +154,7 @@ func (h *ViewDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 			Embeds: []*discordgo.MessageEmbed{{
 				Title:       m.ViewTitle,
 				Description: chunks[0],
-				Color:       weeklyAccentColor,
+				Color:       weekly.AccentColor,
 			}},
 			Flags: discordgo.MessageFlagsEphemeral,
 		},
@@ -162,7 +163,7 @@ func (h *ViewDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 	}
 	for _, chunk := range chunks[1:] {
 		if _, err := s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{
-			Embeds: []*discordgo.MessageEmbed{{Description: chunk, Color: weeklyAccentColor}},
+			Embeds: []*discordgo.MessageEmbed{{Description: chunk, Color: weekly.AccentColor}},
 			Flags:  discordgo.MessageFlagsEphemeral,
 		}); err != nil {
 			return err

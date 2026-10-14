@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/bwmarrin/discordgo"
@@ -15,11 +16,11 @@ import (
 type SelectDisposHandler struct {
 	svc       *appavailability.Service
 	guildCfg  *appguildconfig.Service
-	refresher *WeeklyRefresher
+	refresher *weekly.Refresher
 }
 
 // NewSelectDisposHandler creates a new select dispos handler.
-func NewSelectDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service, refresher *WeeklyRefresher) *SelectDisposHandler {
+func NewSelectDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service, refresher *weekly.Refresher) *SelectDisposHandler {
 	return &SelectDisposHandler{svc: svc, guildCfg: guildCfg, refresher: refresher}
 }
 

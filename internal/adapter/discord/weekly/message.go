@@ -1,4 +1,6 @@
-package handlers
+// Package weekly builds, publishes and refreshes each guild's weekly availability
+// message. Its components are answered by package handlers.
+package weekly
 
 import (
 	"bytes"
@@ -14,16 +16,15 @@ import (
 )
 
 const (
-	weeklyAccentColor = 0xFEE75C
-	// weeklyImageName is the attachment holding the grid image of the "image" display.
-	weeklyImageName = "dispos.png"
-	// whoDisposAllValue is the "who is available" option showing the whole week.
-	whoDisposAllValue = "all"
+	// AccentColor is the color of the weekly message, reused by the ephemeral answers.
+	AccentColor = 0xFEE75C
+	// ImageName is the attachment holding the grid image of the "image" display.
+	ImageName = "dispos.png"
 )
 
-// WeeklyPayload is the weekly availability message for one display, ready to be sent,
+// Payload is the weekly availability message for one display, ready to be sent,
 // applied as an edit, or used as an interaction response.
-type WeeklyPayload struct {
+type Payload struct {
 	Content    string
 	Embeds     []*discordgo.MessageEmbed
 	Components []discordgo.MessageComponent
@@ -33,10 +34,10 @@ type WeeklyPayload struct {
 	AllowedMentions *discordgo.MessageAllowedMentions
 }
 
-// BuildWeeklyPayload builds the weekly message. If roleID is not empty, the message
+// BuildPayload builds the weekly message. If roleID is not empty, the message
 // mentions the role (<@&roleID>) to ping it.
-func BuildWeeklyPayload(m *i18n.Messages, view appavailability.WeeklyView, roleID string, display guildconfig.Display) (*WeeklyPayload, error) {
-	p := &WeeklyPayload{AllowedMentions: &discordgo.MessageAllowedMentions{}}
+func BuildPayload(m *i18n.Messages, view appavailability.WeeklyView, roleID string, display guildconfig.Display) (*Payload, error) {
+	p := &Payload{AllowedMentions: &discordgo.MessageAllowedMentions{}}
 	if roleID != "" {
 		p.AllowedMentions.Roles = []string{roleID}
 	}
@@ -54,7 +55,7 @@ func BuildWeeklyPayload(m *i18n.Messages, view appavailability.WeeklyView, roleI
 	if err != nil {
 		return nil, fmt.Errorf("render grid image: %w", err)
 	}
-	p.Files = []*discordgo.File{{Name: weeklyImageName, ContentType: "image/png", Reader: bytes.NewReader(img)}}
+	p.Files = []*discordgo.File{{Name: ImageName, ContentType: "image/png", Reader: bytes.NewReader(img)}}
 	p.Flags = discordgo.MessageFlagsIsComponentsV2
 	if roleID != "" {
 		p.Components = append(p.Components, discordgo.TextDisplay{Content: "<@&" + roleID + ">"})
@@ -64,7 +65,7 @@ func BuildWeeklyPayload(m *i18n.Messages, view appavailability.WeeklyView, roleI
 }
 
 // MessageSend converts the payload into a channel message.
-func (p *WeeklyPayload) MessageSend() *discordgo.MessageSend {
+func (p *Payload) MessageSend() *discordgo.MessageSend {
 	return &discordgo.MessageSend{
 		Content:         p.Content,
 		Embeds:          p.Embeds,
@@ -77,7 +78,7 @@ func (p *WeeklyPayload) MessageSend() *discordgo.MessageSend {
 
 // MessageEdit converts the payload into an edit of an existing weekly message
 // of the same display. The grid image, if any, replaces the previous attachment.
-func (p *WeeklyPayload) MessageEdit(channelID, messageID string) *discordgo.MessageEdit {
+func (p *Payload) MessageEdit(channelID, messageID string) *discordgo.MessageEdit {
 	edit := &discordgo.MessageEdit{
 		ID:              messageID,
 		Channel:         channelID,
@@ -110,7 +111,7 @@ func buildClassicEmbed(m *i18n.Messages, view appavailability.WeeklyView) *disco
 	return &discordgo.MessageEmbed{
 		Title:       m.ClassicTitle,
 		Description: description,
-		Color:       weeklyAccentColor,
+		Color:       AccentColor,
 	}
 }
 
@@ -121,17 +122,17 @@ func buildClassicComponents(m *i18n.Messages, hourly bool) []discordgo.MessageCo
 		discordgo.Button{
 			Label:    m.BtnMyDispos,
 			Style:    discordgo.PrimaryButton,
-			CustomID: OpenDisposCustomIDPrefix,
+			CustomID: OpenDisposCustomID,
 		},
 		discordgo.Button{
 			Label:    m.BtnViewDispos,
 			Style:    discordgo.SecondaryButton,
-			CustomID: ViewDisposCustomIDPrefix,
+			CustomID: ViewDisposCustomID,
 		},
 		discordgo.Button{
 			Label:    m.BtnUnavailable,
 			Style:    discordgo.SecondaryButton,
-			CustomID: UnavailableCustomIDPrefix,
+			CustomID: UnavailableCustomID,
 		},
 	}
 	if hourly {
@@ -145,7 +146,7 @@ func myTimeButton(m *i18n.Messages) discordgo.Button {
 	return discordgo.Button{
 		Label:    m.BtnMyTimezone,
 		Style:    discordgo.SecondaryButton,
-		CustomID: MyTimeCustomIDPrefix,
+		CustomID: MyTimeCustomID,
 	}
 }
 
@@ -159,25 +160,25 @@ func buildImageContainer(m *i18n.Messages, view appavailability.WeeklyView) disc
 		discordgo.Button{
 			Label:    m.BtnMyDispos,
 			Style:    discordgo.PrimaryButton,
-			CustomID: OpenDisposCustomIDPrefix,
+			CustomID: OpenDisposCustomID,
 		},
 		discordgo.Button{
 			Label:    m.BtnUnavailable,
 			Style:    discordgo.SecondaryButton,
-			CustomID: UnavailableCustomIDPrefix,
+			CustomID: UnavailableCustomID,
 		},
 	}
 	if view.Hourly {
 		buttons = append(buttons, myTimeButton(m))
 	}
 
-	accent := weeklyAccentColor
+	accent := AccentColor
 	return discordgo.Container{
 		AccentColor: &accent,
 		Components: []discordgo.MessageComponent{
 			discordgo.TextDisplay{Content: "## " + view.Title + "\n-# " + legend},
 			discordgo.MediaGallery{
-				Items: []discordgo.MediaGalleryItem{{Media: discordgo.UnfurledMediaItem{URL: "attachment://" + weeklyImageName}}},
+				Items: []discordgo.MediaGalleryItem{{Media: discordgo.UnfurledMediaItem{URL: "attachment://" + ImageName}}},
 			},
 			discordgo.ActionsRow{Components: buttons},
 			discordgo.ActionsRow{
@@ -191,7 +192,7 @@ func buildImageContainer(m *i18n.Messages, view appavailability.WeeklyView) disc
 // Discord has no clickable grid, so this select replaces "clicking a cell".
 func buildWhoDisposSelect(m *i18n.Messages) discordgo.SelectMenu {
 	options := []discordgo.SelectMenuOption{
-		{Label: m.WhoWholeWeek, Value: whoDisposAllValue, Emoji: &discordgo.ComponentEmoji{Name: "📋"}},
+		{Label: m.WhoWholeWeek, Value: WhoAllValue, Emoji: &discordgo.ComponentEmoji{Name: "📋"}},
 	}
 	for day := range availability.DaysPerWeek {
 		options = append(options, discordgo.SelectMenuOption{
@@ -200,7 +201,7 @@ func buildWhoDisposSelect(m *i18n.Messages) discordgo.SelectMenu {
 		})
 	}
 	return discordgo.SelectMenu{
-		CustomID:    WhoDisposCustomIDPrefix,
+		CustomID:    WhoDisposCustomID,
 		Placeholder: m.WhoPlaceholder,
 		Options:     options,
 	}

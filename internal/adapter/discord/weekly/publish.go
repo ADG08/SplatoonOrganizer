@@ -1,4 +1,4 @@
-package handlers
+package weekly
 
 import (
 	"cmp"
@@ -19,11 +19,11 @@ import (
 // ErrNoChannel is returned when publishing for a guild that has no channel configured.
 var ErrNoChannel = errors.New("no channel configured")
 
-// PublishWeeklyMessage replaces the guild's weekly message: it deletes the previous one,
+// Publish replaces the guild's weekly message: it deletes the previous one,
 // then posts a fresh one in the configured channel with the guild's layout and display.
 // Used by the weekly job and when /help changes how the message looks (an embed can't
 // always be edited into a Components V2 message, so it is posted again instead).
-func PublishWeeklyMessage(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, cfg *guildconfig.GuildConfig) error {
+func Publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, cfg *guildconfig.GuildConfig) error {
 	if cfg.ChannelID == "" {
 		return ErrNoChannel
 	}
@@ -33,7 +33,7 @@ func PublishWeeklyMessage(ctx context.Context, s *discordgo.Session, svc *appava
 		return fmt.Errorf("get availability summary: %w", err)
 	}
 	m := cfg.Messages()
-	payload, err := BuildWeeklyPayload(m, svc.BuildWeeklyView(m, cfg.SlotLayout, week, counts), cfg.RoleID, cfg.Display)
+	payload, err := BuildPayload(m, svc.BuildWeeklyView(m, cfg.SlotLayout, week, counts), cfg.RoleID, cfg.Display)
 	if err != nil {
 		return err
 	}
@@ -54,9 +54,9 @@ func PublishWeeklyMessage(ctx context.Context, s *discordgo.Session, svc *appava
 	return svc.SetWeeklyMessage(ctx, cfg.GuildID, availability.WeeklyMessage{Week: week, ChannelID: cfg.ChannelID, MessageID: msg.ID})
 }
 
-// WeeklyMessageDue reports whether the guild's current week has no weekly message yet:
+// Due reports whether the guild's current week has no weekly message yet:
 // its publication time passed, possibly while the bot was down.
-func WeeklyMessageDue(ctx context.Context, svc *appavailability.Service, cfg *guildconfig.GuildConfig) (bool, error) {
+func Due(ctx context.Context, svc *appavailability.Service, cfg *guildconfig.GuildConfig) (bool, error) {
 	msg, err := svc.WeeklyMessage(ctx, cfg.GuildID)
 	if err != nil {
 		return false, fmt.Errorf("get weekly message: %w", err)
@@ -69,10 +69,10 @@ func WeeklyMessageDue(ctx context.Context, svc *appavailability.Service, cfg *gu
 // limits message edits per channel).
 const refreshCooldown = time.Second
 
-// WeeklyRefresher updates the weekly message after availabilities change. The first
+// Refresher updates the weekly message after availabilities change. The first
 // request of a guild is applied right away; the ones arriving during the cooldown that
 // follows are merged into a single extra update.
-type WeeklyRefresher struct {
+type Refresher struct {
 	svc      *appavailability.Service
 	guildCfg *appguildconfig.Service
 
@@ -80,13 +80,13 @@ type WeeklyRefresher struct {
 	dirty map[string]bool // guilds being refreshed -> changed again since
 }
 
-// NewWeeklyRefresher creates a refresher of the weekly messages.
-func NewWeeklyRefresher(svc *appavailability.Service, guildCfg *appguildconfig.Service) *WeeklyRefresher {
-	return &WeeklyRefresher{svc: svc, guildCfg: guildCfg, dirty: make(map[string]bool)}
+// NewRefresher creates a refresher of the weekly messages.
+func NewRefresher(svc *appavailability.Service, guildCfg *appguildconfig.Service) *Refresher {
+	return &Refresher{svc: svc, guildCfg: guildCfg, dirty: make(map[string]bool)}
 }
 
 // Request asks for the guild's weekly message to be updated.
-func (r *WeeklyRefresher) Request(s *discordgo.Session, guildID string) {
+func (r *Refresher) Request(s *discordgo.Session, guildID string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if _, running := r.dirty[guildID]; running {
@@ -97,7 +97,7 @@ func (r *WeeklyRefresher) Request(s *discordgo.Session, guildID string) {
 	go r.run(s, guildID)
 }
 
-func (r *WeeklyRefresher) run(s *discordgo.Session, guildID string) {
+func (r *Refresher) run(s *discordgo.Session, guildID string) {
 	for {
 		r.refresh(context.Background(), s, guildID)
 		time.Sleep(refreshCooldown)
@@ -114,7 +114,7 @@ func (r *WeeklyRefresher) run(s *discordgo.Session, guildID string) {
 }
 
 // refresh re-renders the guild's weekly message of the current week (best-effort).
-func (r *WeeklyRefresher) refresh(ctx context.Context, s *discordgo.Session, guildID string) {
+func (r *Refresher) refresh(ctx context.Context, s *discordgo.Session, guildID string) {
 	defer func() {
 		if rec := recover(); rec != nil {
 			log.Printf("guild %s: panic while refreshing weekly message: %v", guildID, rec)
@@ -140,7 +140,7 @@ func (r *WeeklyRefresher) refresh(ctx context.Context, s *discordgo.Session, gui
 		return
 	}
 	m := cfg.Messages()
-	payload, err := BuildWeeklyPayload(m, r.svc.BuildWeeklyView(m, cfg.SlotLayout, week, counts), cfg.RoleID, cfg.Display)
+	payload, err := BuildPayload(m, r.svc.BuildWeeklyView(m, cfg.SlotLayout, week, counts), cfg.RoleID, cfg.Display)
 	if err != nil {
 		log.Printf("guild %s: build weekly message: %v", guildID, err)
 		return

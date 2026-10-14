@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
@@ -290,7 +291,7 @@ func (h *HelpConfigHandler) handleSlotsSubmit(s *discordgo.Session, i *discordgo
 		message += m.NotPublished
 	} else {
 		go func() {
-			if err := PublishWeeklyMessage(context.Background(), s, h.availSvc, &cfg); err != nil {
+			if err := weekly.Publish(context.Background(), s, h.availSvc, &cfg); err != nil {
 				log.Printf("help config modal: republish weekly message: %v", err)
 			}
 		}()
@@ -323,12 +324,12 @@ func (h *HelpConfigHandler) handlePublishSubmit(s *discordgo.Session, i *discord
 	cfg.Schedule = schedule
 	message := fmt.Sprintf(m.PublicationSaved, m.ScheduleSummary(schedule))
 	if cfg.ChannelID != "" {
-		if due, err := WeeklyMessageDue(ctx, h.availSvc, &cfg); err != nil {
+		if due, err := weekly.Due(ctx, h.availSvc, &cfg); err != nil {
 			log.Printf("help config modal: %v", err)
 		} else if due {
 			message += m.PublishedNow
 			go func() {
-				if err := PublishWeeklyMessage(context.Background(), s, h.availSvc, &cfg); err != nil {
+				if err := weekly.Publish(context.Background(), s, h.availSvc, &cfg); err != nil {
 					log.Printf("help config modal: publish weekly message: %v", err)
 				}
 			}()
