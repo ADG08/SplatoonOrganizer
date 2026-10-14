@@ -193,7 +193,7 @@ func buildWhoDisposSelect(m *i18n.Messages) discordgo.SelectMenu {
 	options := []discordgo.SelectMenuOption{
 		{Label: m.WhoWholeWeek, Value: whoDisposAllValue, Emoji: &discordgo.ComponentEmoji{Name: "📋"}},
 	}
-	for day := 0; day < availability.DaysPerWeek; day++ {
+	for day := range availability.DaysPerWeek {
 		options = append(options, discordgo.SelectMenuOption{
 			Label: m.Days[day],
 			Value: strconv.Itoa(day),

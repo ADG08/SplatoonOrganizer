@@ -139,7 +139,7 @@ func (s *Service) FormatUsersBySlot(m *i18n.Messages, layout availability.Layout
 	}
 
 	var b strings.Builder
-	for day := 0; day < availability.DaysPerWeek; day++ {
+	for day := range availability.DaysPerWeek {
 		parts := make([]string, 0, layout.Len())
 		for slot := 0; slot < layout.Len(); slot++ {
 			k := key{day: day, slot: slot}
@@ -161,7 +161,7 @@ func (s *Service) formatUsersByHour(m *i18n.Messages, layout availability.Layout
 
 	var b strings.Builder
 	b.WriteString("*" + m.YourTimezoneNote + "*\n")
-	for day := 0; day < availability.DaysPerWeek; day++ {
+	for day := range availability.DaysPerWeek {
 		if len(byDay[day]) == 0 {
 			fmt.Fprintf(&b, "\n**%s** · —\n", m.Days[day])
 			continue

@@ -68,9 +68,9 @@ func (h *HelpConfigHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 							MenuType:      discordgo.ChannelSelectMenu,
 							Placeholder:   m.ChannelHint,
 							ChannelTypes:  []discordgo.ChannelType{discordgo.ChannelTypeGuildText},
-							MinValues:     intPtr(1),
+							MinValues:     new(1),
 							MaxValues:     1,
-							Required:      boolPtr(true),
+							Required:      new(true),
 							DefaultValues: defaultChannelValues(cfg.ChannelID),
 						},
 					},
@@ -90,9 +90,9 @@ func (h *HelpConfigHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 							CustomID:      "roles_selected",
 							MenuType:      discordgo.RoleSelectMenu,
 							Placeholder:   m.RoleHint,
-							MinValues:     intPtr(1),
+							MinValues:     new(1),
 							MaxValues:     1,
-							Required:      boolPtr(true),
+							Required:      new(true),
 							DefaultValues: defaultRoleValues(cfg.RoleID),
 						},
 					},
@@ -151,9 +151,9 @@ func selectField(label, hint, customID string, required bool, options []discordg
 		Description: hint,
 		Component: discordgo.SelectMenu{
 			CustomID:  customID,
-			MinValues: intPtr(minValues),
+			MinValues: new(minValues),
 			MaxValues: 1,
-			Required:  boolPtr(required),
+			Required:  new(required),
 			Options:   options,
 		},
 	}
@@ -183,7 +183,7 @@ func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Message
 	}
 	// Discord allows 25 options per select menu: 0h..23h for the start, 1h..minuit for the end.
 	var startOptions, endOptions []discordgo.SelectMenuOption
-	for h := 0; h < 24; h++ {
+	for h := range 24 {
 		startOptions = append(startOptions, discordgo.SelectMenuOption{
 			Label: m.HourLabel(h), Value: strconv.Itoa(h), Default: h == start,
 		})
@@ -363,14 +363,6 @@ func (h *HelpConfigHandler) refreshPanel(s *discordgo.Session, i *discordgo.Inte
 			Components: components,
 		},
 	})
-}
-
-func intPtr(v int) *int {
-	return &v
-}
-
-func boolPtr(v bool) *bool {
-	return &v
 }
 
 func defaultChannelValues(channelID string) []discordgo.SelectMenuDefaultValue {

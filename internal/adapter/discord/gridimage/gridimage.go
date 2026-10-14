@@ -150,8 +150,8 @@ func fillRoundRect(dst *image.RGBA, r image.Rectangle, rad int, c color.RGBA) {
 	w, h := r.Dx(), r.Dy()
 	mask := image.NewAlpha(image.Rect(0, 0, w, h))
 	radius := float64(rad)
-	for y := 0; y < h; y++ {
-		for x := 0; x < w; x++ {
+	for y := range h {
+		for x := range w {
 			// Pixel center relative to the nearest corner's arc center; zero outside corners.
 			dx := max(radius-(float64(x)+0.5), (float64(x)+0.5)-float64(w-rad), 0)
 			dy := max(radius-(float64(y)+0.5), (float64(y)+0.5)-float64(h-rad), 0)
