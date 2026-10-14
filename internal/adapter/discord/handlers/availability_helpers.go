@@ -3,7 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -60,9 +60,9 @@ func withLegend(content, legend string) string {
 func loadGuildConfig(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, guildCfg *appguildconfig.Service) *guildconfig.GuildConfig {
 	cfg, err := guildCfg.Get(ctx, i.GuildID)
 	if err != nil {
-		log.Printf("guild %s: get guild config: %v", i.GuildID, err)
+		slog.ErrorContext(ctx, "get guild config", "guild", i.GuildID, "err", err)
 		if err := respondWithError(s, i, i18n.For(i18n.FR).ErrGeneric); err != nil {
-			log.Printf("respond: %v", err)
+			slog.ErrorContext(ctx, "respond", "guild", i.GuildID, "err", err)
 		}
 		return nil
 	}

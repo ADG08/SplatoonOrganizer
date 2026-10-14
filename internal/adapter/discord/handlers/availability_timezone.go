@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -121,7 +121,7 @@ func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.Inter
 	week := svc.Week(cfg.Schedule)
 	counts, err := svc.AvailabilitySummary(ctx, cfg.GuildID, week)
 	if err != nil {
-		log.Printf("error getting availability summary: %v", err)
+		slog.ErrorContext(ctx, "get availability summary", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 	view := svc.BuildWeeklyViewIn(m, cfg.SlotLayout, week, counts, loc)
@@ -131,7 +131,7 @@ func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.Inter
 	if cfg.Display == guildconfig.DisplayImage {
 		img, err := gridimage.Render(view)
 		if err != nil {
-			log.Printf("error rendering local grid: %v", err)
+			slog.ErrorContext(ctx, "render local grid", "guild", i.GuildID, "err", err)
 			return respondWithError(s, i, m.ErrGeneric)
 		}
 		accent := weekly.AccentColor
@@ -199,11 +199,11 @@ func (h *TimezoneSelectHandler) Handle(ctx context.Context, s *discordgo.Session
 	next, _, _ := strings.Cut(strings.TrimPrefix(i.MessageComponentData().CustomID, TimezoneCustomIDPrefix+":"), ":")
 	loc, err := availability.ParseTimezone(values[0])
 	if err != nil {
-		log.Printf("timezone picker: %q: %v", values[0], err)
+		slog.WarnContext(ctx, "invalid timezone from picker", "value", values[0], "err", err)
 		return respondWithError(s, i, m.ErrInvalid)
 	}
 	if err := h.svc.SetUserTimezone(ctx, userID, loc); err != nil {
-		log.Printf("error setting user timezone: %v", err)
+		slog.ErrorContext(ctx, "set user timezone", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 	if err := updateEphemeral(s, i, fmt.Sprintf(m.TimezoneSaved, m.TimezoneName(loc), m.Clock(time.Now().In(loc)))); err != nil {
@@ -259,7 +259,7 @@ func (h *MyTimeHandler) Handle(ctx context.Context, s *discordgo.Session, i *dis
 	}
 	loc, err := h.svc.UserTimezone(ctx, userID)
 	if err != nil {
-		log.Printf("error getting user timezone: %v", err)
+		slog.ErrorContext(ctx, "get user timezone", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 	if loc == nil {

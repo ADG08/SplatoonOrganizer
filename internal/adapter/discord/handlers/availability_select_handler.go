@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"strconv"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
@@ -38,12 +38,12 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 	m, layout := cfg.Messages(), cfg.SlotLayout
 	userID := getUserID(i)
 	if userID == "" {
-		log.Printf("select dispos handler: could not determine user ID from interaction")
+		slog.WarnContext(ctx, "could not determine user ID", "guild", i.GuildID)
 		return respondWithError(s, i, m.ErrUnknownUser)
 	}
 	dayIndex, err := parseSelectDisposCustomID(i.MessageComponentData().CustomID)
 	if err != nil {
-		log.Printf("invalid select custom id: %v", err)
+		slog.WarnContext(ctx, "invalid select custom id", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrInvalid)
 	}
 
@@ -52,7 +52,7 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 	for _, v := range i.MessageComponentData().Values {
 		n, err := strconv.Atoi(v)
 		if err != nil || !layout.Valid(n-1) {
-			log.Printf("ignoring invalid slot value %q", v)
+			slog.WarnContext(ctx, "ignoring invalid slot value", "guild", i.GuildID, "value", v)
 			continue
 		}
 		slots[n-1] = true
@@ -60,18 +60,18 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 
 	week := h.svc.Week(cfg.Schedule)
 	if err := h.svc.SetDayAvailability(ctx, i.GuildID, week, userID, dayIndex, slots); err != nil {
-		log.Printf("error setting day availability: %v", err)
+		slog.ErrorContext(ctx, "set day availability", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 
 	userSlots, err := h.svc.UserAvailability(ctx, i.GuildID, week, userID)
 	if err != nil {
-		log.Printf("error getting user availability after select: %v", err)
+		slog.ErrorContext(ctx, "get user availability after select", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 	loc, err := h.svc.UserTimezone(ctx, userID)
 	if err != nil {
-		log.Printf("error getting user timezone after select: %v", err)
+		slog.ErrorContext(ctx, "get user timezone after select", "guild", i.GuildID, "err", err)
 	}
 	label := func(day, slot int) string { return h.svc.SlotLabelIn(m, layout, week, day, slot, loc) }
 
@@ -94,7 +94,7 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 			Components: components,
 		},
 	}); err != nil {
-		log.Printf("error responding to select: %v", err)
+		slog.ErrorContext(ctx, "respond to select", "guild", i.GuildID, "err", err)
 	}
 
 	// Refresh main weekly table (best-effort)

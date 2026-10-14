@@ -3,7 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strconv"
 	"time"
 
@@ -214,7 +214,7 @@ func (h *HelpConfigHandler) handleModalSubmit(ctx context.Context, s *discordgo.
 			return respondWithError(s, i, m.NothingSelected)
 		}
 		if err := h.svc.SetChannel(ctx, cfg.GuildID, channelID); err != nil {
-			log.Printf("help config modal: set channel: %v", err)
+			slog.ErrorContext(ctx, "help config modal: set channel", "guild", i.GuildID, "err", err)
 			return respondWithError(s, i, m.ErrGeneric)
 		}
 	case discord.HelpPanelModalRoleID:
@@ -223,7 +223,7 @@ func (h *HelpConfigHandler) handleModalSubmit(ctx context.Context, s *discordgo.
 			return respondWithError(s, i, m.NothingSelected)
 		}
 		if err := h.svc.SetRole(ctx, cfg.GuildID, roleID); err != nil {
-			log.Printf("help config modal: set role: %v", err)
+			slog.ErrorContext(ctx, "help config modal: set role", "guild", i.GuildID, "err", err)
 			return respondWithError(s, i, m.ErrGeneric)
 		}
 	case discord.HelpPanelModalSlotsID:
@@ -268,7 +268,7 @@ func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.
 	}
 
 	if err := h.svc.SetMessageSettings(ctx, previous.GuildID, layout, display, lang); err != nil {
-		log.Printf("help config modal: set message settings: %v", err)
+		slog.ErrorContext(ctx, "help config modal: set message settings", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 
@@ -276,7 +276,7 @@ func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.
 	if layoutChanged {
 		// Slot indexes of the old layout would be misread with the new one: start the week over.
 		if err := h.availSvc.ResetWeek(ctx, previous.GuildID, h.availSvc.Week(previous.Schedule)); err != nil {
-			log.Printf("help config modal: reset week: %v", err)
+			slog.ErrorContext(ctx, "help config modal: reset week", "guild", i.GuildID, "err", err)
 			return respondWithError(s, i, m.ErrGeneric)
 		}
 		message = m.SlotsReset
@@ -307,7 +307,7 @@ func (h *HelpConfigHandler) handlePublishSubmit(ctx context.Context, s *discordg
 	}
 
 	if err := h.svc.SetSchedule(ctx, previous.GuildID, schedule); err != nil {
-		log.Printf("help config modal: set schedule: %v", err)
+		slog.ErrorContext(ctx, "help config modal: set schedule", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 
@@ -318,7 +318,7 @@ func (h *HelpConfigHandler) handlePublishSubmit(ctx context.Context, s *discordg
 	message := fmt.Sprintf(m.PublicationSaved, m.ScheduleSummary(schedule))
 	if cfg.ChannelID != "" {
 		if due, err := weekly.Due(ctx, h.availSvc, &cfg); err != nil {
-			log.Printf("help config modal: %v", err)
+			slog.ErrorContext(ctx, "help config modal: check weekly message", "guild", i.GuildID, "err", err)
 		} else if due {
 			message += m.PublishedNow
 			weekly.PublishInBackground(ctx, s, h.availSvc, &cfg)

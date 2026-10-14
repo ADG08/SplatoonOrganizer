@@ -3,7 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strconv"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
@@ -53,7 +53,7 @@ func (h *WhoDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *
 	week := h.svc.Week(cfg.Schedule)
 	users, err := h.svc.AvailabilityUsers(ctx, i.GuildID, week)
 	if err != nil {
-		log.Printf("error getting availability users from select: %v", err)
+		slog.ErrorContext(ctx, "get availability users from select", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 

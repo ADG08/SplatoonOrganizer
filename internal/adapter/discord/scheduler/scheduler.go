@@ -3,7 +3,7 @@ package scheduler
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
@@ -51,7 +51,7 @@ func (s *Scheduler) Start(ctx context.Context, force bool) error {
 
 	go func() {
 		<-ctx.Done()
-		log.Println("stopping availability scheduler...")
+		slog.Info("stopping availability scheduler")
 		c.Stop()
 	}()
 
@@ -63,7 +63,7 @@ func (s *Scheduler) Start(ctx context.Context, force bool) error {
 func (s *Scheduler) run(ctx context.Context, force bool) {
 	cfgs, err := s.guildConfig.ListWithChannel(ctx)
 	if err != nil {
-		log.Printf("weekly scheduler: list guild configs: %v", err)
+		slog.ErrorContext(ctx, "weekly scheduler: list guild configs", "err", err)
 		return
 	}
 
@@ -81,7 +81,7 @@ func (s *Scheduler) run(ctx context.Context, force bool) {
 				err = weekly.Publish(ctx, s.session, s.availSvc, cfg)
 			}
 			if err != nil {
-				log.Printf("guild %s: publish weekly message: %v", cfg.GuildID, err)
+				slog.ErrorContext(ctx, "publish weekly message", "guild", cfg.GuildID, "err", err)
 			}
 		}()
 	}

@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"context"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
@@ -38,13 +38,13 @@ func (h *OpenDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 	m := cfg.Messages()
 	userID := getUserID(i)
 	if userID == "" {
-		log.Printf("open dispos handler: could not determine user ID from interaction")
+		slog.WarnContext(ctx, "could not determine user ID", "guild", i.GuildID)
 		return respondWithError(s, i, m.ErrUnknownUser)
 	}
 
 	// Opening "Mes dispos" means the user is available again: clear any week-unavailable status.
 	if err := h.svc.ClearWeekUnavailable(ctx, i.GuildID, h.svc.Week(cfg.Schedule), userID); err != nil {
-		log.Printf("error clearing week unavailability on open: %v", err)
+		slog.ErrorContext(ctx, "clear week unavailability on open", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 
@@ -53,7 +53,7 @@ func (h *OpenDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 	if cfg.SlotLayout.IsHourly() {
 		var err error
 		if loc, err = h.svc.UserTimezone(ctx, userID); err != nil {
-			log.Printf("error getting user timezone: %v", err)
+			slog.ErrorContext(ctx, "get user timezone", "guild", i.GuildID, "err", err)
 			return respondWithError(s, i, m.ErrGeneric)
 		}
 		if loc == nil {
@@ -70,7 +70,7 @@ func sendDisposMenus(ctx context.Context, s *discordgo.Session, i *discordgo.Int
 	week := svc.Week(cfg.Schedule)
 	userSlots, err := svc.UserAvailability(ctx, i.GuildID, week, userID)
 	if err != nil {
-		log.Printf("error getting user availability: %v", err)
+		slog.ErrorContext(ctx, "get user availability", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 	label := func(day, slot int) string { return svc.SlotLabelIn(m, layout, week, day, slot, loc) }
@@ -129,13 +129,13 @@ func (h *ViewDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 
 	users, err := h.svc.AvailabilityUsers(ctx, i.GuildID, week)
 	if err != nil {
-		log.Printf("error getting availability users from button: %v", err)
+		slog.ErrorContext(ctx, "get availability users from button", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 
 	unavailableUsers, err := h.svc.WeekUnavailableUsers(ctx, i.GuildID, week)
 	if err != nil {
-		log.Printf("error getting week unavailable users from button: %v", err)
+		slog.ErrorContext(ctx, "get week unavailable users from button", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 

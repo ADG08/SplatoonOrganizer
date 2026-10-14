@@ -5,7 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
+	"log/slog"
 	"sync"
 	"time"
 
@@ -43,10 +43,10 @@ func Publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Ser
 
 	previous, err := svc.WeeklyMessage(ctx, cfg.GuildID)
 	if err != nil {
-		log.Printf("guild %s: get weekly message: %v", cfg.GuildID, err)
+		slog.ErrorContext(ctx, "get weekly message", "guild", cfg.GuildID, "err", err)
 	} else if previous != nil {
 		if err := s.ChannelMessageDelete(cmp.Or(previous.ChannelID, cfg.ChannelID), previous.MessageID, discordgo.WithContext(ctx)); err != nil {
-			log.Printf("guild %s: delete previous weekly message: %v", cfg.GuildID, err)
+			slog.ErrorContext(ctx, "delete previous weekly message", "guild", cfg.GuildID, "err", err)
 		}
 	}
 
@@ -64,7 +64,7 @@ func PublishInBackground(ctx context.Context, s *discordgo.Session, svc *appavai
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), Timeout)
 		defer cancel()
 		if err := Publish(ctx, s, svc, cfg); err != nil {
-			log.Printf("guild %s: publish weekly message: %v", cfg.GuildID, err)
+			slog.ErrorContext(ctx, "publish weekly message", "guild", cfg.GuildID, "err", err)
 		}
 	}()
 }
@@ -134,35 +134,35 @@ func (r *Refresher) run(s *discordgo.Session, guildID string) {
 func (r *Refresher) refresh(ctx context.Context, s *discordgo.Session, guildID string) {
 	defer func() {
 		if rec := recover(); rec != nil {
-			log.Printf("guild %s: panic while refreshing weekly message: %v", guildID, rec)
+			slog.ErrorContext(ctx, "panic while refreshing weekly message", "guild", guildID, "panic", rec)
 		}
 	}()
 
 	cfg, err := r.guildCfg.Get(ctx, guildID)
 	if err != nil {
-		log.Printf("guild %s: get guild config: %v", guildID, err)
+		slog.ErrorContext(ctx, "get guild config", "guild", guildID, "err", err)
 		return
 	}
 	week := r.svc.Week(cfg.Schedule)
 	msg, err := r.svc.WeeklyMessage(ctx, guildID)
 	if err != nil || msg == nil || msg.Week != week {
 		if err != nil {
-			log.Printf("guild %s: get weekly message: %v", guildID, err)
+			slog.ErrorContext(ctx, "get weekly message", "guild", guildID, "err", err)
 		}
 		return
 	}
 	counts, err := r.svc.AvailabilitySummary(ctx, guildID, week)
 	if err != nil {
-		log.Printf("guild %s: get availability summary: %v", guildID, err)
+		slog.ErrorContext(ctx, "get availability summary", "guild", guildID, "err", err)
 		return
 	}
 	m := cfg.Messages()
 	payload, err := BuildPayload(m, r.svc.BuildWeeklyView(m, cfg.SlotLayout, week, counts), cfg.RoleID, cfg.Display)
 	if err != nil {
-		log.Printf("guild %s: build weekly message: %v", guildID, err)
+		slog.ErrorContext(ctx, "build weekly message", "guild", guildID, "err", err)
 		return
 	}
 	if _, err := s.ChannelMessageEditComplex(payload.MessageEdit(cmp.Or(msg.ChannelID, cfg.ChannelID), msg.MessageID), discordgo.WithContext(ctx)); err != nil {
-		log.Printf("guild %s: edit weekly message: %v", guildID, err)
+		slog.ErrorContext(ctx, "edit weekly message", "guild", guildID, "err", err)
 	}
 }

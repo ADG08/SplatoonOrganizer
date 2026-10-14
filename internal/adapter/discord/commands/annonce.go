@@ -3,7 +3,7 @@ package commands
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -53,7 +53,7 @@ var _ discord.Command = (*AnnonceCommand)(nil)
 func (c *AnnonceCommand) Execute(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	cfg, err := c.svc.Get(ctx, i.GuildID)
 	if err != nil {
-		log.Printf("annonce: get guild config: %v", err)
+		slog.ErrorContext(ctx, "annonce: get guild config", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, i18n.For(i18n.FR).ErrGeneric)
 	}
 	m := cfg.Messages()
@@ -103,7 +103,7 @@ func (c *AnnonceCommand) Execute(ctx context.Context, s *discordgo.Session, i *d
 	}
 
 	if _, err := s.ChannelMessageSendComplex(channelID, send); err != nil {
-		log.Printf("annonce: send message: %v", err)
+		slog.ErrorContext(ctx, "annonce: send message", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 

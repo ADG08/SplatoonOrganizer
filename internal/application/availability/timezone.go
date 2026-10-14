@@ -3,7 +3,7 @@ package availability
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
@@ -24,7 +24,7 @@ func (s *Service) UserTimezone(ctx context.Context, userID string) (*time.Locati
 	if zone != "" {
 		if loc, err = availability.ParseTimezone(zone); err != nil {
 			// A zone removed from tzdata: ask the member again rather than failing.
-			log.Printf("user %s: stored timezone %q: %v", userID, zone, err)
+			slog.WarnContext(ctx, "invalid stored timezone", "user", userID, "timezone", zone, "err", err)
 			loc = nil
 		}
 	}

@@ -2,7 +2,7 @@ package handlers
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
@@ -37,13 +37,13 @@ func (h *UnavailableDisposHandler) Handle(ctx context.Context, s *discordgo.Sess
 	m := cfg.Messages()
 	userID := getUserID(i)
 	if userID == "" {
-		log.Printf("unavailable dispos handler: could not determine user ID from interaction")
+		slog.WarnContext(ctx, "could not determine user ID", "guild", i.GuildID)
 		return respondWithError(s, i, m.ErrUnknownUser)
 	}
 
 	nowUnavailable, err := h.svc.ToggleWeekUnavailable(ctx, i.GuildID, h.svc.Week(cfg.Schedule), userID)
 	if err != nil {
-		log.Printf("error toggling week unavailability: %v", err)
+		slog.ErrorContext(ctx, "toggle week unavailability", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 
@@ -59,7 +59,7 @@ func (h *UnavailableDisposHandler) Handle(ctx context.Context, s *discordgo.Sess
 			Flags:   discordgo.MessageFlagsEphemeral,
 		},
 	}); err != nil {
-		log.Printf("error responding to unavailable toggle: %v", err)
+		slog.ErrorContext(ctx, "respond to unavailable toggle", "guild", i.GuildID, "err", err)
 	}
 
 	// Marking unavailable clears slots, so refresh the main weekly table (best-effort).

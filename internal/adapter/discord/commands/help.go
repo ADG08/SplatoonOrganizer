@@ -2,7 +2,7 @@ package commands
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
@@ -41,7 +41,7 @@ var _ discord.Command = (*HelpCommand)(nil)
 func (c *HelpCommand) Execute(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
 	cfg, err := c.svc.Get(ctx, i.GuildID)
 	if err != nil {
-		log.Printf("help: get guild config: %v", err)
+		slog.ErrorContext(ctx, "help: get guild config", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, i18n.For(i18n.FR).ErrGeneric)
 	}
 	m := cfg.Messages()
