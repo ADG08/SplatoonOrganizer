@@ -25,6 +25,14 @@ const (
 	tzNextGrid   = "grid"   // the grid in their timezone
 )
 
+// Steps of the picker (last part of its custom ID): the UTC offset, west or east of UTC,
+// then the country, whose timezone follows daylight saving time.
+const (
+	tzStepWest    = "w"
+	tzStepEast    = "e"
+	tzStepCountry = "c"
+)
+
 // utcOffsets are the offsets offered by the picker, in minutes, west to east
 // (whole hours from UTC-12 to UTC+14, plus the half-hour ones in use).
 var utcOffsets = []int{
@@ -62,9 +70,34 @@ func buildTimezonePicker(m *i18n.Messages, next string) []discordgo.MessageCompo
 		}}}
 	}
 	return []discordgo.MessageComponent{
-		row("w", m.PickerWest, west),
-		row("e", m.PickerEast, east),
+		row(tzStepWest, m.PickerWest, west),
+		row(tzStepEast, m.PickerEast, east),
 	}
+}
+
+// buildCountryPicker asks for the member's country among the places at the UTC offset
+// they picked: storing the country's timezone lets daylight saving time apply by itself.
+// The last option keeps the fixed offset, for places missing from the list.
+func buildCountryPicker(m *i18n.Messages, next, offset string, places []availability.Timezone) []discordgo.MessageComponent {
+	options := make([]discordgo.SelectMenuOption, 0, len(places)+1)
+	seen := make(map[string]bool, len(places))
+	for _, place := range places {
+		if seen[place.Zone] || len(options) == 24 {
+			continue
+		}
+		seen[place.Zone] = true
+		options = append(options, discordgo.SelectMenuOption{Label: m.CountryName(place), Value: place.Zone})
+	}
+	options = append(options, discordgo.SelectMenuOption{
+		Label:       fmt.Sprintf(m.OtherCountry, offset),
+		Value:       offset,
+		Description: m.OtherCountryHint,
+	})
+	return []discordgo.MessageComponent{discordgo.ActionsRow{Components: []discordgo.MessageComponent{discordgo.SelectMenu{
+		CustomID:    TimezoneCustomIDPrefix + ":" + next + ":" + tzStepCountry,
+		Placeholder: m.CountryPlaceholder,
+		Options:     options,
+	}}}}
 }
 
 // countriesDescription lists places for a picker option, within Discord's 100 characters.
@@ -166,8 +199,9 @@ func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.Inter
 	})
 }
 
-// TimezoneSelectHandler stores the timezone picked in the picker, then shows what the
-// member was opening (their dispos menus or the grid in their timezone).
+// TimezoneSelectHandler handles the timezone picker: after the UTC offset, it asks for the
+// country at that offset, stores its timezone, then shows what the member was opening
+// (their dispos menus or the grid in their timezone).
 type TimezoneSelectHandler struct {
 	svc      *appavailability.Service
 	guildCfg *appguildconfig.Service
@@ -195,12 +229,24 @@ func (h *TimezoneSelectHandler) Handle(ctx context.Context, s *discordgo.Session
 	if userID == "" || len(values) == 0 {
 		return respondWithError(s, i, m.ErrInvalid)
 	}
-	// Custom ID: availability:tz:<next>:<w|e>
-	next, _, _ := strings.Cut(strings.TrimPrefix(i.MessageComponentData().CustomID, TimezoneCustomIDPrefix+":"), ":")
+	// Custom ID: availability:tz:<next>:<step>
+	next, step, _ := strings.Cut(strings.TrimPrefix(i.MessageComponentData().CustomID, TimezoneCustomIDPrefix+":"), ":")
 	loc, err := availability.ParseTimezone(values[0])
 	if err != nil {
 		slog.WarnContext(ctx, "invalid timezone from picker", "value", values[0], "err", err)
 		return respondWithError(s, i, m.ErrInvalid)
+	}
+	if step != tzStepCountry {
+		_, offset := time.Now().In(loc).Zone()
+		if places := availability.CountriesByOffset(time.Now())[offset]; len(places) > 0 {
+			return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+				Type: discordgo.InteractionResponseUpdateMessage,
+				Data: &discordgo.InteractionResponseData{
+					Content:    fmt.Sprintf(m.PickerCountry, values[0]),
+					Components: buildCountryPicker(m, next, values[0], places),
+				},
+			})
+		}
 	}
 	if err := h.svc.SetUserTimezone(ctx, userID, loc); err != nil {
 		slog.ErrorContext(ctx, "set user timezone", "guild", i.GuildID, "err", err)

@@ -43,6 +43,10 @@ type Messages struct {
 	PickerContent      string
 	PickerWest         string
 	PickerEast         string
+	PickerCountry      string // %s UTC offset
+	CountryPlaceholder string
+	OtherCountry       string // %s UTC offset
+	OtherCountryHint   string
 	BtnEditTimezone    string
 	TimezoneSaved      string // %s timezone name, %s current time there
 	GridInYourTime     string // %s weekly title
@@ -158,12 +162,14 @@ var fr = Messages{
 	TimezoneInMenus: "-# 🌍 Heures affichées à ton heure (%s)",
 
 	PickerContent: "🌍 **Quel est ton fuseau horaire ?**\n" +
-		"Choisis ton décalage UTC (l'heure affichée doit être ton heure actuelle) : " +
-		"les créneaux s'afficheront ensuite à ton heure.\n" +
-		"-# Un décalage fixe ne suit pas l'heure d'été : quand l'heure change, mets-le à jour avec " +
-		"**⚙️ Modifier mon fuseau**.",
+		"Choisis ton décalage UTC (l'heure affichée doit être ton heure actuelle), puis ton pays : " +
+		"les créneaux s'afficheront ensuite à ton heure, changements d'heure compris.",
 	PickerWest:         "UTC-12 → UTC-1 · Amériques, Pacifique",
 	PickerEast:         "UTC+0 → UTC+14 · Europe, Afrique, Asie, Océanie",
+	PickerCountry:      "🌍 **Dans quel pays es-tu ?** (%s)\nLe bot suivra tout seul les passages à l'heure d'été et d'hiver.",
+	CountryPlaceholder: "Ton pays…",
+	OtherCountry:       "Autre pays (%s fixe)",
+	OtherCountryHint:   "Ne suit pas les changements d'heure",
 	BtnEditTimezone:    "⚙️ Modifier mon fuseau",
 	TimezoneSaved:      "✅ Fuseau enregistré : **%s** (il est %s chez toi).",
 	GridInYourTime:     "%s · à ton heure",
@@ -275,12 +281,14 @@ var en = Messages{
 	TimezoneInMenus: "-# 🌍 Hours shown in your time (%s)",
 
 	PickerContent: "🌍 **What's your timezone?**\n" +
-		"Pick your UTC offset (the time shown should be your current time): " +
-		"slots will then be shown in your time.\n" +
-		"-# A fixed offset doesn't follow daylight saving time: when the clocks change, update it with " +
-		"**⚙️ Change my timezone**.",
+		"Pick your UTC offset (the time shown should be your current time), then your country: " +
+		"slots will then be shown in your time, clock changes included.",
 	PickerWest:         "UTC-12 → UTC-1 · Americas, Pacific",
 	PickerEast:         "UTC+0 → UTC+14 · Europe, Africa, Asia, Oceania",
+	PickerCountry:      "🌍 **Which country are you in?** (%s)\nThe bot will follow daylight saving time changes by itself.",
+	CountryPlaceholder: "Your country…",
+	OtherCountry:       "Another country (fixed %s)",
+	OtherCountryHint:   "Doesn't follow clock changes",
 	BtnEditTimezone:    "⚙️ Change my timezone",
 	TimezoneSaved:      "✅ Timezone saved: **%s** (it is %s for you).",
 	GridInYourTime:     "%s · in your time",

@@ -114,3 +114,31 @@ func TestSlotsModalFitsDiscord(t *testing.T) {
 		}
 	}
 }
+
+func TestCountryPicker(t *testing.T) {
+	summer := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
+	for offset, places := range availability.CountriesByOffset(summer) {
+		name := availability.FormatUTCOffset(offset)
+		rows := buildCountryPicker(fr, tzNextDispos, name, places)
+		menu := rows[0].(discordgo.ActionsRow).Components[0].(discordgo.SelectMenu)
+		if len(menu.Options) > 25 {
+			t.Errorf("%s: %d options, Discord allows 25", name, len(menu.Options))
+		}
+		values := map[string]bool{}
+		for _, opt := range menu.Options {
+			if values[opt.Value] {
+				t.Errorf("%s: duplicate value %q, Discord rejects the menu", name, opt.Value)
+			}
+			values[opt.Value] = true
+			if _, err := availability.ParseTimezone(opt.Value); err != nil {
+				t.Errorf("%s: option %q: %v", name, opt.Value, err)
+			}
+		}
+		if last := menu.Options[len(menu.Options)-1]; last.Value != name {
+			t.Errorf("%s: the last option should keep the fixed offset, got %q", name, last.Value)
+		}
+		if offset == 2*3600 && !values["Europe/Paris"] {
+			t.Errorf("UTC+2 in summer should offer France")
+		}
+	}
+}
