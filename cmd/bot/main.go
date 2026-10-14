@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
-	"log"
+	"errors"
+	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -23,30 +25,41 @@ import (
 )
 
 func main() {
+	// key=value lines: Coolify's logs can be searched by guild, user or error.
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
+	if err := run(); err != nil {
+		slog.Error("bot stopped", "err", err)
+		os.Exit(1)
+	}
+}
+
+// run starts the bot and blocks until SIGINT or SIGTERM. Returning instead of exiting
+// lets the deferred cleanups run (Discord session, database pool).
+func run() error {
 	if err := godotenv.Load(); err != nil {
-		log.Println("no .env file found, using environment variables")
+		slog.Info("no .env file found, using environment variables")
 	}
 
-	ctx, cancel := signalContext()
-	defer cancel()
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	cfg, err := LoadConfig()
 	if err != nil {
-		log.Fatalf("config error: %v", err)
+		return fmt.Errorf("config: %w", err)
 	}
 
 	// Infrastructure: database
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("failed to create pgx pool: %v", err)
+		return fmt.Errorf("create pgx pool: %w", err)
 	}
 	defer pool.Close()
 
-	// Timezone for availability
+	// Slots and publication times are in Paris time (embedded tzdata: it always loads).
 	loc, err := time.LoadLocation("Europe/Paris")
 	if err != nil {
-		log.Printf("failed to load Europe/Paris location, falling back to UTC: %v", err)
-		loc = time.UTC
+		return fmt.Errorf("load Europe/Paris: %w", err)
 	}
 
 	// Adapters (secondary / driven): persistence
@@ -60,11 +73,13 @@ func main() {
 	// Single-guild versions took the weekly channel from the environment: keep it as that
 	// guild's configured channel, the only source of channels now.
 	if cfg.DiscordGuildID != "" && cfg.DiscordChannelID != "" {
-		if gc, err := guildConfigSvc.Get(ctx, cfg.DiscordGuildID); err != nil {
-			log.Fatalf("get guild config: %v", err)
-		} else if gc.ChannelID == "" {
+		gc, err := guildConfigSvc.Get(ctx, cfg.DiscordGuildID)
+		if err != nil {
+			return fmt.Errorf("get guild config: %w", err)
+		}
+		if gc.ChannelID == "" {
 			if err := guildConfigSvc.SetChannel(ctx, cfg.DiscordGuildID, cfg.DiscordChannelID); err != nil {
-				log.Fatalf("set guild channel from env: %v", err)
+				return fmt.Errorf("set guild channel from env: %w", err)
 			}
 		}
 	}
@@ -72,97 +87,82 @@ func main() {
 	// Adapters (primary / driving): Discord
 	reg := discord.NewRegistry()
 	refresher := weekly.NewRefresher(availSvc, guildConfigSvc)
-
-	if err := reg.RegisterCommand(commands.NewHelpCommand(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
-		log.Fatalf("register help command: %v", err)
+	for _, c := range []discord.Command{
+		commands.NewHelpCommand(guildConfigSvc, cfg.DiscordOwnerID),
+		commands.NewAnnonceCommand(guildConfigSvc, cfg.DiscordOwnerID),
+	} {
+		if err := reg.RegisterCommand(c); err != nil {
+			return fmt.Errorf("register command: %w", err)
+		}
 	}
-
-	if err := reg.RegisterCommand(commands.NewAnnonceCommand(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
-		log.Fatalf("register annonce command: %v", err)
-	}
-
-	if err := reg.RegisterHandler(handlers.NewOpenDisposHandler(availSvc, guildConfigSvc)); err != nil {
-		log.Fatalf("register open handler: %v", err)
-	}
-
-	if err := reg.RegisterHandler(handlers.NewViewDisposHandler(availSvc, guildConfigSvc)); err != nil {
-		log.Fatalf("register view dispos handler: %v", err)
-	}
-
-	if err := reg.RegisterHandler(handlers.NewTimezoneSelectHandler(availSvc, guildConfigSvc)); err != nil {
-		log.Fatalf("register timezone select handler: %v", err)
-	}
-
-	if err := reg.RegisterHandler(handlers.NewTimezoneEditHandler(guildConfigSvc)); err != nil {
-		log.Fatalf("register timezone edit handler: %v", err)
-	}
-
-	if err := reg.RegisterHandler(handlers.NewMyTimeHandler(availSvc, guildConfigSvc)); err != nil {
-		log.Fatalf("register my time handler: %v", err)
-	}
-
-	if err := reg.RegisterHandler(handlers.NewWhoDisposHandler(availSvc, guildConfigSvc)); err != nil {
-		log.Fatalf("register who dispos handler: %v", err)
-	}
-
-	if err := reg.RegisterHandler(handlers.NewSelectDisposHandler(availSvc, guildConfigSvc, refresher)); err != nil {
-		log.Fatalf("register select dispos handler: %v", err)
-	}
-	if err := reg.RegisterHandler(handlers.NewUnavailableDisposHandler(availSvc, guildConfigSvc, refresher)); err != nil {
-		log.Fatalf("register unavailable dispos handler: %v", err)
-	}
-	if err := reg.RegisterHandler(handlers.NewHelpConfigHandler(guildConfigSvc, availSvc, cfg.DiscordOwnerID)); err != nil {
-		log.Fatalf("register help config handler: %v", err)
+	for _, h := range []discord.InteractionHandler{
+		handlers.NewOpenDisposHandler(availSvc, guildConfigSvc),
+		handlers.NewViewDisposHandler(availSvc, guildConfigSvc),
+		handlers.NewTimezoneSelectHandler(availSvc, guildConfigSvc),
+		handlers.NewTimezoneEditHandler(guildConfigSvc),
+		handlers.NewMyTimeHandler(availSvc, guildConfigSvc),
+		handlers.NewWhoDisposHandler(availSvc, guildConfigSvc),
+		handlers.NewSelectDisposHandler(availSvc, guildConfigSvc, refresher),
+		handlers.NewUnavailableDisposHandler(availSvc, guildConfigSvc, refresher),
+		handlers.NewHelpConfigHandler(guildConfigSvc, availSvc, cfg.DiscordOwnerID),
+	} {
+		if err := reg.RegisterHandler(h); err != nil {
+			return fmt.Errorf("register handler: %w", err)
+		}
 	}
 
 	b, err := discord.NewBot(cfg.DiscordToken, reg)
 	if err != nil {
-		log.Fatalf("failed to create Discord bot: %v", err)
+		return fmt.Errorf("create Discord bot: %w", err)
+	}
+	if err := b.Open(); err != nil {
+		return err
 	}
 	defer b.Close()
-
-	if err := b.Open(); err != nil {
-		log.Fatalf("error opening Discord connection: %v", err)
-	}
 
 	// Scheduler for weekly posting
 	weeklyPoster := scheduler.NewScheduler(availSvc, guildConfigSvc, b.Session())
 	if err := weeklyPoster.Start(ctx, cfg.RunWeeklyOnStart); err != nil {
-		log.Fatalf("start weekly scheduler: %v", err)
+		return fmt.Errorf("start weekly scheduler: %w", err)
 	}
 
 	if err := b.RegisterSlashCommands(cfg.DiscordClientID, cfg.DiscordGuildID); err != nil {
-		log.Fatalf("failed to register slash commands: %v", err)
+		return fmt.Errorf("register slash commands: %w", err)
 	}
 
-	go startHealthServer(cfg.HealthPort)
+	go func() {
+		if err := serveHealth(ctx, cfg.HealthPort); err != nil {
+			slog.Error("health server stopped", "err", err)
+		}
+	}()
 
-	log.Println("SplatoonOrganizer bot is running. Press CTRL-C to exit.")
-
+	slog.Info("SplatoonOrganizer bot is running. Press CTRL-C to exit.")
 	<-ctx.Done()
-	log.Println("shutting down...")
+	slog.Info("shutting down...")
+	return nil
 }
 
-func startHealthServer(port string) {
+// serveHealth answers the container healthcheck until ctx is done.
+func serveHealth(ctx context.Context, port string) error {
 	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
+	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
 		_, _ = w.Write([]byte("ok"))
 	})
-	addr := ":" + port
-	log.Printf("health server listening on %s", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
-		log.Printf("health server error: %v", err)
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second, // a client sending headers slowly can't hold a connection
 	}
-}
-
-func signalContext() (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
 		defer cancel()
-		<-ch
+		_ = srv.Shutdown(shutdownCtx)
 	}()
-	return ctx, cancel
+
+	slog.Info("health server listening", "addr", srv.Addr)
+	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
