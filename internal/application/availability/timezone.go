@@ -16,7 +16,7 @@ func (s *Service) UserTimezone(ctx context.Context, userID string) (*time.Locati
 	if loc, ok := s.timezones.Load(userID); ok {
 		return loc.(*time.Location), nil
 	}
-	zone, err := s.repo.GetUserTimezone(ctx, userID)
+	zone, err := s.repo.UserTimezone(ctx, userID)
 	if err != nil {
 		return nil, err
 	}

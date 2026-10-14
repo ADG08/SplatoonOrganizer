@@ -68,7 +68,7 @@ func (h *OpenDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 func sendDisposMenus(s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, cfg *guildconfig.GuildConfig, userID string, loc *time.Location, followup bool) error {
 	m, layout := cfg.Messages(), cfg.SlotLayout
 	week := svc.Week(cfg.Schedule)
-	userSlots, err := svc.GetUserAvailability(context.Background(), i.GuildID, week, userID)
+	userSlots, err := svc.UserAvailability(context.Background(), i.GuildID, week, userID)
 	if err != nil {
 		log.Printf("error getting user availability: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)
@@ -128,13 +128,13 @@ func (h *ViewDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 	ctx := context.Background()
 	week := h.svc.Week(cfg.Schedule)
 
-	users, err := h.svc.GetAvailabilityUsers(ctx, i.GuildID, week)
+	users, err := h.svc.AvailabilityUsers(ctx, i.GuildID, week)
 	if err != nil {
 		log.Printf("error getting availability users from button: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 
-	unavailableUsers, err := h.svc.GetWeekUnavailableUsers(ctx, i.GuildID, week)
+	unavailableUsers, err := h.svc.WeekUnavailableUsers(ctx, i.GuildID, week)
 	if err != nil {
 		log.Printf("error getting week unavailable users from button: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)

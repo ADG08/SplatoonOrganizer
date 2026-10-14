@@ -28,7 +28,7 @@ func PublishWeeklyMessage(ctx context.Context, s *discordgo.Session, svc *appava
 		return ErrNoChannel
 	}
 	week := svc.Week(cfg.Schedule)
-	counts, err := svc.GetAvailabilitySummary(ctx, cfg.GuildID, week)
+	counts, err := svc.AvailabilitySummary(ctx, cfg.GuildID, week)
 	if err != nil {
 		return fmt.Errorf("get availability summary: %w", err)
 	}
@@ -134,7 +134,7 @@ func (r *WeeklyRefresher) refresh(ctx context.Context, s *discordgo.Session, gui
 		}
 		return
 	}
-	counts, err := r.svc.GetAvailabilitySummary(ctx, guildID, week)
+	counts, err := r.svc.AvailabilitySummary(ctx, guildID, week)
 	if err != nil {
 		log.Printf("guild %s: get availability summary: %v", guildID, err)
 		return

@@ -89,19 +89,19 @@ func (s *Service) ResetWeek(ctx context.Context, guildID string, week availabili
 	return s.repo.DeleteWeekAvailability(ctx, guildID, week)
 }
 
-// GetWeekUnavailableUsers returns the members marked unavailable for a week.
-func (s *Service) GetWeekUnavailableUsers(ctx context.Context, guildID string, week availability.WeekKey) ([]string, error) {
-	return s.repo.GetWeekUnavailableUsers(ctx, guildID, week)
+// WeekUnavailableUsers returns the members marked unavailable for a week.
+func (s *Service) WeekUnavailableUsers(ctx context.Context, guildID string, week availability.WeekKey) ([]string, error) {
+	return s.repo.WeekUnavailableUsers(ctx, guildID, week)
 }
 
-// GetUserAvailability returns a member's availability for a week.
-func (s *Service) GetUserAvailability(ctx context.Context, guildID string, week availability.WeekKey, userID string) (map[int]map[int]bool, error) {
-	return s.repo.GetUserAvailability(ctx, guildID, week, userID)
+// UserAvailability returns a member's availability for a week.
+func (s *Service) UserAvailability(ctx context.Context, guildID string, week availability.WeekKey, userID string) (map[int]map[int]bool, error) {
+	return s.repo.UserAvailability(ctx, guildID, week, userID)
 }
 
 // WeeklyMessage returns the guild's latest weekly message, or nil when there is none.
 func (s *Service) WeeklyMessage(ctx context.Context, guildID string) (*availability.WeeklyMessage, error) {
-	return s.repo.GetWeeklyMessage(ctx, guildID)
+	return s.repo.WeeklyMessage(ctx, guildID)
 }
 
 // SetWeeklyMessage remembers the guild's latest weekly message.
@@ -109,14 +109,14 @@ func (s *Service) SetWeeklyMessage(ctx context.Context, guildID string, msg avai
 	return s.repo.SetWeeklyMessage(ctx, guildID, msg)
 }
 
-// GetAvailabilitySummary returns availability counts per slot for a week.
-func (s *Service) GetAvailabilitySummary(ctx context.Context, guildID string, week availability.WeekKey) ([]availability.SlotCount, error) {
-	return s.repo.GetAvailabilityCounts(ctx, guildID, week)
+// AvailabilitySummary returns availability counts per slot for a week.
+func (s *Service) AvailabilitySummary(ctx context.Context, guildID string, week availability.WeekKey) ([]availability.SlotCount, error) {
+	return s.repo.AvailabilityCounts(ctx, guildID, week)
 }
 
-// GetAvailabilityUsers returns members per slot for a week.
-func (s *Service) GetAvailabilityUsers(ctx context.Context, guildID string, week availability.WeekKey) ([]availability.SlotUsers, error) {
-	return s.repo.GetAvailabilityUsers(ctx, guildID, week)
+// AvailabilityUsers returns members per slot for a week.
+func (s *Service) AvailabilityUsers(ctx context.Context, guildID string, week availability.WeekKey) ([]availability.SlotUsers, error) {
+	return s.repo.AvailabilityUsers(ctx, guildID, week)
 }
 
 // FormatUsersBySlot formats users per slot as a human-readable string.

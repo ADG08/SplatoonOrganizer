@@ -71,7 +71,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 	switch i.Type {
 	case discordgo.InteractionApplicationCommand:
 		data := i.ApplicationCommandData()
-		cmd, ok := b.registry.GetCommand(data.Name)
+		cmd, ok := b.registry.Command(data.Name)
 		if !ok {
 			log.Printf("no command registered for %q", data.Name)
 			return
@@ -81,7 +81,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		}
 	case discordgo.InteractionMessageComponent:
 		data := i.MessageComponentData()
-		handler, ok := b.registry.GetHandler(data.CustomID)
+		handler, ok := b.registry.Handler(data.CustomID)
 		if !ok {
 			log.Printf("no handler registered for %q", data.CustomID)
 			return
@@ -91,7 +91,7 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		}
 	case discordgo.InteractionModalSubmit:
 		data := i.ModalSubmitData()
-		handler, ok := b.registry.GetHandler(data.CustomID)
+		handler, ok := b.registry.Handler(data.CustomID)
 		if !ok {
 			log.Printf("no handler registered for modal %q", data.CustomID)
 			return

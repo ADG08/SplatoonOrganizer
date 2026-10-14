@@ -118,7 +118,7 @@ func timezoneLegend(m *i18n.Messages, layout availability.Layout, loc *time.Loca
 func sendLocalGrid(s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, cfg *guildconfig.GuildConfig, loc *time.Location, followup bool) error {
 	m := cfg.Messages()
 	week := svc.Week(cfg.Schedule)
-	counts, err := svc.GetAvailabilitySummary(context.Background(), cfg.GuildID, week)
+	counts, err := svc.AvailabilitySummary(context.Background(), cfg.GuildID, week)
 	if err != nil {
 		log.Printf("error getting availability summary: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)

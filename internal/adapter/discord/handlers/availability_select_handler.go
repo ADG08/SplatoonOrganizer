@@ -65,7 +65,7 @@ func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interact
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 
-	userSlots, err := h.svc.GetUserAvailability(ctx, i.GuildID, week, userID)
+	userSlots, err := h.svc.UserAvailability(ctx, i.GuildID, week, userID)
 	if err != nil {
 		log.Printf("error getting user availability after select: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)

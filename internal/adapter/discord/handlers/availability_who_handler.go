@@ -50,7 +50,7 @@ func (h *WhoDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interaction
 	}
 
 	week := h.svc.Week(cfg.Schedule)
-	users, err := h.svc.GetAvailabilityUsers(context.Background(), i.GuildID, week)
+	users, err := h.svc.AvailabilityUsers(context.Background(), i.GuildID, week)
 	if err != nil {
 		log.Printf("error getting availability users from select: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)
