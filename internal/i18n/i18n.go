@@ -76,6 +76,15 @@ func (m *Messages) LayoutSummary(l availability.Layout) string {
 	return fmt.Sprintf(m.HourlySummary, m.HourLabel(l.StartHour), m.HourLabel(l.EndHour))
 }
 
+// ScheduleSummary describes a publication schedule for the admin panel: "Lundi · 10h".
+func (m *Messages) ScheduleSummary(s availability.Schedule) string {
+	day := m.Days[0]
+	if s.Weekday == time.Sunday {
+		day = m.Days[6]
+	}
+	return day + " · " + m.HourLabel(s.Hour)
+}
+
 // CountryName returns the name of a place of availability.Countries.
 func (m *Messages) CountryName(tz availability.Timezone) string {
 	if m.lang == EN {

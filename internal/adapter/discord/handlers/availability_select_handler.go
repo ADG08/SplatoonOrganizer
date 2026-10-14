@@ -59,13 +59,13 @@ func (h *SelectDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interact
 		slots[n-1] = true
 	}
 
-	week, err := h.svc.SetDayAvailability(ctx, i.GuildID, userID, dayIndex, slots)
-	if err != nil {
+	week := h.svc.Week(cfg.Schedule)
+	if err := h.svc.SetDayAvailability(ctx, i.GuildID, week, userID, dayIndex, slots); err != nil {
 		log.Printf("error setting day availability: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 
-	_, userSlots, err := h.svc.GetUserAvailability(ctx, i.GuildID, userID)
+	userSlots, err := h.svc.GetUserAvailability(ctx, i.GuildID, week, userID)
 	if err != nil {
 		log.Printf("error getting user availability after select: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)

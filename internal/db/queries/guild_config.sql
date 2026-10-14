@@ -1,5 +1,6 @@
 -- name: GetGuildConfig :one
-SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language
+SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language,
+       publish_weekday, publish_hour
 FROM guild_config
 WHERE guild_id = $1;
 
@@ -26,7 +27,15 @@ SET slot_mode       = EXCLUDED.slot_mode,
     language        = EXCLUDED.language;
 
 -- name: ListGuildConfigsWithChannel :many
-SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language
+SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language,
+       publish_weekday, publish_hour
 FROM guild_config
 WHERE channel_id IS NOT NULL
 ORDER BY guild_id;
+
+-- name: SetGuildConfigSchedule :exec
+INSERT INTO guild_config (guild_id, publish_weekday, publish_hour)
+VALUES ($1, $2, $3)
+ON CONFLICT (guild_id) DO UPDATE
+SET publish_weekday = EXCLUDED.publish_weekday,
+    publish_hour    = EXCLUDED.publish_hour;

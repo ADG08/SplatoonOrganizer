@@ -12,7 +12,8 @@ import (
 )
 
 const getGuildConfig = `-- name: GetGuildConfig :one
-SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language
+SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language,
+       publish_weekday, publish_hour
 FROM guild_config
 WHERE guild_id = $1
 `
@@ -29,12 +30,15 @@ func (q *Queries) GetGuildConfig(ctx context.Context, guildID string) (GuildConf
 		&i.SlotEndHour,
 		&i.DisplayStyle,
 		&i.Language,
+		&i.PublishWeekday,
+		&i.PublishHour,
 	)
 	return i, err
 }
 
 const listGuildConfigsWithChannel = `-- name: ListGuildConfigsWithChannel :many
-SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language
+SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language,
+       publish_weekday, publish_hour
 FROM guild_config
 WHERE channel_id IS NOT NULL
 ORDER BY guild_id
@@ -58,6 +62,8 @@ func (q *Queries) ListGuildConfigsWithChannel(ctx context.Context) ([]GuildConfi
 			&i.SlotEndHour,
 			&i.DisplayStyle,
 			&i.Language,
+			&i.PublishWeekday,
+			&i.PublishHour,
 		); err != nil {
 			return nil, err
 		}
@@ -132,5 +138,24 @@ type SetGuildConfigRoleParams struct {
 
 func (q *Queries) SetGuildConfigRole(ctx context.Context, arg SetGuildConfigRoleParams) error {
 	_, err := q.db.Exec(ctx, setGuildConfigRole, arg.GuildID, arg.RoleID)
+	return err
+}
+
+const setGuildConfigSchedule = `-- name: SetGuildConfigSchedule :exec
+INSERT INTO guild_config (guild_id, publish_weekday, publish_hour)
+VALUES ($1, $2, $3)
+ON CONFLICT (guild_id) DO UPDATE
+SET publish_weekday = EXCLUDED.publish_weekday,
+    publish_hour    = EXCLUDED.publish_hour
+`
+
+type SetGuildConfigScheduleParams struct {
+	GuildID        string      `json:"guild_id"`
+	PublishWeekday pgtype.Int2 `json:"publish_weekday"`
+	PublishHour    pgtype.Int2 `json:"publish_hour"`
+}
+
+func (q *Queries) SetGuildConfigSchedule(ctx context.Context, arg SetGuildConfigScheduleParams) error {
+	_, err := q.db.Exec(ctx, setGuildConfigSchedule, arg.GuildID, arg.PublishWeekday, arg.PublishHour)
 	return err
 }

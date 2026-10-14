@@ -40,7 +40,7 @@ func (h *UnavailableDisposHandler) Handle(s *discordgo.Session, i *discordgo.Int
 		return respondWithError(s, i, m.ErrUnknownUser)
 	}
 
-	nowUnavailable, err := h.svc.ToggleWeekUnavailable(context.Background(), i.GuildID, userID)
+	nowUnavailable, err := h.svc.ToggleWeekUnavailable(context.Background(), i.GuildID, h.svc.Week(cfg.Schedule), userID)
 	if err != nil {
 		log.Printf("error toggling week unavailability: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)

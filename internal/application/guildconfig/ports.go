@@ -16,4 +16,5 @@ type Repository interface {
 	SetChannel(ctx context.Context, guildID, channelID string) error
 	SetRole(ctx context.Context, guildID, roleID string) error
 	SetMessageSettings(ctx context.Context, guildID string, layout availability.Layout, display guildconfig.Display, lang i18n.Lang) error
+	SetSchedule(ctx context.Context, guildID string, schedule availability.Schedule) error
 }

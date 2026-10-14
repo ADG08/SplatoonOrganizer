@@ -10,7 +10,6 @@ type Config struct {
 	DiscordChannelID string // Optional: that guild's channel, used when /help never set one.
 	DiscordOwnerID   string // Optional: Discord user ID of the bot creator (can use admin commands without being server admin).
 	DatabaseURL      string
-	CronSchedule     string
 	RunWeeklyOnStart bool
 	HealthPort       string
 }
@@ -29,7 +28,6 @@ func LoadConfig() (*Config, error) {
 		DiscordChannelID: os.Getenv("DISCORD_CHANNEL_ID"),
 		DiscordOwnerID:   os.Getenv("DISCORD_OWNER_ID"),
 		DatabaseURL:      os.Getenv("DATABASE_URL"),
-		CronSchedule:     os.Getenv("CRON_SCHEDULE"),
 		RunWeeklyOnStart: os.Getenv("RUN_WEEKLY_ON_START") == "1",
 		HealthPort:       healthPort,
 	}

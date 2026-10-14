@@ -70,3 +70,9 @@ func (s *Service) SetMessageSettings(ctx context.Context, guildID string, layout
 	defer s.cache.Delete(guildID)
 	return s.repo.SetMessageSettings(ctx, guildID, layout, display, lang)
 }
+
+// SetSchedule updates when the guild's weekly message is published.
+func (s *Service) SetSchedule(ctx context.Context, guildID string, schedule availability.Schedule) error {
+	defer s.cache.Delete(guildID)
+	return s.repo.SetSchedule(ctx, guildID, schedule)
+}

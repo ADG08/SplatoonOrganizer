@@ -43,8 +43,7 @@ Renseigner ensuite les valeurs dans `.env` (environnement local `dev`) :
 | `DISCORD_GUILD_ID` | Non | Ancien serveur unique : ses commandes « de serveur » sont retirées au démarrage (les commandes sont désormais globales) |
 | `DISCORD_CHANNEL_ID` | Non | Salon de ce serveur, repris dans sa configuration s'il n'en a pas encore |
 | `DATABASE_URL` | Oui | URL de connexion PostgreSQL (local Docker: `...@db-dev:5432/...`) |
-| `CRON_SCHEDULE` | Non | Expression cron (défaut : `0 10 * * MON`) |
-| `RUN_WEEKLY_ON_START` | Non | Mettre `1` pour publier au démarrage |
+| `RUN_WEEKLY_ON_START` | Non | Mettre `1` pour republier dans tous les serveurs au démarrage (tests) |
 
 ### 2. Lancer le projet en local (dev)
 
@@ -83,7 +82,7 @@ docker compose down
 | Commande | Permission | Description |
 |---|---|---|
 | `/dispos` | Tous | Affiche le détail des disponibilités de la semaine avec les mentions des joueurs (message éphémère). |
-| `/help` | Admin | Ouvre un panneau de configuration moderne avec sélecteurs interactifs (salon, rôle à ping, créneaux, affichage et langue). |
+| `/help` | Admin | Ouvre un panneau de configuration moderne avec sélecteurs interactifs (salon, rôle à ping, créneaux, affichage, langue et publication). |
 | `/post-dispos` | Tous | Déclenche manuellement la publication du message hebdomadaire. |
 | `/set-message-channel channel:<#salon>` | Admin | Définit le salon où le message hebdomadaire est publié. |
 | `/set-role-to-ping role:<@role>` | Admin | Définit le rôle à mentionner lors de la publication. |
@@ -121,15 +120,24 @@ Un décalage fixe ne suit pas l'heure d'été : le membre le met à jour avec **
 
 ## Planification automatique
 
-Le bot publie automatiquement le message de disponibilités chaque **lundi à 10h00 (Europe/Paris)** par défaut, dans chaque serveur qui a configuré un salon via `/help`. À chaque publication, le message de la semaine précédente est supprimé.
+Le bot publie automatiquement le message de disponibilités dans chaque serveur qui a configuré un salon via `/help`. À chaque publication, le message de la semaine précédente est supprimé.
+
+Depuis `/help` → **📅 Publication**, un admin choisit quand (heure de Paris) :
+
+- **Lundi** (par défaut, à 10h) : le message porte sur la semaine qui commence ;
+- **Dimanche** : le message porte sur la semaine qui suit, pour que chacun remplisse ses dispos avant le lundi.
+
+Une semaine va toujours du lundi au dimanche. Les clics comptent pour la semaine du dernier message publié : avec une publication le dimanche à 18h, les dispos cochées à partir de 18h vont dans la semaine suivante.
+
+Le bot vérifie toutes les heures quels serveurs ont atteint leur heure de publication, ainsi qu'au démarrage : une publication manquée pendant un redémarrage est rattrapée dès que le bot revient.
 
 ## Plusieurs serveurs
 
-Il suffit d'inviter le bot sur un serveur : les commandes slash sont globales. Un admin configure ensuite le salon (et éventuellement le rôle, les créneaux et l'affichage) avec `/help`. Les dispos, les « pas dispo » et le message de la semaine sont propres à chaque serveur ; le fuseau horaire d'un membre est commun à tous les serveurs.
+Il suffit d'inviter le bot sur un serveur : les commandes slash sont globales. Un admin configure ensuite le salon (et éventuellement le rôle, les créneaux, l'affichage, la langue et la publication) avec `/help`. Le message de la semaine y est publié dans l'heure qui suit. Les dispos, les « pas dispo » et le message de la semaine sont propres à chaque serveur ; le fuseau horaire d'un membre est commun à tous les serveurs.
 
 Pour rester réactif quand plusieurs membres cliquent en même temps, le message de la semaine d'un serveur est mis à jour tout de suite au premier clic, puis au plus une fois par seconde : les clics suivants sont regroupés.
 
-Le planning est configurable via la variable `CRON_SCHEDULE` (format cron standard). Pour déclencher une publication au démarrage (utile pour les tests), utiliser `RUN_WEEKLY_ON_START=1`.
+Pour republier dans tous les serveurs au démarrage (utile pour les tests), utiliser `RUN_WEEKLY_ON_START=1`.
 
 ## Structure du projet
 
@@ -147,7 +155,7 @@ SplatoonOrganizer/
 │   │   │   ├── registry.go      # Registre des commandes et handlers
 │   │   │   ├── commands/        # Implémentation des commandes slash
 │   │   │   ├── handlers/        # Handlers boutons / menus déroulants
-│   │   │   └── scheduler/       # Tâche cron de publication hebdomadaire
+│   │   │   └── scheduler/       # Publication hebdomadaire (vérifiée toutes les heures)
 │   │   │
 │   │   └── persistence/
 │   │       └── postgres/        # Implémentations des repositories PostgreSQL
@@ -201,7 +209,9 @@ CREATE TABLE guild_config (
     slot_start_hour SMALLINT,  -- mode hourly : première heure (0-23)
     slot_end_hour   SMALLINT,  -- mode hourly : fin du dernier créneau (1-24, 24 = minuit)
     display_style   TEXT,      -- NULL/'classic' = embed texte, 'image' = grille en image
-    language        TEXT       -- NULL/'fr' = français, 'en' = anglais
+    language        TEXT,      -- NULL/'fr' = français, 'en' = anglais
+    publish_weekday SMALLINT,  -- NULL = lundi · 0 = dimanche (semaine qui suit), 1 = lundi
+    publish_hour    SMALLINT   -- NULL = 10h · heure de publication (0-23, heure de Paris)
 );
 
 -- Fuseau horaire choisi par chaque membre (mode Par heure)

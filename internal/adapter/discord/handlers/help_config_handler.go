@@ -2,8 +2,10 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"strconv"
+	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
@@ -106,8 +108,54 @@ func (h *HelpConfigHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 				Components: buildSlotsModalComponents(cfg),
 			},
 		})
+	case discord.HelpPanelOpenPublishModalID:
+		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseModal,
+			Data: &discordgo.InteractionResponseData{
+				CustomID:   discord.HelpPanelModalPublishID,
+				Title:      m.PublicationModalTitle,
+				Components: buildPublishModalComponents(cfg),
+			},
+		})
 	default:
 		return respondWithError(s, i, m.ErrInvalid)
+	}
+}
+
+// buildPublishModalComponents builds the publication day and hour form, prefilled with
+// the current schedule.
+func buildPublishModalComponents(cfg *guildconfig.GuildConfig) []discordgo.MessageComponent {
+	m := cfg.Messages()
+	days := []discordgo.SelectMenuOption{
+		{Label: m.PublishSunday, Value: strconv.Itoa(int(time.Sunday)), Default: cfg.Schedule.Weekday == time.Sunday},
+		{Label: m.PublishMonday, Value: strconv.Itoa(int(time.Monday)), Default: cfg.Schedule.Weekday == time.Monday},
+	}
+	hours := make([]discordgo.SelectMenuOption, 24)
+	for h := range hours {
+		hours[h] = discordgo.SelectMenuOption{Label: m.HourLabel(h), Value: strconv.Itoa(h), Default: h == cfg.Schedule.Hour}
+	}
+	return []discordgo.MessageComponent{
+		selectField(m.PublishDayLabel, m.PublishDayHint, "publish_weekday", true, days),
+		selectField(m.PublishHourLabel, m.PublishHourHint, "publish_hour", true, hours),
+	}
+}
+
+// selectField is a modal field holding a single-choice select menu.
+func selectField(label, hint, customID string, required bool, options []discordgo.SelectMenuOption) discordgo.Label {
+	minValues := 0
+	if required {
+		minValues = 1
+	}
+	return discordgo.Label{
+		Label:       label,
+		Description: hint,
+		Component: discordgo.SelectMenu{
+			CustomID:  customID,
+			MinValues: intPtr(minValues),
+			MaxValues: 1,
+			Required:  boolPtr(required),
+			Options:   options,
+		},
 	}
 }
 
@@ -144,23 +192,6 @@ func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Message
 		})
 	}
 
-	selectField := func(label, hint, customID string, required bool, options []discordgo.SelectMenuOption) discordgo.Label {
-		minValues := 0
-		if required {
-			minValues = 1
-		}
-		return discordgo.Label{
-			Label:       label,
-			Description: hint,
-			Component: discordgo.SelectMenu{
-				CustomID:  customID,
-				MinValues: intPtr(minValues),
-				MaxValues: 1,
-				Required:  boolPtr(required),
-				Options:   options,
-			},
-		}
-	}
 	return []discordgo.MessageComponent{
 		selectField(m.LanguageLabel, "", "language", true, languages),
 		selectField(m.DisplayLabel, m.DisplayHint, "display_style", true, displays),
@@ -197,6 +228,8 @@ func (h *HelpConfigHandler) handleModalSubmit(s *discordgo.Session, i *discordgo
 		}
 	case discord.HelpPanelModalSlotsID:
 		return h.handleSlotsSubmit(s, i, cfg, data)
+	case discord.HelpPanelModalPublishID:
+		return h.handlePublishSubmit(s, i, cfg, data)
 	default:
 		return respondWithError(s, i, m.ErrInvalid)
 	}
@@ -243,7 +276,7 @@ func (h *HelpConfigHandler) handleSlotsSubmit(s *discordgo.Session, i *discordgo
 	message := m.Republished
 	if layoutChanged {
 		// Slot indexes of the old layout would be misread with the new one: start the week over.
-		if err := h.availSvc.ResetWeek(ctx, previous.GuildID, h.availSvc.CurrentWeek()); err != nil {
+		if err := h.availSvc.ResetWeek(ctx, previous.GuildID, h.availSvc.Week(previous.Schedule)); err != nil {
 			log.Printf("help config modal: reset week: %v", err)
 			return respondWithError(s, i, m.ErrGeneric)
 		}
@@ -261,6 +294,45 @@ func (h *HelpConfigHandler) handleSlotsSubmit(s *discordgo.Session, i *discordgo
 				log.Printf("help config modal: republish weekly message: %v", err)
 			}
 		}()
+	}
+
+	return h.refreshPanel(s, i, previous.GuildID, message)
+}
+
+func (h *HelpConfigHandler) handlePublishSubmit(s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, data discordgo.ModalSubmitInteractionData) error {
+	m := previous.Messages()
+	weekday, errDay := strconv.Atoi(modalSelectValue(data.Components, "publish_weekday"))
+	hour, errHour := strconv.Atoi(modalSelectValue(data.Components, "publish_hour"))
+	schedule, err := availability.NewSchedule(time.Weekday(weekday), hour)
+	if errDay != nil || errHour != nil || err != nil {
+		return respondWithError(s, i, m.ErrInvalid)
+	}
+	if schedule == previous.Schedule {
+		return h.refreshPanel(s, i, previous.GuildID, m.NothingChanged)
+	}
+
+	ctx := context.Background()
+	if err := h.svc.SetSchedule(ctx, previous.GuildID, schedule); err != nil {
+		log.Printf("help config modal: set schedule: %v", err)
+		return respondWithError(s, i, m.ErrGeneric)
+	}
+
+	// The new schedule may be past its publication time already (switching to Sunday on a
+	// Sunday evening): publish the week it now points to rather than at the next hour.
+	cfg := *previous
+	cfg.Schedule = schedule
+	message := fmt.Sprintf(m.PublicationSaved, m.ScheduleSummary(schedule))
+	if cfg.ChannelID != "" {
+		if due, err := WeeklyMessageDue(ctx, h.availSvc, &cfg); err != nil {
+			log.Printf("help config modal: %v", err)
+		} else if due {
+			message += m.PublishedNow
+			go func() {
+				if err := PublishWeeklyMessage(context.Background(), s, h.availSvc, &cfg); err != nil {
+					log.Printf("help config modal: publish weekly message: %v", err)
+				}
+			}()
+		}
 	}
 
 	return h.refreshPanel(s, i, previous.GuildID, message)

@@ -27,7 +27,7 @@ func PublishWeeklyMessage(ctx context.Context, s *discordgo.Session, svc *appava
 	if cfg.ChannelID == "" {
 		return ErrNoChannel
 	}
-	week := svc.CurrentWeek()
+	week := svc.Week(cfg.Schedule)
 	counts, err := svc.GetAvailabilitySummary(ctx, cfg.GuildID, week)
 	if err != nil {
 		return fmt.Errorf("get availability summary: %w", err)
@@ -52,6 +52,16 @@ func PublishWeeklyMessage(ctx context.Context, s *discordgo.Session, svc *appava
 		return fmt.Errorf("send weekly message: %w", err)
 	}
 	return svc.SetWeeklyMessage(ctx, cfg.GuildID, availability.WeeklyMessage{Week: week, ChannelID: cfg.ChannelID, MessageID: msg.ID})
+}
+
+// WeeklyMessageDue reports whether the guild's current week has no weekly message yet:
+// its publication time passed, possibly while the bot was down.
+func WeeklyMessageDue(ctx context.Context, svc *appavailability.Service, cfg *guildconfig.GuildConfig) (bool, error) {
+	msg, err := svc.WeeklyMessage(ctx, cfg.GuildID)
+	if err != nil {
+		return false, fmt.Errorf("get weekly message: %w", err)
+	}
+	return msg == nil || msg.Week != svc.Week(cfg.Schedule), nil
 }
 
 // refreshCooldown bounds how often a guild's weekly message is edited: a burst of clicks
@@ -111,17 +121,17 @@ func (r *WeeklyRefresher) refresh(ctx context.Context, s *discordgo.Session, gui
 		}
 	}()
 
-	week := r.svc.CurrentWeek()
+	cfg, err := r.guildCfg.Get(ctx, guildID)
+	if err != nil {
+		log.Printf("guild %s: get guild config: %v", guildID, err)
+		return
+	}
+	week := r.svc.Week(cfg.Schedule)
 	msg, err := r.svc.WeeklyMessage(ctx, guildID)
 	if err != nil || msg == nil || msg.Week != week {
 		if err != nil {
 			log.Printf("guild %s: get weekly message: %v", guildID, err)
 		}
-		return
-	}
-	cfg, err := r.guildCfg.Get(ctx, guildID)
-	if err != nil {
-		log.Printf("guild %s: get guild config: %v", guildID, err)
 		return
 	}
 	counts, err := r.svc.GetAvailabilitySummary(ctx, guildID, week)

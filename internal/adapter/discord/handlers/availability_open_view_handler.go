@@ -43,7 +43,7 @@ func (h *OpenDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 	ctx := context.Background()
 
 	// Opening "Mes dispos" means the user is available again: clear any week-unavailable status.
-	if err := h.svc.ClearWeekUnavailable(ctx, i.GuildID, userID); err != nil {
+	if err := h.svc.ClearWeekUnavailable(ctx, i.GuildID, h.svc.Week(cfg.Schedule), userID); err != nil {
 		log.Printf("error clearing week unavailability on open: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
@@ -67,7 +67,8 @@ func (h *OpenDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 // 5 rows limit), labelled in the member's timezone. With followup, both are follow-ups.
 func sendDisposMenus(s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, cfg *guildconfig.GuildConfig, userID string, loc *time.Location, followup bool) error {
 	m, layout := cfg.Messages(), cfg.SlotLayout
-	week, userSlots, err := svc.GetUserAvailability(context.Background(), i.GuildID, userID)
+	week := svc.Week(cfg.Schedule)
+	userSlots, err := svc.GetUserAvailability(context.Background(), i.GuildID, week, userID)
 	if err != nil {
 		log.Printf("error getting user availability: %v", err)
 		return respondWithError(s, i, m.ErrGeneric)
@@ -125,7 +126,7 @@ func (h *ViewDisposHandler) Handle(s *discordgo.Session, i *discordgo.Interactio
 	}
 	m := cfg.Messages()
 	ctx := context.Background()
-	week := h.svc.CurrentWeek()
+	week := h.svc.Week(cfg.Schedule)
 
 	users, err := h.svc.GetAvailabilityUsers(ctx, i.GuildID, week)
 	if err != nil {

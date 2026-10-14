@@ -39,11 +39,6 @@ func WeekKeyFromTime(t time.Time, loc *time.Location) WeekKey {
 	return WeekKey(fmt.Sprintf("%04d-W%02d", year, week))
 }
 
-// CurrentWeekKey returns the current week key in the given location.
-func CurrentWeekKey(loc *time.Location) WeekKey {
-	return WeekKeyFromTime(time.Now(), loc)
-}
-
 // Monday returns midnight of the Monday that starts the ISO week, in loc.
 func (w WeekKey) Monday(loc *time.Location) (time.Time, error) {
 	var year, week int

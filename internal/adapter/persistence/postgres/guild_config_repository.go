@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/db"
@@ -34,7 +35,7 @@ func (r *GuildConfigRepository) Get(ctx context.Context, guildID string) (*guild
 	row, err := r.queries.GetGuildConfig(ctx, guildID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return &guildconfig.GuildConfig{GuildID: guildID, SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic, Language: i18n.FR}, nil
+			return &guildconfig.GuildConfig{GuildID: guildID, SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic, Language: i18n.FR, Schedule: availability.DefaultSchedule()}, nil
 		}
 		return nil, err
 	}
@@ -63,6 +64,7 @@ func toGuildConfig(row db.GuildConfig) (*guildconfig.GuildConfig, error) {
 		SlotLayout: availability.HalfDayLayout(),
 		Display:    guildconfig.DisplayClassic,
 		Language:   i18n.Parse(row.Language.String),
+		Schedule:   availability.DefaultSchedule(),
 	}
 	if guildconfig.Display(row.DisplayStyle.String) == guildconfig.DisplayImage {
 		cfg.Display = guildconfig.DisplayImage
@@ -80,6 +82,13 @@ func toGuildConfig(row db.GuildConfig) (*guildconfig.GuildConfig, error) {
 		}
 		cfg.SlotLayout = layout
 	}
+	if row.PublishWeekday.Valid && row.PublishHour.Valid {
+		schedule, err := availability.NewSchedule(time.Weekday(row.PublishWeekday.Int16), int(row.PublishHour.Int16))
+		if err != nil {
+			return nil, fmt.Errorf("guild %s: stored publication schedule: %w", row.GuildID, err)
+		}
+		cfg.Schedule = schedule
+	}
 	return cfg, nil
 }
 
@@ -95,6 +104,14 @@ func (r *GuildConfigRepository) SetMessageSettings(ctx context.Context, guildID 
 		params.SlotEndHour = pgtype.Int2{Int16: int16(layout.EndHour), Valid: true}
 	}
 	return r.queries.SetGuildConfigMessageSettings(ctx, params)
+}
+
+func (r *GuildConfigRepository) SetSchedule(ctx context.Context, guildID string, schedule availability.Schedule) error {
+	return r.queries.SetGuildConfigSchedule(ctx, db.SetGuildConfigScheduleParams{
+		GuildID:        guildID,
+		PublishWeekday: pgtype.Int2{Int16: int16(schedule.Weekday), Valid: true},
+		PublishHour:    pgtype.Int2{Int16: int16(schedule.Hour), Valid: true},
+	})
 }
 
 func (r *GuildConfigRepository) SetChannel(ctx context.Context, guildID, channelID string) error {

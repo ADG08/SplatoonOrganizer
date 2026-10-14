@@ -21,9 +21,10 @@ type GuildConfig struct {
 	GuildID    string
 	ChannelID  string
 	RoleID     string
-	SlotLayout availability.Layout // how days are split into slots (half-day by default)
-	Display    Display             // how the weekly message is shown (classic by default)
-	Language   i18n.Lang           // language of the bot in the guild (French by default)
+	SlotLayout availability.Layout   // how days are split into slots (half-day by default)
+	Display    Display               // how the weekly message is shown (classic by default)
+	Language   i18n.Lang             // language of the bot in the guild (French by default)
+	Schedule   availability.Schedule // when the weekly message is published (Monday 10h by default)
 }
 
 // Messages returns the texts in the guild's language.

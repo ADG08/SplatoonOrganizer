@@ -95,6 +95,19 @@ type Messages struct {
 	HourOrder         string
 	NothingSelected   string
 
+	// /help: publication schedule
+	PanelPublication      string
+	BtnConfigPublication  string
+	PublicationModalTitle string
+	PublishDayLabel       string
+	PublishDayHint        string
+	PublishSunday         string
+	PublishMonday         string
+	PublishHourLabel      string
+	PublishHourHint       string
+	PublicationSaved      string // %s schedule summary
+	PublishedNow          string
+
 	// /annonce
 	AnnounceBy        string // %s mention
 	AnnouncePublished string // %s channel mention
@@ -136,7 +149,7 @@ var fr = Messages{
 	NobodyThatDay:    "Personne n'est dispo ce jour-là pour l'instant.",
 	UnavailableUsers: "🚫 **Indisponibles cette semaine** : %s",
 
-	DisposIntro:     "Configure tes disponibilités pour la semaine en cours :",
+	DisposIntro:     "Configure tes disponibilités de la semaine :",
 	DisposMore:      "Suite :",
 	DisposUpdated:   "Tes disponibilités ont été mises à jour.",
 	AvailableAgain:  "✅ Tu es de nouveau disponible cette semaine. Configure tes créneaux avec **✏️ Mes dispos**.",
@@ -201,6 +214,18 @@ var fr = Messages{
 	HourOrder:         "La première heure doit être avant la fin du dernier créneau.",
 	NothingSelected:   "Rien n'a été sélectionné.",
 
+	PanelPublication:      "📅  Publication",
+	BtnConfigPublication:  "📅  Publication",
+	PublicationModalTitle: "Publication du message",
+	PublishDayLabel:       "Jour de publication",
+	PublishDayHint:        "Le message couvre toujours une semaine du lundi au dimanche.",
+	PublishSunday:         "Dimanche, pour la semaine qui suit",
+	PublishMonday:         "Lundi, pour la semaine qui commence",
+	PublishHourLabel:      "Heure de publication",
+	PublishHourHint:       "Heure de Paris.",
+	PublicationSaved:      "Publication enregistrée : %s.",
+	PublishedNow:          " Le message de la semaine est en cours de publication.",
+
 	AnnounceBy:        "**Annonce de** %s",
 	AnnouncePublished: "✅ Annonce publiée dans %s.",
 	AnnounceEmpty:     "Le titre et le message ne peuvent pas être vides.",
@@ -240,7 +265,7 @@ var en = Messages{
 	NobodyThatDay:    "Nobody is available that day yet.",
 	UnavailableUsers: "🚫 **Unavailable this week**: %s",
 
-	DisposIntro:     "Set your availability for this week:",
+	DisposIntro:     "Set your availability for the week:",
 	DisposMore:      "More:",
 	DisposUpdated:   "Your availability has been updated.",
 	AvailableAgain:  "✅ You're available again this week. Pick your slots with **✏️ My availability**.",
@@ -304,6 +329,18 @@ var en = Messages{
 	NotPublished:      " (no channel set: nothing was posted)",
 	HourOrder:         "The first hour must be before the end of the last slot.",
 	NothingSelected:   "Nothing was selected.",
+
+	PanelPublication:      "📅  Posting",
+	BtnConfigPublication:  "📅  Posting",
+	PublicationModalTitle: "Weekly message posting",
+	PublishDayLabel:       "Posting day",
+	PublishDayHint:        "The message always covers a week from Monday to Sunday.",
+	PublishSunday:         "Sunday, for the following week",
+	PublishMonday:         "Monday, for the week starting",
+	PublishHourLabel:      "Posting time",
+	PublishHourHint:       "Paris time.",
+	PublicationSaved:      "Posting schedule saved: %s.",
+	PublishedNow:          " The weekly message is being posted.",
 
 	AnnounceBy:        "**Announcement by** %s",
 	AnnouncePublished: "✅ Announcement posted in %s.",

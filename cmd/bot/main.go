@@ -126,15 +126,8 @@ func main() {
 
 	// Scheduler for weekly posting
 	weeklyPoster := scheduler.NewScheduler(availSvc, guildConfigSvc, b.Session())
-	if err := weeklyPoster.Start(ctx, cfg.CronSchedule); err != nil {
+	if err := weeklyPoster.Start(ctx, cfg.RunWeeklyOnStart); err != nil {
 		log.Fatalf("start weekly scheduler: %v", err)
-	}
-	if cfg.RunWeeklyOnStart {
-		go func() {
-			if err := weeklyPoster.RunWeeklyNow(ctx); err != nil {
-				log.Printf("run weekly on start: %v", err)
-			}
-		}()
 	}
 
 	if err := b.RegisterSlashCommands(cfg.DiscordClientID, cfg.DiscordGuildID); err != nil {
