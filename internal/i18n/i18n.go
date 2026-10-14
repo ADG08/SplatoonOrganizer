@@ -59,7 +59,7 @@ func (m *Messages) Clock(t time.Time) string {
 	return fmt.Sprintf("%dh%02d", t.Hour(), t.Minute())
 }
 
-// SlotLabel returns the label of a slot in Paris time: "Soir" or "20h – 21h".
+// SlotLabel returns the label of a slot in the guild's time: "Soir" or "20h – 21h".
 func (m *Messages) SlotLabel(l availability.Layout, slot int) string {
 	if !l.IsHourly() {
 		return m.HalfDay[slot]

@@ -17,7 +17,7 @@ type Messages struct {
 	WeeklyTitle      string // %s Monday's date
 	ClassicTitle     string
 	TableDayHeader   string // first column of the half-day table, 10 characters at most
-	ParisTimeLegend  string // %s hour in Paris, %s same hour for the member
+	ServerTimeLegend string // %s server timezone, %s an hour there, %s same hour for the member
 	ImageLegend      string
 	BtnMyDispos      string
 	BtnViewDispos    string
@@ -113,6 +113,14 @@ type Messages struct {
 	PublicationSaved      string // %s schedule summary
 	PublishedNow          string
 
+	// /help: timezone of the guild
+	PanelTimezone      string
+	BtnConfigTimezone  string
+	GuildPickerContent string // %s current timezone
+	GuildPickerCountry string // %s UTC offset
+	GuildTimezoneSaved string // %s timezone name, %s current time there
+	TimezoneSlotsReset string
+
 	// /annonce
 	AnnounceBy        string // %s mention
 	AnnouncePublished string // %s channel mention
@@ -140,7 +148,7 @@ var fr = Messages{
 	WeeklyTitle:      "Dispos de la semaine du %s",
 	ClassicTitle:     "Disponibilités de la semaine",
 	TableDayHeader:   "Jour",
-	ParisTimeLegend:  "Heures de Paris · %s Paris = %s chez toi",
+	ServerTimeLegend: "Heure du serveur (%s) · %s = %s chez toi",
 	ImageLegend:      "🟩 beaucoup · 🟨 moyen · ⬛ peu",
 	BtnMyDispos:      "✏️ Mes dispos",
 	BtnViewDispos:    "📋 Voir les dispos",
@@ -211,7 +219,7 @@ var fr = Messages{
 	ModeHint:          "⚠️ Changer le découpage réinitialise les dispos de la semaine en cours.",
 	ModeHourly:        "Par heure",
 	StartHourLabel:    "Première heure (mode par heure)",
-	StartHourHint:     "Heure de Paris. Ignorée en Après-midi / Soir.",
+	StartHourHint:     "Heure du serveur. Ignorée en Après-midi / Soir.",
 	EndHourLabel:      "Fin du dernier créneau (mode par heure)",
 	EndHourHint:       "Ignorée en Après-midi / Soir.",
 	ConfigSaved:       "Configuration enregistrée.",
@@ -230,9 +238,16 @@ var fr = Messages{
 	PublishSunday:         "Dimanche, pour la semaine qui suit",
 	PublishMonday:         "Lundi, pour la semaine qui commence",
 	PublishHourLabel:      "Heure de publication",
-	PublishHourHint:       "Heure de Paris.",
+	PublishHourHint:       "Heure du serveur.",
 	PublicationSaved:      "Publication enregistrée : %s.",
 	PublishedNow:          " Le message de la semaine est en cours de publication.",
+
+	PanelTimezone:      "🌍  Fuseau horaire",
+	BtnConfigTimezone:  "🌍  Fuseau horaire",
+	GuildPickerContent: "🌍 **Quel est le fuseau horaire du serveur ?** (actuellement : %s)\nToutes ses heures le suivent : créneaux, grille, semaines et publication. Choisis le décalage UTC actuel, puis le pays.",
+	GuildPickerCountry: "🌍 **Dans quel pays est le serveur ?** (%s)\nLe bot suivra tout seul les passages à l'heure d'été et d'hiver.",
+	GuildTimezoneSaved: "Fuseau du serveur : **%s** (il y est %s).",
+	TimezoneSlotsReset: " Les créneaux ayant changé d'heure, les dispos de la semaine ont été réinitialisées.",
 
 	AnnounceBy:        "**Annonce de** %s",
 	AnnouncePublished: "✅ Annonce publiée dans %s.",
@@ -259,7 +274,7 @@ var en = Messages{
 	WeeklyTitle:      "Availability for the week of %s",
 	ClassicTitle:     "This week's availability",
 	TableDayHeader:   "Day",
-	ParisTimeLegend:  "Paris time · %s in Paris = %s for you",
+	ServerTimeLegend: "Server time (%s) · %s = %s for you",
 	ImageLegend:      "🟩 many · 🟨 some · ⬛ few",
 	BtnMyDispos:      "✏️ My availability",
 	BtnViewDispos:    "📋 See availability",
@@ -330,7 +345,7 @@ var en = Messages{
 	ModeHint:          "⚠️ Changing the slots resets this week's availability.",
 	ModeHourly:        "Hourly",
 	StartHourLabel:    "First hour (hourly slots)",
-	StartHourHint:     "Paris time. Ignored for Afternoon / Evening.",
+	StartHourHint:     "Server time. Ignored for Afternoon / Evening.",
 	EndHourLabel:      "End of the last slot (hourly slots)",
 	EndHourHint:       "Ignored for Afternoon / Evening.",
 	ConfigSaved:       "Settings saved.",
@@ -349,9 +364,16 @@ var en = Messages{
 	PublishSunday:         "Sunday, for the following week",
 	PublishMonday:         "Monday, for the week starting",
 	PublishHourLabel:      "Posting time",
-	PublishHourHint:       "Paris time.",
+	PublishHourHint:       "Server time.",
 	PublicationSaved:      "Posting schedule saved: %s.",
 	PublishedNow:          " The weekly message is being posted.",
+
+	PanelTimezone:      "🌍  Timezone",
+	BtnConfigTimezone:  "🌍  Timezone",
+	GuildPickerContent: "🌍 **What's the server's timezone?** (currently: %s)\nAll its hours follow it: slots, grid, weeks and posting. Pick the current UTC offset, then the country.",
+	GuildPickerCountry: "🌍 **Which country is the server in?** (%s)\nThe bot will follow daylight saving time changes by itself.",
+	GuildTimezoneSaved: "Server timezone: **%s** (it is %s there).",
+	TimezoneSlotsReset: " The slots moved, so this week's availability was reset.",
 
 	AnnounceBy:        "**Announcement by** %s",
 	AnnouncePublished: "✅ Announcement posted in %s.",

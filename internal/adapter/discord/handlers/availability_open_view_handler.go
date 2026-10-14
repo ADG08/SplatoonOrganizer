@@ -43,7 +43,7 @@ func (h *OpenDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 	}
 
 	// Opening "Mes dispos" means the user is available again: clear any week-unavailable status.
-	if err := h.svc.ClearWeekUnavailable(ctx, i.GuildID, h.svc.Week(cfg.Schedule), userID); err != nil {
+	if err := h.svc.ClearWeekUnavailable(ctx, i.GuildID, h.svc.Week(cfg.Schedule, cfg.Location), userID); err != nil {
 		slog.ErrorContext(ctx, "clear week unavailability on open", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
@@ -67,13 +67,13 @@ func (h *OpenDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 // 5 rows limit), labelled in the member's timezone. With followup, both are follow-ups.
 func sendDisposMenus(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, cfg *guildconfig.GuildConfig, userID string, loc *time.Location, followup bool) error {
 	m, layout := cfg.Messages(), cfg.SlotLayout
-	week := svc.Week(cfg.Schedule)
+	week := svc.Week(cfg.Schedule, cfg.Location)
 	userSlots, err := svc.UserAvailability(ctx, i.GuildID, week, userID)
 	if err != nil {
 		slog.ErrorContext(ctx, "get user availability", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
-	label := func(day, slot int) string { return svc.SlotLabelIn(m, layout, week, day, slot, loc) }
+	label := func(day, slot int) string { return svc.SlotLabelIn(m, layout, cfg.Location, week, day, slot, loc) }
 
 	first := &discordgo.WebhookParams{
 		Content:    withLegend(m.DisposIntro, timezoneLegend(m, layout, loc)),
@@ -125,7 +125,7 @@ func (h *ViewDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 		return nil
 	}
 	m := cfg.Messages()
-	week := h.svc.Week(cfg.Schedule)
+	week := h.svc.Week(cfg.Schedule, cfg.Location)
 
 	users, err := h.svc.AvailabilityUsers(ctx, i.GuildID, week)
 	if err != nil {
@@ -139,7 +139,7 @@ func (h *ViewDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 
-	description := h.svc.FormatUsersBySlot(m, cfg.SlotLayout, week, users)
+	description := h.svc.FormatUsersBySlot(m, cfg.SlotLayout, cfg.Location, week, users)
 	if unavailable := h.svc.FormatUnavailableUsers(m, unavailableUsers); unavailable != "" {
 		description += "\n" + unavailable
 	}

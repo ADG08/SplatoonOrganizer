@@ -13,10 +13,9 @@ import (
 )
 
 // Service implements availability use cases. Except members' timezones, everything is
-// scoped to a guild.
+// scoped to a guild. Hours are in the guild's timezone, passed as ref.
 type Service struct {
 	repo Repository
-	loc  *time.Location
 
 	// timezones caches members' timezones (nil = never picked): read on most clicks of an
 	// hourly guild, written only when a member picks one.
@@ -24,25 +23,14 @@ type Service struct {
 }
 
 // NewService creates a new availability service.
-func NewService(repo Repository, loc *time.Location) *Service {
-	if loc == nil {
-		loc = time.UTC
-	}
-	return &Service{
-		repo: repo,
-		loc:  loc,
-	}
-}
-
-// Location returns the timezone used by the service.
-func (s *Service) Location() *time.Location {
-	return s.loc
+func NewService(repo Repository) *Service {
+	return &Service{repo: repo}
 }
 
 // Week returns the week a guild's members currently fill in: the one of the latest weekly
-// message of its publication schedule.
-func (s *Service) Week(schedule availability.Schedule) availability.WeekKey {
-	return schedule.Week(time.Now(), s.loc)
+// message of its publication schedule, in the guild's timezone.
+func (s *Service) Week(schedule availability.Schedule, ref *time.Location) availability.WeekKey {
+	return schedule.Week(time.Now(), ref)
 }
 
 // SetDayAvailability sets a member's availability for an entire day, in one round trip.
@@ -120,9 +108,9 @@ func (s *Service) AvailabilityUsers(ctx context.Context, guildID string, week av
 }
 
 // FormatUsersBySlot formats users per slot as a human-readable string.
-func (s *Service) FormatUsersBySlot(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, users []availability.SlotUsers) string {
+func (s *Service) FormatUsersBySlot(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, users []availability.SlotUsers) string {
 	if layout.IsHourly() {
-		return s.formatUsersByHour(m, layout, week, users)
+		return s.formatUsersByHour(m, layout, ref, week, users)
 	}
 
 	type key struct {
@@ -156,7 +144,7 @@ func (s *Service) FormatUsersBySlot(m *i18n.Messages, layout availability.Layout
 }
 
 // formatUsersByHour lists, per day, each user with their ranges of consecutive hours.
-func (s *Service) formatUsersByHour(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, users []availability.SlotUsers) string {
+func (s *Service) formatUsersByHour(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, users []availability.SlotUsers) string {
 	byDay := usersByDay(layout, users)
 
 	var b strings.Builder
@@ -167,7 +155,7 @@ func (s *Service) formatUsersByHour(m *i18n.Messages, layout availability.Layout
 			continue
 		}
 		fmt.Fprintf(&b, "\n**%s**\n", m.Days[day])
-		for _, line := range s.dayUserLines(m, layout, week, day, byDay[day]) {
+		for _, line := range s.dayUserLines(m, layout, ref, week, day, byDay[day]) {
 			b.WriteString(line + "\n")
 		}
 	}
@@ -175,7 +163,7 @@ func (s *Service) formatUsersByHour(m *i18n.Messages, layout availability.Layout
 }
 
 // FormatDayUsers lists who is available on one day, one line per user with their ranges.
-func (s *Service) FormatDayUsers(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, users []availability.SlotUsers, dayIndex int) string {
+func (s *Service) FormatDayUsers(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, users []availability.SlotUsers, dayIndex int) string {
 	byUser := usersByDay(layout, users)[dayIndex]
 	if len(byUser) == 0 {
 		return m.NobodyThatDay
@@ -185,7 +173,7 @@ func (s *Service) FormatDayUsers(m *i18n.Messages, layout availability.Layout, w
 	if layout.IsHourly() {
 		b.WriteString("-# " + m.YourTimezoneNote + "\n")
 	}
-	b.WriteString(strings.Join(s.dayUserLines(m, layout, week, dayIndex, byUser), "\n"))
+	b.WriteString(strings.Join(s.dayUserLines(m, layout, ref, week, dayIndex, byUser), "\n"))
 	return b.String()
 }
 
@@ -211,7 +199,7 @@ func usersByDay(layout availability.Layout, users []availability.SlotUsers) []ma
 
 // dayUserLines renders one line per user of a day, earliest availability first.
 // Consecutive hours are merged into one range: 14h to minuit shows as "14:00 – 00:00".
-func (s *Service) dayUserLines(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, day int, byUser map[string][]bool) []string {
+func (s *Service) dayUserLines(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, day int, byUser map[string][]bool) []string {
 	firstSlot := func(slots []bool) int {
 		for slot, ok := range slots {
 			if ok {
@@ -248,7 +236,7 @@ func (s *Service) dayUserLines(m *i18n.Messages, layout availability.Layout, wee
 			for end < len(slots) && slots[end] {
 				end++
 			}
-			ranges = append(ranges, s.slotTime(m, layout, week, day, slot)+" – "+s.slotTime(m, layout, week, day, end))
+			ranges = append(ranges, s.slotTime(m, layout, ref, week, day, slot)+" – "+s.slotTime(m, layout, ref, week, day, end))
 			slot = end
 		}
 		lines = append(lines, fmt.Sprintf("<@%s> : %s", id, strings.Join(ranges, ", ")))
@@ -258,8 +246,8 @@ func (s *Service) dayUserLines(m *i18n.Messages, layout availability.Layout, wee
 
 // slotTime renders the start of a slot (or the end of the previous one) as a Discord
 // timestamp, which each member sees in their own timezone.
-func (s *Service) slotTime(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, dayIndex, slot int) string {
-	t, err := layout.SlotStart(week, dayIndex, slot, s.loc)
+func (s *Service) slotTime(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, dayIndex, slot int) string {
+	t, err := layout.SlotStart(week, dayIndex, slot, ref)
 	if err != nil {
 		return m.HourLabel(layout.StartHour + slot)
 	}

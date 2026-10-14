@@ -35,7 +35,7 @@ func (r *GuildConfigRepository) Get(ctx context.Context, guildID string) (*guild
 	row, err := r.queries.GetGuildConfig(ctx, guildID)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return &guildconfig.GuildConfig{GuildID: guildID, SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic, Language: i18n.FR, Schedule: availability.DefaultSchedule(), Active: true}, nil
+			return &guildconfig.GuildConfig{GuildID: guildID, SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic, Language: i18n.FR, Schedule: availability.DefaultSchedule(), Active: true, Location: availability.DefaultLocation()}, nil
 		}
 		return nil, err
 	}
@@ -66,6 +66,14 @@ func toGuildConfig(row db.GuildConfig) (*guildconfig.GuildConfig, error) {
 		Language:   i18n.Parse(row.Language.String),
 		Schedule:   availability.DefaultSchedule(),
 		Active:     row.Active,
+		Location:   availability.DefaultLocation(),
+	}
+	if row.Timezone.Valid {
+		loc, err := availability.ParseTimezone(row.Timezone.String)
+		if err != nil {
+			return nil, fmt.Errorf("guild %s: stored timezone: %w", row.GuildID, err)
+		}
+		cfg.Location = loc
 	}
 	if guildconfig.Display(row.DisplayStyle.String) == guildconfig.DisplayImage {
 		cfg.Display = guildconfig.DisplayImage
@@ -112,6 +120,13 @@ func (r *GuildConfigRepository) SetSchedule(ctx context.Context, guildID string,
 		GuildID:        guildID,
 		PublishWeekday: pgtype.Int2{Int16: int16(schedule.Weekday), Valid: true},
 		PublishHour:    pgtype.Int2{Int16: int16(schedule.Hour), Valid: true},
+	})
+}
+
+func (r *GuildConfigRepository) SetTimezone(ctx context.Context, guildID string, loc *time.Location) error {
+	return r.queries.SetGuildConfigTimezone(ctx, db.SetGuildConfigTimezoneParams{
+		GuildID:  guildID,
+		Timezone: pgtype.Text{String: loc.String(), Valid: true},
 	})
 }
 

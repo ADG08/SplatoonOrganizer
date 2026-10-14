@@ -40,7 +40,7 @@ func TestParseTimezone(t *testing.T) {
 
 func TestSlotLabelIn(t *testing.T) {
 	paris := mustLoad(t, "Europe/Paris")
-	svc := NewService(nil, paris)
+	svc := NewService(nil)
 	layout, _ := availability.HourlyLayout(13, 24)
 	week := availability.WeekKey("2026-W42") // Monday 12/10/2026, summer time in Paris
 
@@ -57,37 +57,44 @@ func TestSlotLabelIn(t *testing.T) {
 		{"America/Los_Angeles", 6, 0, "4h – 5h"}, // Sunday afternoon in Paris, early morning in LA
 	}
 	for _, c := range cases {
-		if got := svc.SlotLabelIn(fr, layout, week, c.day, c.slot, mustLoad(t, c.zone)); got != c.want {
+		if got := svc.SlotLabelIn(fr, layout, paris, week, c.day, c.slot, mustLoad(t, c.zone)); got != c.want {
 			t.Errorf("%s day %d slot %d: got %q, want %q", c.zone, c.day, c.slot, got, c.want)
 		}
 	}
-	if got := svc.SlotLabelIn(i18n.For(i18n.EN), layout, week, 0, 7, mustLoad(t, "Asia/Tokyo")); got != "Tue 3 AM – 4 AM" {
+	if got := svc.SlotLabelIn(i18n.For(i18n.EN), layout, paris, week, 0, 7, mustLoad(t, "Asia/Tokyo")); got != "Tue 3 AM – 4 AM" {
 		t.Errorf("English labels: got %q", got)
 	}
-	if got := svc.SlotLabelIn(fr, layout, week, 0, 7, nil); got != "20h – 21h" {
+	if got := svc.SlotLabelIn(fr, layout, paris, week, 0, 7, nil); got != "20h – 21h" {
 		t.Errorf("unknown timezone keeps Paris labels: got %q", got)
 	}
-	if got := svc.SlotLabelIn(fr, availability.HalfDayLayout(), week, 0, 1, mustLoad(t, "Asia/Tokyo")); got != "Soir" {
+	if got := svc.SlotLabelIn(fr, availability.HalfDayLayout(), paris, week, 0, 1, mustLoad(t, "Asia/Tokyo")); got != "Soir" {
 		t.Errorf("half-day labels are not converted: got %q", got)
+	}
+
+	// A guild in Montréal: its 20h is 2h the next day in Paris.
+	montreal := mustLoad(t, "America/Toronto")
+	if got := svc.SlotLabelIn(fr, layout, montreal, week, 0, 7, paris); got != "Mar 2h – 3h" {
+		t.Errorf("Montréal guild seen from Paris: got %q", got)
 	}
 }
 
 func TestBuildWeeklyViewIn(t *testing.T) {
-	svc := NewService(nil, mustLoad(t, "Europe/Paris"))
+	svc := NewService(nil)
+	paris := mustLoad(t, "Europe/Paris")
 	layout, _ := availability.HourlyLayout(13, 24)
 	week := availability.WeekKey("2026-W42")
 
-	tokyo := svc.BuildWeeklyViewIn(fr, layout, week, nil, mustLoad(t, "Asia/Tokyo"))
+	tokyo := svc.BuildWeeklyViewIn(fr, layout, paris, week, nil, mustLoad(t, "Asia/Tokyo"))
 	if tokyo.Columns[0] != "20h" || tokyo.Columns[10] != "6h" || tokyo.Rows[0] != "Lun" {
 		t.Errorf("Tokyo: columns %v, rows %v", tokyo.Columns, tokyo.Rows)
 	}
 	// 13h in Paris is already Tuesday midnight in New Zealand.
-	auckland := svc.BuildWeeklyViewIn(fr, layout, week, nil, mustLoad(t, "Pacific/Auckland"))
+	auckland := svc.BuildWeeklyViewIn(fr, layout, paris, week, nil, mustLoad(t, "Pacific/Auckland"))
 	if auckland.Columns[0] != "0h" || auckland.Rows[0] != "Mar" || auckland.Rows[6] != "Lun" {
 		t.Errorf("Auckland: columns %v, rows %v", auckland.Columns, auckland.Rows)
 	}
 	// The shared Paris view must not be affected by a member's view.
-	if paris := svc.BuildWeeklyView(fr, layout, week, nil); paris.Rows[0] != "Lun" || paris.Columns[0] != "13h" {
+	if paris := svc.BuildWeeklyView(fr, layout, paris, week, nil); paris.Rows[0] != "Lun" || paris.Columns[0] != "13h" {
 		t.Errorf("Paris view changed: columns %v, rows %v", paris.Columns, paris.Rows)
 	}
 }

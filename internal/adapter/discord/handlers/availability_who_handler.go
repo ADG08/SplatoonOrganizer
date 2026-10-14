@@ -50,7 +50,7 @@ func (h *WhoDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *
 		return respondWithError(s, i, m.ErrInvalid)
 	}
 
-	week := h.svc.Week(cfg.Schedule)
+	week := h.svc.Week(cfg.Schedule, cfg.Location)
 	users, err := h.svc.AvailabilityUsers(ctx, i.GuildID, week)
 	if err != nil {
 		slog.ErrorContext(ctx, "get availability users from select", "guild", i.GuildID, "err", err)
@@ -68,7 +68,7 @@ func (h *WhoDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *
 					AccentColor: &accent,
 					Components: []discordgo.MessageComponent{
 						discordgo.TextDisplay{Content: "### " + fmt.Sprintf(m.WhoTitle, m.Days[day])},
-						discordgo.TextDisplay{Content: h.svc.FormatDayUsers(m, cfg.SlotLayout, week, users, day)},
+						discordgo.TextDisplay{Content: h.svc.FormatDayUsers(m, cfg.SlotLayout, cfg.Location, week, users, day)},
 					},
 				},
 			},

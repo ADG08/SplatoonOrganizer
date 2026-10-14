@@ -30,13 +30,13 @@ func Publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Ser
 	if cfg.ChannelID == "" {
 		return ErrNoChannel
 	}
-	week := svc.Week(cfg.Schedule)
+	week := svc.Week(cfg.Schedule, cfg.Location)
 	counts, err := svc.AvailabilitySummary(ctx, cfg.GuildID, week)
 	if err != nil {
 		return fmt.Errorf("get availability summary: %w", err)
 	}
 	m := cfg.Messages()
-	payload, err := BuildPayload(m, svc.BuildWeeklyView(m, cfg.SlotLayout, week, counts), cfg.RoleID, cfg.Display)
+	payload, err := BuildPayload(m, svc.BuildWeeklyView(m, cfg.SlotLayout, cfg.Location, week, counts), cfg.RoleID, cfg.Display)
 	if err != nil {
 		return err
 	}
@@ -91,7 +91,7 @@ func Due(ctx context.Context, svc *appavailability.Service, cfg *guildconfig.Gui
 	if err != nil {
 		return false, fmt.Errorf("get weekly message: %w", err)
 	}
-	return msg == nil || msg.Week != svc.Week(cfg.Schedule), nil
+	return msg == nil || msg.Week != svc.Week(cfg.Schedule, cfg.Location), nil
 }
 
 // refreshCooldown bounds how often a guild's weekly message is edited: a burst of clicks
@@ -158,7 +158,7 @@ func (r *Refresher) refresh(ctx context.Context, s *discordgo.Session, guildID s
 		slog.ErrorContext(ctx, "get guild config", "guild", guildID, "err", err)
 		return
 	}
-	week := r.svc.Week(cfg.Schedule)
+	week := r.svc.Week(cfg.Schedule, cfg.Location)
 	msg, err := r.svc.WeeklyMessage(ctx, guildID)
 	if err != nil || msg == nil || msg.Week != week {
 		if err != nil {
@@ -172,7 +172,7 @@ func (r *Refresher) refresh(ctx context.Context, s *discordgo.Session, guildID s
 		return
 	}
 	m := cfg.Messages()
-	payload, err := BuildPayload(m, r.svc.BuildWeeklyView(m, cfg.SlotLayout, week, counts), cfg.RoleID, cfg.Display)
+	payload, err := BuildPayload(m, r.svc.BuildWeeklyView(m, cfg.SlotLayout, cfg.Location, week, counts), cfg.RoleID, cfg.Display)
 	if err != nil {
 		slog.ErrorContext(ctx, "build weekly message", "guild", guildID, "err", err)
 		return

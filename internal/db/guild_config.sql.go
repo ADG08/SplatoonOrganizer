@@ -13,7 +13,7 @@ import (
 
 const getGuildConfig = `-- name: GetGuildConfig :one
 SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language,
-       publish_weekday, publish_hour, active
+       publish_weekday, publish_hour, active, timezone
 FROM guild_config
 WHERE guild_id = $1
 `
@@ -33,13 +33,14 @@ func (q *Queries) GetGuildConfig(ctx context.Context, guildID string) (GuildConf
 		&i.PublishWeekday,
 		&i.PublishHour,
 		&i.Active,
+		&i.Timezone,
 	)
 	return i, err
 }
 
 const listGuildConfigsWithChannel = `-- name: ListGuildConfigsWithChannel :many
 SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language,
-       publish_weekday, publish_hour, active
+       publish_weekday, publish_hour, active, timezone
 FROM guild_config
 WHERE channel_id IS NOT NULL AND active
 ORDER BY guild_id
@@ -66,6 +67,7 @@ func (q *Queries) ListGuildConfigsWithChannel(ctx context.Context) ([]GuildConfi
 			&i.PublishWeekday,
 			&i.PublishHour,
 			&i.Active,
+			&i.Timezone,
 		); err != nil {
 			return nil, err
 		}
@@ -176,5 +178,22 @@ type SetGuildConfigScheduleParams struct {
 
 func (q *Queries) SetGuildConfigSchedule(ctx context.Context, arg SetGuildConfigScheduleParams) error {
 	_, err := q.db.Exec(ctx, setGuildConfigSchedule, arg.GuildID, arg.PublishWeekday, arg.PublishHour)
+	return err
+}
+
+const setGuildConfigTimezone = `-- name: SetGuildConfigTimezone :exec
+INSERT INTO guild_config (guild_id, timezone)
+VALUES ($1, $2)
+ON CONFLICT (guild_id) DO UPDATE
+SET timezone = EXCLUDED.timezone
+`
+
+type SetGuildConfigTimezoneParams struct {
+	GuildID  string      `json:"guild_id"`
+	Timezone pgtype.Text `json:"timezone"`
+}
+
+func (q *Queries) SetGuildConfigTimezone(ctx context.Context, arg SetGuildConfigTimezoneParams) error {
+	_, err := q.db.Exec(ctx, setGuildConfigTimezone, arg.GuildID, arg.Timezone)
 	return err
 }

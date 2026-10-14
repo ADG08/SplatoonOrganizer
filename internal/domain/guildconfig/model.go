@@ -1,6 +1,8 @@
 package guildconfig
 
 import (
+	"time"
+
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 )
@@ -25,6 +27,9 @@ type GuildConfig struct {
 	Display    Display               // how the weekly message is shown (classic by default)
 	Language   i18n.Lang             // language of the bot in the guild (French by default)
 	Schedule   availability.Schedule // when the weekly message is published (Monday 10h by default)
+	// Location is the timezone of the guild's hours: slots, grid, weeks and publication
+	// (availability.DefaultTimezone by default).
+	Location *time.Location
 	// Active is false while the bot is out of the guild or can't post in its channel:
 	// nothing is published, and the configuration is kept for when it comes back.
 	Active bool

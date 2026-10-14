@@ -18,7 +18,7 @@ const (
 	MaxSlotsPerDay = 25
 
 	// DefaultStartHour and DefaultEndHour are the hourly range proposed by default:
-	// 20h to minuit, Paris time.
+	// 20h to minuit, in the guild's timezone.
 	DefaultStartHour = 20
 	DefaultEndHour   = 24
 )

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
@@ -54,7 +55,21 @@ func (h *HelpConfigHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 		return h.handleModalSubmit(ctx, s, i, cfg)
 	}
 
-	switch i.MessageComponentData().CustomID {
+	customID := i.MessageComponentData().CustomID
+	if step, ok := strings.CutPrefix(customID, discord.HelpPanelTimezoneID+":"); ok {
+		return h.handleTimezonePick(ctx, s, i, cfg, step)
+	}
+	switch customID {
+	case discord.HelpPanelOpenTimezoneID:
+		// The panel turns into the picker, and back into the panel once a timezone is picked.
+		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+			Type: discordgo.InteractionResponseUpdateMessage,
+			Data: &discordgo.InteractionResponseData{
+				Content:    fmt.Sprintf(m.GuildPickerContent, m.TimezoneName(cfg.Location)),
+				Embeds:     []*discordgo.MessageEmbed{},
+				Components: buildTimezonePicker(m, discord.HelpPanelTimezoneID),
+			},
+		})
 	case discord.HelpPanelOpenChannelModalID:
 		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseModal,
@@ -275,7 +290,7 @@ func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.
 	message := m.Republished
 	if layoutChanged {
 		// Slot indexes of the old layout would be misread with the new one: start the week over.
-		if err := h.availSvc.ResetWeek(ctx, previous.GuildID, h.availSvc.Week(previous.Schedule)); err != nil {
+		if err := h.availSvc.ResetWeek(ctx, previous.GuildID, h.availSvc.Week(previous.Schedule, previous.Location)); err != nil {
 			slog.ErrorContext(ctx, "help config modal: reset week", "guild", i.GuildID, "err", err)
 			return respondWithError(s, i, m.ErrGeneric)
 		}
@@ -325,6 +340,49 @@ func (h *HelpConfigHandler) handlePublishSubmit(ctx context.Context, s *discordg
 		}
 	}
 
+	return h.refreshPanel(ctx, s, i, previous.GuildID, message)
+}
+
+// handleTimezonePick saves the guild's timezone picked in the picker. Hourly slots move
+// with it, so the week's availabilities are reset as for a new slot layout.
+func (h *HelpConfigHandler) handleTimezonePick(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, step string) error {
+	m := previous.Messages()
+	loc, err := readTimezonePick(ctx, s, i, m, discord.HelpPanelTimezoneID, step, m.GuildPickerCountry)
+	if loc == nil {
+		return err
+	}
+	if loc.String() == previous.Location.String() {
+		return h.refreshPanel(ctx, s, i, previous.GuildID, m.NothingChanged)
+	}
+	if err := h.svc.SetTimezone(ctx, previous.GuildID, loc); err != nil {
+		slog.ErrorContext(ctx, "help config: set timezone", "guild", i.GuildID, "err", err)
+		return respondWithError(s, i, m.ErrGeneric)
+	}
+
+	message := fmt.Sprintf(m.GuildTimezoneSaved, m.TimezoneName(loc), m.Clock(time.Now().In(loc)))
+	republish := previous.SlotLayout.IsHourly()
+	if republish {
+		if err := h.availSvc.ResetWeek(ctx, previous.GuildID, h.availSvc.Week(previous.Schedule, previous.Location)); err != nil {
+			slog.ErrorContext(ctx, "help config: reset week", "guild", i.GuildID, "err", err)
+			return respondWithError(s, i, m.ErrGeneric)
+		}
+		message += m.TimezoneSlotsReset
+	}
+
+	cfg := *previous
+	cfg.Location = loc
+	if cfg.ChannelID != "" {
+		// Half-day slots don't move: republish only when the current week changed.
+		if !republish {
+			if republish, err = weekly.Due(ctx, h.availSvc, &cfg); err != nil {
+				slog.ErrorContext(ctx, "help config: check weekly message", "guild", i.GuildID, "err", err)
+			}
+		}
+		if republish {
+			message += m.PublishedNow
+			weekly.PublishInBackground(ctx, s, h.availSvc, &cfg)
+		}
+	}
 	return h.refreshPanel(ctx, s, i, previous.GuildID, message)
 }
 

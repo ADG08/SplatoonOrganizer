@@ -41,7 +41,7 @@ func (h *UnavailableDisposHandler) Handle(ctx context.Context, s *discordgo.Sess
 		return respondWithError(s, i, m.ErrUnknownUser)
 	}
 
-	nowUnavailable, err := h.svc.ToggleWeekUnavailable(ctx, i.GuildID, h.svc.Week(cfg.Schedule), userID)
+	nowUnavailable, err := h.svc.ToggleWeekUnavailable(ctx, i.GuildID, h.svc.Week(cfg.Schedule, cfg.Location), userID)
 	if err != nil {
 		slog.ErrorContext(ctx, "toggle week unavailability", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)

@@ -2,6 +2,7 @@ package guildconfig
 
 import (
 	"context"
+	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
@@ -20,4 +21,5 @@ type Repository interface {
 	SetRole(ctx context.Context, guildID, roleID string) error
 	SetMessageSettings(ctx context.Context, guildID string, layout availability.Layout, display guildconfig.Display, lang i18n.Lang) error
 	SetSchedule(ctx context.Context, guildID string, schedule availability.Schedule) error
+	SetTimezone(ctx context.Context, guildID string, loc *time.Location) error
 }

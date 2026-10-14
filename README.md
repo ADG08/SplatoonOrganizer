@@ -6,7 +6,7 @@ Un bot Discord conçu pour coordonner les sessions de jeu Splatoon en collectant
 
 Chaque semaine, le bot publie un message dans le salon choisi par le serveur. Les membres cliquent sur **✏️ Mes dispos** pour indiquer en privé leurs créneaux, jour par jour : **Après-midi / Soir**, ou des créneaux d'une heure (20h → minuit par défaut). Le message affiche en temps réel combien de joueurs sont disponibles sur chaque créneau, pour trouver quand jouer.
 
-Toutes les heures du serveur sont celles de **Paris** : créneaux, grille publique, heure de publication. Chaque membre peut voir les créneaux à sa propre heure (voir [Fuseaux horaires](#fuseaux-horaires-des-membres)).
+Toutes les heures d'un serveur suivent **son fuseau horaire**, **Paris par défaut**, modifiable dans `/help` : créneaux, grille publique, semaines, heure de publication. Chaque membre peut en plus voir les créneaux à sa propre heure (voir [Fuseaux horaires](#fuseaux-horaires)).
 
 ## Stack technique
 
@@ -95,7 +95,7 @@ Le bot doit tourner en **un seul exemplaire** : la configuration des serveurs et
    ```
 
    `248832` = voir les salons, envoyer des messages, intégrer des liens, joindre des fichiers (l'image de la grille), lire l'historique, mentionner les rôles.
-3. Un admin du serveur fait `/help` et choisit le salon. Le message de la semaine y est publié dans l'heure qui suit.
+3. Un admin du serveur fait `/help` et choisit le salon (et, hors de France, le fuseau horaire). Le message de la semaine y est publié dans le quart d'heure qui suit.
 
 ## Qui peut faire quoi
 
@@ -111,7 +111,7 @@ Les autres membres voient `/help` dans la liste des commandes, mais le bot leur 
 
 | Commande | Description |
 |---|---|
-| `/help` | Panneau de configuration du serveur (message privé) : salon, rôle, créneaux, affichage, langue et publication. |
+| `/help` | Panneau de configuration du serveur (message privé) : salon, rôle, créneaux, affichage, langue, publication et fuseau horaire. |
 | `/annonce titre:<texte> message:<texte> [role:<@rôle>]` | Publie une annonce (embed) dans le salon des dispos, en mentionnant éventuellement un rôle. `\n` dans le message fait un retour à la ligne. |
 
 Les descriptions des commandes suivent la langue de l'application Discord de chaque membre (Discord ne permet pas de les régler par serveur).
@@ -130,17 +130,18 @@ Le message est mis à jour tout de suite au premier clic, puis au plus une fois 
 
 ## Configuration avec `/help`
 
-Le panneau affiche la configuration actuelle et quatre boutons :
+Le panneau affiche la configuration actuelle et cinq boutons :
 
 - **📢 Configurer le salon** : où le message de la semaine est publié.
 - **🏷️ Configurer le rôle** : le rôle mentionné à chaque publication (optionnel).
 - **🕒 Créneaux, affichage, langue** :
   - la **langue** du bot sur le serveur : **Français** (par défaut) ou **English** ; tout le bot suit ce choix (message de la semaine, menus, réponses privées, `/help`) ;
-  - le **découpage** : **Après-midi / Soir** (par défaut) ou **Par heure**, un créneau par heure entre une première heure et une heure de fin (heure de Paris, 20h → minuit par défaut ; ces deux champs sont ignorés en « Après-midi / Soir ») ;
+  - le **découpage** : **Après-midi / Soir** (par défaut) ou **Par heure**, un créneau par heure entre une première heure et une heure de fin (heure du serveur, 20h → minuit par défaut ; ces deux champs sont ignorés en « Après-midi / Soir ») ;
   - l'**affichage** : **Classique** (par défaut, l'embed d'origine avec le tableau en texte) ou **Image** (la grille dessinée par le bot, cases colorées selon le nombre de dispos).
 
   Changer le découpage réinitialise les dispos de la semaine en cours ; changer l'affichage ou la langue republie le message.
-- **📅 Publication** : le jour et l'heure de publication (heure de Paris, voir ci-dessous).
+- **📅 Publication** : le jour et l'heure de publication (heure du serveur, voir ci-dessous).
+- **🌍 Fuseau horaire** : le fuseau du serveur, **Europe/Paris par défaut**. Le panneau se change en sélecteur (décalage UTC actuel, puis pays), puis revient avec le fuseau enregistré. En mode **Par heure**, changer de fuseau déplace les créneaux : les dispos de la semaine sont réinitialisées et le message republié.
 
 ## Publication automatique
 
@@ -151,11 +152,19 @@ Le panneau affiche la configuration actuelle et quatre boutons :
 
 Les clics comptent pour la semaine du dernier message publié : avec une publication le dimanche à 18h, les dispos cochées à partir de 18h vont dans la semaine suivante.
 
-Le bot vérifie toutes les heures quels serveurs ont atteint leur heure de publication, ainsi qu'au démarrage : une publication manquée pendant un redémarrage est rattrapée dès que le bot revient.
+Le bot vérifie tous les quarts d'heure quels serveurs ont atteint leur heure de publication (dans leur fuseau), ainsi qu'au démarrage : une publication manquée pendant un redémarrage est rattrapée dès que le bot revient.
 
-## Fuseaux horaires des membres
+## Fuseaux horaires
 
-La grille publique est à l'heure de Paris : elle est partagée par tous, et Discord ne convertit pas les heures dans un texte ni dans une image. En mode **Par heure**, chaque membre peut voir les créneaux à son heure.
+### Le fuseau du serveur
+
+Chaque serveur a un fuseau horaire, **Europe/Paris par défaut**, choisi dans `/help` → **🌍 Fuseau horaire**. Ses heures le suivent toutes : les créneaux (« 20h → minuit »), la grille publique, le début et la fin des semaines, l'heure de publication. Le fuseau d'un pays suit automatiquement l'heure d'été et d'hiver.
+
+Le bot vérifie tous les quarts d'heure quels serveurs ont atteint leur heure de publication : certains fuseaux sont décalés d'une demi-heure ou d'un quart d'heure (Inde, Népal).
+
+### Le fuseau des membres
+
+La grille publique est à l'heure du serveur : elle est partagée par tous, et Discord ne convertit pas les heures dans un texte ni dans une image. En mode **Par heure**, chaque membre peut voir les créneaux à son heure.
 
 Discord ne transmet pas le fuseau d'un membre. Au premier clic sur **✏️ Mes dispos** ou **🌍 Mon fuseau**, le bot le lui demande en deux étapes :
 
@@ -164,7 +173,7 @@ Discord ne transmet pas le fuseau d'un membre. Au premier clic sur **✏️ Mes 
 
 Ensuite :
 
-- les menus **✏️ Mes dispos** affichent les créneaux à l'heure du membre (ex. « 14h – 15h » à Montréal pour 20h à Paris, « Mar 3h – 4h » à Tokyo) ;
+- les menus **✏️ Mes dispos** affichent les créneaux à l'heure du membre (ex. pour un serveur à Paris, « 14h – 15h » à Montréal pour 20h, « Mar 3h – 4h » à Tokyo) ;
 - **🌍 Mon fuseau** renvoie la grille de la semaine recalculée à son heure ;
 - **⚙️ Modifier mon fuseau** permet d'en changer (en cas de déménagement ou de voyage, par exemple).
 
@@ -205,7 +214,7 @@ SplatoonOrganizer/
 │   │   │   ├── handlers/        # Boutons, menus, formulaires, arrivée/départ du bot
 │   │   │   ├── weekly/          # Message de la semaine : construction, publication, mise à jour
 │   │   │   ├── gridimage/       # Grille dessinée en PNG (affichage Image)
-│   │   │   └── scheduler/       # Publication automatique (vérifiée toutes les heures)
+│   │   │   └── scheduler/       # Publication automatique (vérifiée tous les quarts d'heure)
 │   │   │
 │   │   └── persistence/
 │   │       └── postgres/        # Implémentations des repositories PostgreSQL
@@ -271,8 +280,9 @@ CREATE TABLE guild_config (
     display_style   TEXT,      -- NULL/'classic' = embed texte, 'image' = grille en image
     language        TEXT,      -- NULL/'fr' = français, 'en' = anglais
     publish_weekday SMALLINT,  -- NULL = lundi · 0 = dimanche (semaine qui suit), 1 = lundi
-    publish_hour    SMALLINT,  -- NULL = 10h · heure de publication (0-23, heure de Paris)
-    active          BOOLEAN NOT NULL DEFAULT TRUE  -- FALSE = en pause (bot retiré, salon inaccessible)
+    publish_hour    SMALLINT,  -- NULL = 10h · heure de publication (0-23, heure du serveur)
+    active          BOOLEAN NOT NULL DEFAULT TRUE, -- FALSE = en pause (bot retiré, salon inaccessible)
+    timezone        TEXT       -- NULL = Europe/Paris · fuseau du pays ou décalage fixe ("UTC+2")
 );
 
 -- Fuseau horaire choisi par chaque membre (mode Par heure)

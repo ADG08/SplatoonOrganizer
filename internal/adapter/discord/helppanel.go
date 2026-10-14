@@ -13,6 +13,8 @@ const (
 	HelpPanelOpenRoleModalID    = "help:config_open_role_modal"
 	HelpPanelOpenSlotsModalID   = "help:config_open_slots_modal"
 	HelpPanelOpenPublishModalID = "help:config_open_publish_modal"
+	HelpPanelOpenTimezoneID     = "help:config_open_timezone"
+	HelpPanelTimezoneID         = "help:config_timezone" // the picker's selects: <id>:<step>
 	HelpPanelModalChannelID     = "help:config_modal_channel"
 	HelpPanelModalRoleID        = "help:config_modal_role"
 	HelpPanelModalSlotsID       = "help:config_modal_slots"
@@ -55,14 +57,15 @@ func BuildHelpPanelEmbed(title, description string, color int, cfg *guildconfig.
 			{Name: m.PanelRole, Value: roleValue, Inline: true},
 			{Name: m.PanelMessage, Value: m.LayoutSummary(cfg.SlotLayout) + "\n" + display + "\n" + language, Inline: true},
 			{Name: m.PanelPublication, Value: m.ScheduleSummary(cfg.Schedule), Inline: true},
+			{Name: m.PanelTimezone, Value: m.TimezoneName(cfg.Location) + " · " + m.Clock(time.Now().In(cfg.Location)), Inline: true},
 		},
 		Footer:    &discordgo.MessageEmbedFooter{Text: m.PanelFooter},
 		Timestamp: time.Now().Format(time.RFC3339),
 	}
 }
 
-// BuildHelpPanelComponents returns the action row with the channel, role, message and
-// publication config buttons.
+// BuildHelpPanelComponents returns the action row with the channel, role, message,
+// publication and timezone config buttons.
 func BuildHelpPanelComponents(cfg *guildconfig.GuildConfig) []discordgo.MessageComponent {
 	m := cfg.Messages()
 	return []discordgo.MessageComponent{
@@ -87,6 +90,11 @@ func BuildHelpPanelComponents(cfg *guildconfig.GuildConfig) []discordgo.MessageC
 					Label:    m.BtnConfigPublication,
 					Style:    discordgo.PrimaryButton,
 					CustomID: HelpPanelOpenPublishModalID,
+				},
+				discordgo.Button{
+					Label:    m.BtnConfigTimezone,
+					Style:    discordgo.PrimaryButton,
+					CustomID: HelpPanelOpenTimezoneID,
 				},
 			},
 		},

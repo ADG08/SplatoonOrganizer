@@ -7,7 +7,20 @@ import (
 	"strings"
 	"sync"
 	"time"
+	_ "time/tzdata" // countries' timezones and DefaultTimezone load even on hosts without tzdata
 )
+
+// DefaultTimezone is the timezone of the guilds that never chose one.
+const DefaultTimezone = "Europe/Paris"
+
+// DefaultLocation returns DefaultTimezone, loaded once (tzdata is embedded: it can't fail).
+var DefaultLocation = sync.OnceValue(func() *time.Location {
+	loc, err := time.LoadLocation(DefaultTimezone)
+	if err != nil {
+		panic(fmt.Sprintf("load %s from embedded tzdata: %v", DefaultTimezone, err))
+	}
+	return loc
+})
 
 // Timezone ties a place, named in French and English, to its IANA timezone.
 type Timezone struct {

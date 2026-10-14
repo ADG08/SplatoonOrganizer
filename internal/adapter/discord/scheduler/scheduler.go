@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
@@ -37,13 +38,17 @@ func NewScheduler(
 // message (possibly an image) and calls Discord.
 const publishConcurrency = 4
 
-// Start checks every hour, on the hour, which guilds reached their publication time
-// (each guild picks its own in /help). It checks once right away too, to catch up on the
+// checkSchedule runs every quarter of an hour: each guild publishes on the hour of its own
+// timezone, and some timezones are a half or a quarter of an hour off UTC (India, Nepal).
+const checkSchedule = "*/15 * * * *"
+
+// Start checks every quarter of an hour which guilds reached their publication time (each
+// guild picks its own in /help). It checks once right away too, to catch up on the
 // publications missed while the bot was down; with force, that first run publishes in
 // every guild instead (for tests).
 func (s *Scheduler) Start(ctx context.Context, force bool) error {
-	c := cron.New(cron.WithLocation(s.availSvc.Location()))
-	if _, err := c.AddFunc("@hourly", func() { s.run(ctx, false) }); err != nil {
+	c := cron.New(cron.WithLocation(time.UTC))
+	if _, err := c.AddFunc(checkSchedule, func() { s.run(ctx, false) }); err != nil {
 		return fmt.Errorf("adding cron job: %w", err)
 	}
 	c.Start()

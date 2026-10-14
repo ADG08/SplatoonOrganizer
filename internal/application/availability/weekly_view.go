@@ -3,6 +3,7 @@ package availability
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
@@ -28,7 +29,7 @@ type WeeklyView struct {
 // BuildWeeklyView renders availability counts for the weekly message.
 // Discord timestamps don't render inside code blocks or images, so the grid uses the
 // reference timezone and only the legend is in each member's timezone.
-func (s *Service) BuildWeeklyView(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, counts []availability.SlotCount) WeeklyView {
+func (s *Service) BuildWeeklyView(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, counts []availability.SlotCount) WeeklyView {
 	grid := make([][]int, availability.DaysPerWeek)
 	for i := range grid {
 		grid[i] = make([]int, layout.Len())
@@ -45,7 +46,7 @@ func (s *Service) BuildWeeklyView(m *i18n.Messages, layout availability.Layout, 
 		Counts: grid,
 		Rows:   append([]string(nil), m.ShortDays[:]...),
 	}
-	if monday, err := week.Monday(s.loc); err == nil {
+	if monday, err := week.Monday(ref); err == nil {
 		view.Title = m.WeekTitle(monday)
 	}
 	for day := range grid {
@@ -58,7 +59,7 @@ func (s *Service) BuildWeeklyView(m *i18n.Messages, layout availability.Layout, 
 	}
 
 	if layout.IsHourly() {
-		view.Legend = fmt.Sprintf(m.ParisTimeLegend, m.HourLabel(layout.StartHour), s.slotTime(m, layout, week, 0, 0))
+		view.Legend = fmt.Sprintf(m.ServerTimeLegend, m.TimezoneName(ref), m.HourLabel(layout.StartHour), s.slotTime(m, layout, ref, week, 0, 0))
 		hours := make([]int, layout.Len())
 		for slot := range hours {
 			hours[slot] = layout.StartHour + slot

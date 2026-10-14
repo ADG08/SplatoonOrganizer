@@ -30,6 +30,7 @@ func TestRegistryHandler(t *testing.T) {
 		"availability:tz:dispos:w":       "availability:tz",
 		"availability:tzedit:grid":       "availability:tzedit", // not taken by "availability:tz"
 		"help:config_open_publish_modal": "help:config",
+		"help:config_timezone:c":         "help:config",
 	} {
 		if h, ok := r.Handler(customID); !ok || h.CustomID() != want {
 			t.Errorf("%s: got %v, want %s", customID, h, want)

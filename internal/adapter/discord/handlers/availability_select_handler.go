@@ -58,7 +58,7 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 		slots[n-1] = true
 	}
 
-	week := h.svc.Week(cfg.Schedule)
+	week := h.svc.Week(cfg.Schedule, cfg.Location)
 	if err := h.svc.SetDayAvailability(ctx, i.GuildID, week, userID, dayIndex, slots); err != nil {
 		slog.ErrorContext(ctx, "set day availability", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
@@ -73,7 +73,7 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 	if err != nil {
 		slog.ErrorContext(ctx, "get user timezone after select", "guild", i.GuildID, "err", err)
 	}
-	label := func(day, slot int) string { return h.svc.SlotLabelIn(m, layout, week, day, slot, loc) }
+	label := func(day, slot int) string { return h.svc.SlotLabelIn(m, layout, cfg.Location, week, day, slot, loc) }
 
 	// Update the ephemeral message: same chunk as the interacted menu (5 first days or 2 last
 	// days, the latter followed by the "change my timezone" button for hourly slots).

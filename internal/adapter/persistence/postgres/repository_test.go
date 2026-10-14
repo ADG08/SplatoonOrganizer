@@ -143,7 +143,7 @@ func TestGuildConfigRepository(t *testing.T) {
 
 	cfg, err := repo.Get(ctx, "g1")
 	must(t, err)
-	want := guildconfig.GuildConfig{GuildID: "g1", SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic, Language: i18n.FR, Schedule: availability.DefaultSchedule(), Active: true}
+	want := guildconfig.GuildConfig{GuildID: "g1", SlotLayout: availability.HalfDayLayout(), Display: guildconfig.DisplayClassic, Language: i18n.FR, Schedule: availability.DefaultSchedule(), Active: true, Location: availability.DefaultLocation()}
 	if *cfg != want {
 		t.Errorf("defaults: got %+v, want %+v", *cfg, want)
 	}
@@ -158,7 +158,7 @@ func TestGuildConfigRepository(t *testing.T) {
 
 	cfg, err = repo.Get(ctx, "g1")
 	must(t, err)
-	want = guildconfig.GuildConfig{GuildID: "g1", ChannelID: "c1", RoleID: "r1", SlotLayout: layout, Display: guildconfig.DisplayImage, Language: i18n.EN, Schedule: schedule, Active: true}
+	want = guildconfig.GuildConfig{GuildID: "g1", ChannelID: "c1", RoleID: "r1", SlotLayout: layout, Display: guildconfig.DisplayImage, Language: i18n.EN, Schedule: schedule, Active: true, Location: availability.DefaultLocation()}
 	if *cfg != want {
 		t.Errorf("saved: got %+v, want %+v", *cfg, want)
 	}
@@ -180,8 +180,18 @@ func TestGuildConfigRepository(t *testing.T) {
 	if want.Active = false; *cfg != want {
 		t.Errorf("paused: got %+v, want %+v", *cfg, want)
 	}
-	if cfg, _ := repo.Get(ctx, "g3"); !cfg.Active {
-		t.Error("a guild without configuration is active")
+	if cfg, _ := repo.Get(ctx, "g3"); !cfg.Active || cfg.Location.String() != "Europe/Paris" {
+		t.Errorf("a guild without configuration is active, in Paris: %+v", cfg)
+	}
+
+	// Timezones: a country's (follows daylight saving time) or a fixed offset.
+	for _, zone := range []string{"America/Toronto", "UTC+5:30"} {
+		loc, err := availability.ParseTimezone(zone)
+		must(t, err)
+		must(t, repo.SetTimezone(ctx, "g2", loc))
+		if cfg, err := repo.Get(ctx, "g2"); err != nil || cfg.Location.String() != zone || cfg.RoleID != "r2" {
+			t.Errorf("timezone %s: got %v, %v", zone, cfg.Location, err)
+		}
 	}
 	must(t, repo.SetChannel(ctx, "g1", "c2")) // setting a channel resumes it
 	if list, _ := repo.ListWithChannel(ctx); len(list) != 1 || list[0].ChannelID != "c2" || !list[0].Active {

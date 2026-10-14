@@ -5,11 +5,11 @@ import (
 	"time"
 )
 
-// DefaultPublishHour is the hour the weekly message is published at by default (Paris time).
+// DefaultPublishHour is the hour the weekly message is published at by default (guild's time).
 const DefaultPublishHour = 10
 
 // Schedule is when a guild's weekly message is published: on Sunday for the week that
-// follows, or on Monday for the week that starts. Hour is in the bot's timezone (Paris).
+// follows, or on Monday for the week that starts. Hour is in the guild's timezone.
 type Schedule struct {
 	Weekday time.Weekday // time.Sunday or time.Monday
 	Hour    int          // 0-23

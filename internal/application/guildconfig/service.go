@@ -3,6 +3,7 @@ package guildconfig
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
@@ -47,6 +48,12 @@ func (s *Service) ListWithChannel(ctx context.Context) ([]*guildconfig.GuildConf
 func (s *Service) SetChannel(ctx context.Context, guildID, channelID string) error {
 	defer s.cache.Delete(guildID)
 	return s.repo.SetChannel(ctx, guildID, channelID)
+}
+
+// SetTimezone updates the timezone of the guild's hours.
+func (s *Service) SetTimezone(ctx context.Context, guildID string, loc *time.Location) error {
+	defer s.cache.Delete(guildID)
+	return s.repo.SetTimezone(ctx, guildID, loc)
 }
 
 // SetActive turns the publication of the weekly message on or off for a guild, keeping

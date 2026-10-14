@@ -10,7 +10,6 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
-	_ "time/tzdata" // timezones of members, even on hosts without tzdata
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/commands"
@@ -56,18 +55,12 @@ func run() error {
 	}
 	defer pool.Close()
 
-	// Slots and publication times are in Paris time (embedded tzdata: it always loads).
-	loc, err := time.LoadLocation("Europe/Paris")
-	if err != nil {
-		return fmt.Errorf("load Europe/Paris: %w", err)
-	}
-
 	// Adapters (secondary / driven): persistence
 	availRepo := postgres.NewAvailabilityRepository(pool)
 	guildConfigRepo := postgres.NewGuildConfigRepository(pool)
 
 	// Application services (use cases)
-	availSvc := appavailability.NewService(availRepo, loc)
+	availSvc := appavailability.NewService(availRepo)
 	guildConfigSvc := appguildconfig.NewService(guildConfigRepo)
 
 	// Single-guild versions took the weekly channel from the environment: keep it as that

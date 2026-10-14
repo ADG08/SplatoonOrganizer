@@ -65,7 +65,7 @@ func TestUserDisposSelectMenus(t *testing.T) {
 }
 
 func TestTimezonePicker(t *testing.T) {
-	rows := buildTimezonePicker(fr, tzNextDispos)
+	rows := buildTimezonePicker(fr, TimezoneCustomIDPrefix+":"+tzNextDispos)
 	for _, row := range rows {
 		menu := row.(discordgo.ActionsRow).Components[0].(discordgo.SelectMenu)
 		if len(menu.Options) > 25 {
@@ -119,7 +119,7 @@ func TestCountryPicker(t *testing.T) {
 	summer := time.Date(2026, 7, 1, 12, 0, 0, 0, time.UTC)
 	for offset, places := range availability.CountriesByOffset(summer) {
 		name := availability.FormatUTCOffset(offset)
-		rows := buildCountryPicker(fr, tzNextDispos, name, places)
+		rows := buildCountryPicker(fr, TimezoneCustomIDPrefix+":"+tzNextDispos, name, places)
 		menu := rows[0].(discordgo.ActionsRow).Components[0].(discordgo.SelectMenu)
 		if len(menu.Options) > 25 {
 			t.Errorf("%s: %d options, Discord allows 25", name, len(menu.Options))

@@ -41,26 +41,28 @@ func (s *Service) SetUserTimezone(ctx context.Context, userID string, loc *time.
 	return nil
 }
 
-// SlotLabelIn labels a slot in the member's timezone, e.g. "14h – 15h", prefixed with the
-// local day when it differs from the reference day ("Mar 3h – 4h" for Lundi 20h Paris seen
-// from Tokyo). Half-day layouts and unknown timezones keep the reference labels.
-func (s *Service) SlotLabelIn(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, dayIndex, slot int, loc *time.Location) string {
+// SlotLabelIn labels a slot of the guild (timezone ref) in the member's timezone loc, e.g.
+// "14h – 15h", prefixed with the local day when it differs from the guild's day ("Mar 3h – 4h"
+// for Lundi 20h Paris seen from Tokyo). Half-day layouts and unknown timezones keep the
+// guild's labels.
+func (s *Service) SlotLabelIn(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, dayIndex, slot int, loc *time.Location) string {
 	if !layout.IsHourly() || loc == nil {
 		return m.SlotLabel(layout, slot)
 	}
-	ref, err := layout.SlotStart(week, dayIndex, slot, s.loc)
+	start, err := layout.SlotStart(week, dayIndex, slot, ref)
 	if err != nil {
 		return m.SlotLabel(layout, slot)
 	}
-	end, _ := layout.SlotStart(week, dayIndex, slot+1, s.loc)
-	start, end := ref.In(loc), end.In(loc)
+	end, _ := layout.SlotStart(week, dayIndex, slot+1, ref)
+	guildDay := start.Format("2006-01-02")
+	start, end = start.In(loc), end.In(loc)
 
 	endLabel := m.Clock(end)
 	if end.Hour() == 0 && end.Minute() == 0 {
 		endLabel = m.Midnight
 	}
 	label := m.Clock(start) + " – " + endLabel
-	if start.Format("2006-01-02") != ref.Format("2006-01-02") {
+	if start.Format("2006-01-02") != guildDay {
 		label = m.ShortDays[weekdayIndex(start)] + " " + label
 	}
 	return label
@@ -68,8 +70,8 @@ func (s *Service) SlotLabelIn(m *i18n.Messages, layout availability.Layout, week
 
 // BuildWeeklyViewIn is BuildWeeklyView with the hours and days of the grid converted to
 // the member's timezone, for the private "À mon heure" view.
-func (s *Service) BuildWeeklyViewIn(m *i18n.Messages, layout availability.Layout, week availability.WeekKey, counts []availability.SlotCount, loc *time.Location) WeeklyView {
-	view := s.BuildWeeklyView(m, layout, week, counts)
+func (s *Service) BuildWeeklyViewIn(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, counts []availability.SlotCount, loc *time.Location) WeeklyView {
+	view := s.BuildWeeklyView(m, layout, ref, week, counts)
 	if !layout.IsHourly() || loc == nil {
 		return view
 	}
@@ -77,7 +79,7 @@ func (s *Service) BuildWeeklyViewIn(m *i18n.Messages, layout availability.Layout
 	hours := make([]int, layout.Len())
 	minutes := 0
 	for slot := range hours {
-		t, err := layout.SlotStart(week, 0, slot, s.loc)
+		t, err := layout.SlotStart(week, 0, slot, ref)
 		if err != nil {
 			return view
 		}
@@ -88,7 +90,7 @@ func (s *Service) BuildWeeklyViewIn(m *i18n.Messages, layout availability.Layout
 	// A row keeps one evening together, labelled by the local day of its first slot
 	// (an evening in Paris may start the next day in Asia or Oceania).
 	for day := range view.Rows {
-		if t, err := layout.SlotStart(week, day, 0, s.loc); err == nil {
+		if t, err := layout.SlotStart(week, day, 0, ref); err == nil {
 			view.Rows[day] = m.ShortDays[weekdayIndex(t.In(loc))]
 		}
 	}
