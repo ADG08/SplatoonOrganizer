@@ -230,7 +230,7 @@ func (h *TimezoneSelectHandler) Handle(ctx context.Context, s *discordgo.Session
 	}
 	// Custom ID: availability:tz:<next>:<step>
 	next, step, _ := strings.Cut(strings.TrimPrefix(i.MessageComponentData().CustomID, TimezoneCustomIDPrefix+":"), ":")
-	loc, err := readTimezonePick(ctx, s, i, m, TimezoneCustomIDPrefix+":"+next, step, m.PickerCountry)
+	loc, err := readTimezonePick(ctx, s, i, m, TimezoneCustomIDPrefix+":"+next, step, m.PickerCountry, false)
 	if loc == nil {
 		return err
 	}
@@ -253,8 +253,9 @@ func (h *TimezoneSelectHandler) Handle(ctx context.Context, s *discordgo.Session
 
 // readTimezonePick reads a selection of the picker built on idBase, step being the last
 // part of its custom ID. When a UTC offset was picked and countries have it, it asks for
-// the country instead (countryPrompt, with the offset) and returns a nil location.
-func readTimezonePick(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, m *i18n.Messages, idBase, step, countryPrompt string) (*time.Location, error) {
+// the country instead (countryPrompt, with the offset) and returns a nil location. v2 is
+// whether the picker's message uses Components V2 (the /help panel).
+func readTimezonePick(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, m *i18n.Messages, idBase, step, countryPrompt string, v2 bool) (*time.Location, error) {
 	values := i.MessageComponentData().Values
 	if len(values) == 0 {
 		return nil, respondWithError(s, i, m.ErrInvalid)
@@ -274,11 +275,20 @@ func readTimezonePick(ctx context.Context, s *discordgo.Session, i *discordgo.In
 	}
 	return nil, s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
-		Data: &discordgo.InteractionResponseData{
-			Content:    fmt.Sprintf(countryPrompt, values[0]),
-			Components: buildCountryPicker(m, idBase, values[0], places),
-		},
+		Data: pickerStep(v2, fmt.Sprintf(countryPrompt, values[0]), buildCountryPicker(m, idBase, values[0], places)),
 	})
+}
+
+// pickerStep is a step of the timezone picker: a prompt above select menus. A Components
+// V2 message has no content, so the prompt becomes a text component there.
+func pickerStep(v2 bool, prompt string, rows []discordgo.MessageComponent) *discordgo.InteractionResponseData {
+	if !v2 {
+		return &discordgo.InteractionResponseData{Content: prompt, Components: rows}
+	}
+	return &discordgo.InteractionResponseData{
+		Flags:      discordgo.MessageFlagsIsComponentsV2,
+		Components: append([]discordgo.MessageComponent{discordgo.TextDisplay{Content: prompt}}, rows...),
+	}
 }
 
 // updateEphemeral replaces the content of the ephemeral message holding the component.

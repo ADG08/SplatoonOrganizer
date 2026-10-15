@@ -130,11 +130,7 @@ Le message est mis à jour tout de suite au premier clic, puis au plus une fois 
 
 ## Configuration avec `/help`
 
-Le panneau montre la configuration en trois colonnes, chacune modifiable avec son bouton :
-
-| 📢 Publication | 🕒 Créneaux | 🎨 Message |
-|---|---|---|
-| Salon, rôle, jour et heure | Découpage, fuseau horaire | Affichage, langue |
+Le panneau (un message Components V2) liste la configuration par section, chacune avec son bouton **✏️ Modifier** à droite : **📢 Publication** (salon, rôle, jour et heure), **🕒 Créneaux**, **🌍 Fuseau horaire** et **🎨 Message** (affichage, langue). Après un changement, il se met à jour et indique ce qui a été fait.
 
 - **📢 Publication** :
   - le **salon** où le message de la semaine est publié ; en choisir un nouveau y publie le message tout de suite ;

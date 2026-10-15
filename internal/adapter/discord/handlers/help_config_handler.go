@@ -85,11 +85,7 @@ func (h *HelpConfigHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 		// The panel turns into the picker, and back into the panel once a timezone is picked.
 		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseUpdateMessage,
-			Data: &discordgo.InteractionResponseData{
-				Content:    fmt.Sprintf(m.GuildPickerContent, m.TimezoneName(cfg.Location)),
-				Embeds:     []*discordgo.MessageEmbed{},
-				Components: buildTimezonePicker(m, discord.HelpPanelTimezoneID),
-			},
+			Data: pickerStep(true, fmt.Sprintf(m.GuildPickerContent, m.TimezoneName(cfg.Location)), buildTimezonePicker(m, discord.HelpPanelTimezoneID)),
 		})
 	}
 	return respondWithError(s, i, m.ErrInvalid)
@@ -316,7 +312,7 @@ func (h *HelpConfigHandler) handleMessageSubmit(ctx context.Context, s *discordg
 // with it, so the week's availabilities are reset as for a new slot layout.
 func (h *HelpConfigHandler) handleTimezonePick(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, step string) error {
 	m := previous.Messages()
-	loc, err := readTimezonePick(ctx, s, i, m, discord.HelpPanelTimezoneID, step, m.GuildPickerCountry)
+	loc, err := readTimezonePick(ctx, s, i, m, discord.HelpPanelTimezoneID, step, m.GuildPickerCountry, true)
 	if loc == nil {
 		return err
 	}
@@ -374,12 +370,11 @@ func (h *HelpConfigHandler) refreshPanel(ctx context.Context, s *discordgo.Sessi
 	if cfg == nil {
 		return nil
 	}
-	embed := discord.BuildHelpPanelEmbed(cfg.Messages().PanelUpdated, description, discord.HelpPanelColorSuccess, cfg)
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
-			Embeds:     []*discordgo.MessageEmbed{embed},
-			Components: discord.BuildHelpPanelComponents(cfg),
+			Flags:      discordgo.MessageFlagsIsComponentsV2,
+			Components: discord.BuildHelpPanel(cfg, description),
 		},
 	})
 }

@@ -52,15 +52,11 @@ func (c *HelpCommand) Execute(ctx context.Context, s *discordgo.Session, i *disc
 		return respondWithError(s, i, m.ErrGuildOnly)
 	}
 
-	embed := discord.BuildHelpPanelEmbed(m.PanelTitle, m.PanelDescription, discord.HelpPanelColorDefault, cfg)
-	components := discord.BuildHelpPanelComponents(cfg)
-
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Flags:      discordgo.MessageFlagsEphemeral,
-			Embeds:     []*discordgo.MessageEmbed{embed},
-			Components: components,
+			Flags:      discordgo.MessageFlagsEphemeral | discordgo.MessageFlagsIsComponentsV2,
+			Components: discord.BuildHelpPanel(cfg, ""),
 		},
 	})
 }

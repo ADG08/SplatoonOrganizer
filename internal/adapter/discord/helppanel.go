@@ -8,8 +8,8 @@ import (
 	"github.com/bwmarrin/discordgo"
 )
 
-// The panel has three sections, each opened by its button: publication (channel, role,
-// day and hour), slots (layout, and the timezone through its own picker) and message
+// The panel lists the guild's settings by section, each with its button: publication
+// (channel, role, day and hour), slots, timezone (through its own picker) and message
 // (display and language).
 const (
 	HelpPanelOpenPublishID  = "help:config_open_publish"
@@ -22,12 +22,12 @@ const (
 	HelpPanelTimezoneID     = "help:config_timezone" // the timezone picker's selects: <id>:<step>
 
 	HelpPanelColorDefault = 0x5865F2
-	HelpPanelColorSuccess = 0x57F287
 )
 
-// BuildHelpPanelEmbed builds the configuration panel embed with the guild's current
-// settings, in the guild's language.
-func BuildHelpPanelEmbed(title, description string, color int, cfg *guildconfig.GuildConfig) *discordgo.MessageEmbed {
+// BuildHelpPanel builds the configuration panel, a Components V2 message (send it with
+// discordgo.MessageFlagsIsComponentsV2): one section per setting, its button on the
+// right. status, when not empty, reports the last change under the title.
+func BuildHelpPanel(cfg *guildconfig.GuildConfig, status string) []discordgo.MessageComponent {
 	m := cfg.Messages()
 	channel := m.NotConfigured
 	if cfg.ChannelID != "" {
@@ -45,53 +45,47 @@ func BuildHelpPanelEmbed(title, description string, color int, cfg *guildconfig.
 		display = m.DisplayImage
 	}
 
-	fields := []*discordgo.MessageEmbedField{
-		{Name: m.SectionPublish, Inline: true, Value: lines(
+	header := "## " + m.PanelTitle + "\n" + m.PanelDescription
+	if status != "" {
+		header += "\n\n✅ " + status
+	}
+	section := func(title, customID string, body ...string) discordgo.Section {
+		return discordgo.Section{
+			Components: []discordgo.MessageComponent{
+				discordgo.TextDisplay{Content: "### " + title + "\n" + strings.Join(body, "\n")},
+			},
+			Accessory: discordgo.Button{Label: m.BtnEdit, Style: discordgo.SecondaryButton, CustomID: customID},
+		}
+	}
+	divider := discordgo.Separator{Divider: new(true), Spacing: new(discordgo.SeparatorSpacingSizeLarge)}
+
+	components := []discordgo.MessageComponent{
+		discordgo.TextDisplay{Content: header},
+		divider,
+		section(m.SectionPublish, HelpPanelOpenPublishID,
 			m.Field(m.FieldChannel, channel),
 			m.Field(m.FieldRole, role),
 			m.Field(m.FieldWhen, m.ScheduleSummary(cfg.Schedule)),
-		)},
-		{Name: m.SectionSlots, Inline: true, Value: lines(
-			m.LayoutSummary(cfg.SlotLayout),
-			m.Field(m.FieldTimezone, m.TimezoneName(cfg.Location)+" · "+m.Clock(time.Now().In(cfg.Location))),
-		)},
-		{Name: m.SectionMessage, Inline: true, Value: lines(
-			m.Field(m.FieldDisplay, display),
-			m.Field(m.FieldLanguage, m.LanguageName(cfg.Language)),
-		)},
+		),
 	}
 	if cfg.ChannelID != "" && !cfg.Active {
-		fields = append(fields, &discordgo.MessageEmbedField{Name: m.PausedTitle, Value: m.PausedHint})
+		components = append(components, discordgo.TextDisplay{Content: "**" + m.PausedTitle + "**\n" + m.PausedHint})
 	}
+	components = append(components,
+		divider,
+		section(m.SectionSlots, HelpPanelOpenSlotsID, m.LayoutSummary(cfg.SlotLayout)),
+		section(m.SectionTimezone, HelpPanelOpenTimezoneID,
+			m.TimezoneName(cfg.Location)+" · "+m.Clock(time.Now().In(cfg.Location)),
+		),
+		divider,
+		section(m.SectionMessage, HelpPanelOpenMessageID,
+			m.Field(m.FieldDisplay, display),
+			m.Field(m.FieldLanguage, m.LanguageName(cfg.Language)),
+		),
+		divider,
+		discordgo.TextDisplay{Content: "-# " + m.PanelFooter},
+	)
 
-	return &discordgo.MessageEmbed{
-		Title:       title,
-		Description: description,
-		Color:       color,
-		Fields:      fields,
-		Footer:      &discordgo.MessageEmbedFooter{Text: m.PanelFooter},
-		Timestamp:   time.Now().Format(time.RFC3339),
-	}
-}
-
-func lines(l ...string) string {
-	return strings.Join(l, "\n")
-}
-
-// BuildHelpPanelComponents returns the panel's buttons, in the order of its sections.
-func BuildHelpPanelComponents(cfg *guildconfig.GuildConfig) []discordgo.MessageComponent {
-	m := cfg.Messages()
-	button := func(label, customID string) discordgo.Button {
-		return discordgo.Button{Label: label, Style: discordgo.PrimaryButton, CustomID: customID}
-	}
-	return []discordgo.MessageComponent{
-		discordgo.ActionsRow{
-			Components: []discordgo.MessageComponent{
-				button(m.BtnPublish, HelpPanelOpenPublishID),
-				button(m.BtnSlots, HelpPanelOpenSlotsID),
-				button(m.BtnTimezone, HelpPanelOpenTimezoneID),
-				button(m.BtnMessage, HelpPanelOpenMessageID),
-			},
-		},
-	}
+	accent := HelpPanelColorDefault
+	return []discordgo.MessageComponent{discordgo.Container{AccentColor: &accent, Components: components}}
 }

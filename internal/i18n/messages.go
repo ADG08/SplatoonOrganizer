@@ -62,25 +62,21 @@ type Messages struct {
 	// /help panel: three sections, each with its button and form
 	PanelTitle       string
 	PanelDescription string
-	PanelUpdated     string
 	PanelFooter      string
 	SectionPublish   string
 	SectionSlots     string
+	SectionTimezone  string
 	SectionMessage   string
 	FieldChannel     string
 	FieldRole        string
 	FieldWhen        string
-	FieldTimezone    string
 	FieldDisplay     string
 	FieldLanguage    string
 	NotConfigured    string
 	NoRole           string
 	PausedTitle      string
 	PausedHint       string
-	BtnPublish       string
-	BtnSlots         string
-	BtnTimezone      string
-	BtnMessage       string
+	BtnEdit          string
 	ConfigSaved      string
 	NothingChanged   string
 	PublishedNow     string
@@ -190,27 +186,23 @@ var fr = Messages{
 	AnnonceMessageDesc: "Contenu de l'annonce (utilise \\n pour un retour à la ligne)",
 	AnnonceRoleDesc:    "Rôle à mentionner (optionnel)",
 
-	PanelTitle:       "⚙️  Panneau de configuration",
+	PanelTitle:       "⚙️ Panneau de configuration",
 	PanelDescription: "Gère les paramètres du bot pour ce serveur.",
-	PanelUpdated:     "✅  Configuration mise à jour",
 	PanelFooter:      "🔒 Réservé aux administrateurs",
-	SectionPublish:   "📢  Publication",
-	SectionSlots:     "🕒  Créneaux",
-	SectionMessage:   "🎨  Message",
+	SectionPublish:   "📢 Publication",
+	SectionSlots:     "🕒 Créneaux",
+	SectionTimezone:  "🌍 Fuseau horaire",
+	SectionMessage:   "🎨 Message",
 	FieldChannel:     "Salon",
 	FieldRole:        "Rôle",
 	FieldWhen:        "Quand",
-	FieldTimezone:    "Fuseau",
 	FieldDisplay:     "Affichage",
 	FieldLanguage:    "Langue",
 	NotConfigured:    "❌ non configuré",
 	NoRole:           "aucun",
-	PausedTitle:      "⏸️  Publication en pause",
-	PausedHint:       "Le bot ne peut plus publier dans ce salon. Vérifie ses permissions, puis choisis à nouveau le salon avec **📢 Publication**.",
-	BtnPublish:       "📢  Publication",
-	BtnSlots:         "🕒  Créneaux",
-	BtnTimezone:      "🌍  Fuseau horaire",
-	BtnMessage:       "🎨  Message",
+	PausedTitle:      "⏸️ Publication en pause",
+	PausedHint:       "Le bot ne peut plus publier dans ce salon. Vérifie ses permissions, puis choisis à nouveau le salon.",
+	BtnEdit:          "✏️ Modifier",
 	ConfigSaved:      "Configuration enregistrée.",
 	NothingChanged:   "Rien n'a changé.",
 	PublishedNow:     " Le message de la semaine est en cours de publication.",
@@ -314,27 +306,23 @@ var en = Messages{
 	AnnonceMessageDesc: "Content of the announcement (use \\n for a line break)",
 	AnnonceRoleDesc:    "Role to mention (optional)",
 
-	PanelTitle:       "⚙️  Settings",
+	PanelTitle:       "⚙️ Settings",
 	PanelDescription: "Manage the bot's settings for this server.",
-	PanelUpdated:     "✅  Settings updated",
 	PanelFooter:      "🔒 Admins only",
-	SectionPublish:   "📢  Posting",
-	SectionSlots:     "🕒  Slots",
-	SectionMessage:   "🎨  Message",
+	SectionPublish:   "📢 Posting",
+	SectionSlots:     "🕒 Slots",
+	SectionTimezone:  "🌍 Timezone",
+	SectionMessage:   "🎨 Message",
 	FieldChannel:     "Channel",
 	FieldRole:        "Role",
 	FieldWhen:        "When",
-	FieldTimezone:    "Timezone",
 	FieldDisplay:     "Display",
 	FieldLanguage:    "Language",
 	NotConfigured:    "❌ not set",
 	NoRole:           "none",
-	PausedTitle:      "⏸️  Posting paused",
-	PausedHint:       "The bot can no longer post in this channel. Check its permissions, then pick the channel again with **📢 Posting**.",
-	BtnPublish:       "📢  Posting",
-	BtnSlots:         "🕒  Slots",
-	BtnTimezone:      "🌍  Timezone",
-	BtnMessage:       "🎨  Message",
+	PausedTitle:      "⏸️ Posting paused",
+	PausedHint:       "The bot can no longer post in this channel. Check its permissions, then pick the channel again.",
+	BtnEdit:          "✏️ Edit",
 	ConfigSaved:      "Settings saved.",
 	NothingChanged:   "Nothing changed.",
 	PublishedNow:     " The weekly message is being posted.",
