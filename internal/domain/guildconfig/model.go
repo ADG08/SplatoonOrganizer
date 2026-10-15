@@ -36,6 +36,9 @@ type GuildConfig struct {
 	// MemberTimezones is on for international guilds: each member is asked their
 	// timezone and sees the hourly slots in it. Off, everyone uses Location.
 	MemberTimezones bool
+	// FullAt is the players from which a slot is shown full (green) in the grid image;
+	// 0 rates the slots against the week's best one.
+	FullAt int
 }
 
 // MemberTime reports whether members see the slots in their own timezone: hourly slots

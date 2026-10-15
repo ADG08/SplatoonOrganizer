@@ -153,7 +153,8 @@ Le panneau (un message Components V2) liste la configuration par section, chacun
 - **🌍 Fuseau horaire** : le fuseau du serveur, **Europe/Paris par défaut**. Le panneau se change en sélecteur (décalage UTC actuel, puis pays), puis revient avec le fuseau enregistré. En mode **Par heure**, changer de fuseau déplace les créneaux : les dispos de la semaine sont réinitialisées et le message republié.
 - **🎨 Message** :
   - l'**affichage** : **Classique** (par défaut, l'embed d'origine avec le tableau en texte) ou **Image** (la grille dessinée par le bot, cases colorées selon le nombre de dispos) ;
-  - la **langue** du bot sur le serveur : **Français** (par défaut) ou **English** ; tout le bot suit ce choix (message de la semaine, menus, réponses privées, `/help`).
+  - la **langue** du bot sur le serveur : **Français** (par défaut) ou **English** ; tout le bot suit ce choix (message de la semaine, menus, réponses privées, `/help`) ;
+  - **Case verte à partir de** (affichage image) : **Automatique** (par défaut, les couleurs dépendent du meilleur créneau de la semaine : vert dès 75 % de ce maximum, jaune dès 40 %) ou un nombre de joueurs, de 1 à 20. Avec 4 par exemple : 🟩 4 joueurs et plus, 🟨 2 à 3, ⬛ 1 ; la légende de l'image affiche alors ces seuils. Ce réglage redessine le message sans le republier.
 
   Changer l'affichage ou la langue republie le message.
 
@@ -303,7 +304,8 @@ CREATE TABLE guild_config (
     publish_hour    SMALLINT,  -- NULL = 10h · heure de publication (0-23, heure du serveur)
     active          BOOLEAN NOT NULL DEFAULT TRUE, -- FALSE = en pause (bot retiré, salon inaccessible)
     timezone        TEXT,      -- NULL = Europe/Paris · fuseau du pays ou décalage fixe ("UTC+2")
-    member_timezones BOOLEAN NOT NULL DEFAULT FALSE  -- TRUE = international : chacun voit les créneaux à son heure
+    member_timezones BOOLEAN NOT NULL DEFAULT FALSE, -- TRUE = international : chacun voit les créneaux à son heure
+    full_at         SMALLINT   -- NULL = couleurs relatives au meilleur créneau · sinon joueurs pour une case verte
 );
 
 -- Fuseau horaire choisi par chaque membre (mode Par heure)

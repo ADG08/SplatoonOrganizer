@@ -23,4 +23,6 @@ type Repository interface {
 	SetSchedule(ctx context.Context, guildID string, schedule availability.Schedule) error
 	SetTimezone(ctx context.Context, guildID string, loc *time.Location) error
 	SetMemberTimezones(ctx context.Context, guildID string, on bool) error
+	// SetFullAt sets the players from which a slot is full; 0 makes it relative again.
+	SetFullAt(ctx context.Context, guildID string, fullAt int) error
 }

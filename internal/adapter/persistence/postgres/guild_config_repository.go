@@ -67,6 +67,7 @@ func toGuildConfig(row db.GuildConfig) (*guildconfig.GuildConfig, error) {
 		Schedule:        availability.DefaultSchedule(),
 		Active:          row.Active,
 		MemberTimezones: row.MemberTimezones,
+		FullAt:          int(row.FullAt.Int16),
 		Location:        availability.DefaultLocation(),
 	}
 	if row.Timezone.Valid {
@@ -133,6 +134,13 @@ func (r *GuildConfigRepository) SetTimezone(ctx context.Context, guildID string,
 
 func (r *GuildConfigRepository) SetMemberTimezones(ctx context.Context, guildID string, on bool) error {
 	return r.queries.SetGuildConfigMemberTimezones(ctx, db.SetGuildConfigMemberTimezonesParams{GuildID: guildID, MemberTimezones: on})
+}
+
+func (r *GuildConfigRepository) SetFullAt(ctx context.Context, guildID string, fullAt int) error {
+	return r.queries.SetGuildConfigFullAt(ctx, db.SetGuildConfigFullAtParams{
+		GuildID: guildID,
+		FullAt:  pgtype.Int2{Int16: int16(fullAt), Valid: fullAt > 0},
+	})
 }
 
 func (r *GuildConfigRepository) SetActive(ctx context.Context, guildID string, active bool) error {

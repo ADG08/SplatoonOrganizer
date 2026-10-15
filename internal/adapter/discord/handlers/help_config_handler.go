@@ -24,13 +24,14 @@ const HelpConfigCustomIDPrefix = "help:config"
 type HelpConfigHandler struct {
 	svc        *appguildconfig.Service
 	availSvc   *appavailability.Service
+	refresher  *weekly.Refresher // updates the weekly message when a change doesn't need a new one
 	ownerID    string
 	supportURL string // donation page linked from the panel, optional
 }
 
 // NewHelpConfigHandler creates a new help config handler. ownerID is optional.
-func NewHelpConfigHandler(svc *appguildconfig.Service, availSvc *appavailability.Service, ownerID, supportURL string) *HelpConfigHandler {
-	return &HelpConfigHandler{svc: svc, availSvc: availSvc, ownerID: ownerID, supportURL: supportURL}
+func NewHelpConfigHandler(svc *appguildconfig.Service, availSvc *appavailability.Service, refresher *weekly.Refresher, ownerID, supportURL string) *HelpConfigHandler {
+	return &HelpConfigHandler{svc: svc, availSvc: availSvc, refresher: refresher, ownerID: ownerID, supportURL: supportURL}
 }
 
 func (h *HelpConfigHandler) CustomID() string {
@@ -176,7 +177,8 @@ func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Message
 	}
 }
 
-// buildMessageModalComponents builds the message form: display and language.
+// buildMessageModalComponents builds the message form: display, language, and the
+// players from which a slot is green.
 func buildMessageModalComponents(cfg *guildconfig.GuildConfig) []discordgo.MessageComponent {
 	m := cfg.Messages()
 	languages := make([]discordgo.SelectMenuOption, len(i18n.Langs))
@@ -187,9 +189,14 @@ func buildMessageModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Messa
 		{Label: m.DisplayClassic, Value: string(guildconfig.DisplayClassic), Default: cfg.Display != guildconfig.DisplayImage},
 		{Label: m.DisplayImage, Value: string(guildconfig.DisplayImage), Default: cfg.Display == guildconfig.DisplayImage},
 	}
+	fullAt := []discordgo.SelectMenuOption{{Label: m.FullAtAuto, Value: "0", Default: cfg.FullAt <= 0}}
+	for n := 1; n <= availability.MaxFullAt; n++ {
+		fullAt = append(fullAt, discordgo.SelectMenuOption{Label: m.Players(n), Value: strconv.Itoa(n), Default: cfg.FullAt == n})
+	}
 	return []discordgo.MessageComponent{
 		selectField(m.DisplayLabel, m.DisplayHint, "display_style", true, displays),
 		selectField(m.LanguageLabel, "", "language", true, languages),
+		selectField(m.FullAtLabel, m.FullAtHint, "full_at", true, fullAt),
 	}
 }
 
@@ -311,8 +318,9 @@ func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.
 	return h.saved(ctx, s, i, &cfg, message, republish)
 }
 
-// handleMessageSubmit saves the display and the language, then posts the message again:
-// it may switch between an embed and Components V2, which an edit can't do.
+// handleMessageSubmit saves the display, the language and the green threshold. A new
+// display or language posts the message again (it may switch between an embed and
+// Components V2, which an edit can't do); a new threshold only redraws it.
 func (h *HelpConfigHandler) handleMessageSubmit(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, data discordgo.ModalSubmitInteractionData) error {
 	lang := i18n.Parse(modalSelectValue(data.Components, "language"))
 	m := i18n.For(lang) // answer in the language just picked
@@ -320,18 +328,35 @@ func (h *HelpConfigHandler) handleMessageSubmit(ctx context.Context, s *discordg
 	if modalSelectValue(data.Components, "display_style") == string(guildconfig.DisplayImage) {
 		display = guildconfig.DisplayImage
 	}
-	if display == previous.Display && lang == previous.Language {
+	fullAt, err := strconv.Atoi(modalSelectValue(data.Components, "full_at"))
+	if err != nil || fullAt < 0 || fullAt > availability.MaxFullAt {
+		return respondWithError(s, i, m.ErrInvalid)
+	}
+	republish := display != previous.Display || lang != previous.Language
+	if !republish && fullAt == previous.FullAt {
 		return h.refreshPanel(ctx, s, i, m.NothingChanged)
 	}
 
-	if err := h.svc.SetMessageSettings(ctx, previous.GuildID, previous.SlotLayout, display, lang); err != nil {
-		slog.ErrorContext(ctx, "help config: set message settings", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+	if republish {
+		if err := h.svc.SetMessageSettings(ctx, previous.GuildID, previous.SlotLayout, display, lang); err != nil {
+			slog.ErrorContext(ctx, "help config: set message settings", "guild", i.GuildID, "err", err)
+			return respondWithError(s, i, m.ErrGeneric)
+		}
+	}
+	if fullAt != previous.FullAt {
+		if err := h.svc.SetFullAt(ctx, previous.GuildID, fullAt); err != nil {
+			slog.ErrorContext(ctx, "help config: set full at", "guild", i.GuildID, "err", err)
+			return respondWithError(s, i, m.ErrGeneric)
+		}
+		if !republish {
+			// Only the colors change: redraw the message, without a new one pinging the role.
+			h.refresher.Request(s, previous.GuildID)
+		}
 	}
 
 	cfg := *previous
-	cfg.Display, cfg.Language = display, lang
-	return h.saved(ctx, s, i, &cfg, m.ConfigSaved, true)
+	cfg.Display, cfg.Language, cfg.FullAt = display, lang, fullAt
+	return h.saved(ctx, s, i, &cfg, m.ConfigSaved, republish)
 }
 
 // handleTimezonePick saves the guild's timezone picked in the picker. Hourly slots move

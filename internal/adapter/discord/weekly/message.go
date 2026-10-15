@@ -52,7 +52,7 @@ func BuildPayload(cfg *guildconfig.GuildConfig, view appavailability.WeeklyView)
 		return p, nil
 	}
 
-	img, err := gridimage.Render(view)
+	img, err := gridimage.Render(view, cfg.FullAt)
 	if err != nil {
 		return nil, fmt.Errorf("render grid image: %w", err)
 	}
@@ -61,7 +61,7 @@ func BuildPayload(cfg *guildconfig.GuildConfig, view appavailability.WeeklyView)
 	if roleID != "" {
 		p.Components = append(p.Components, discordgo.TextDisplay{Content: "<@&" + roleID + ">"})
 	}
-	p.Components = append(p.Components, buildImageContainer(m, view, cfg.MemberTime()))
+	p.Components = append(p.Components, buildImageContainer(m, view, cfg.MemberTime(), cfg.FullAt))
 	return p, nil
 }
 
@@ -152,8 +152,8 @@ func myTimeButton(m *i18n.Messages) discordgo.Button {
 }
 
 // buildImageContainer lays out the "image" display: title, grid image, actions.
-func buildImageContainer(m *i18n.Messages, view appavailability.WeeklyView, memberTime bool) discordgo.Container {
-	legend := m.ImageLegend
+func buildImageContainer(m *i18n.Messages, view appavailability.WeeklyView, memberTime bool, fullAt int) discordgo.Container {
+	legend := m.ColorLegend(fullAt)
 	if view.Legend != "" {
 		legend = view.Legend + " · " + legend
 	}

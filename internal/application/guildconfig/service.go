@@ -82,6 +82,12 @@ func (s *Service) SetMemberTimezones(ctx context.Context, guildID string, on boo
 	return s.update(ctx, guildID, func() error { return s.repo.SetMemberTimezones(ctx, guildID, on) })
 }
 
+// SetFullAt sets the players from which a slot is shown full; 0 rates the slots against
+// the week's best one.
+func (s *Service) SetFullAt(ctx context.Context, guildID string, fullAt int) error {
+	return s.update(ctx, guildID, func() error { return s.repo.SetFullAt(ctx, guildID, fullAt) })
+}
+
 // SetActive turns the publication of the weekly message on or off for a guild, keeping
 // its configuration.
 func (s *Service) SetActive(ctx context.Context, guildID string, active bool) error {

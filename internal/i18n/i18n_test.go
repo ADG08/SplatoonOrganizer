@@ -21,7 +21,7 @@ func TestCatalogsComplete(t *testing.T) {
 			if !field.IsExported() {
 				continue
 			}
-			texts, refs := strings(m.Field(i)), strings(ref.Field(i))
+			texts, refs := stringFields(m.Field(i)), stringFields(ref.Field(i))
 			for j, text := range texts {
 				if text == "" {
 					t.Errorf("%s: %s[%d] is empty", l, field.Name, j)
@@ -34,7 +34,7 @@ func TestCatalogsComplete(t *testing.T) {
 	}
 }
 
-func strings(v reflect.Value) []string {
+func stringFields(v reflect.Value) []string {
 	if v.Kind() == reflect.String {
 		return []string{v.String()}
 	}
@@ -70,5 +70,23 @@ func TestHourFormats(t *testing.T) {
 	}
 	if Parse("") != FR || Parse("en") != EN || Parse("de") != FR {
 		t.Error("Parse must default to French")
+	}
+}
+
+func TestColorLegend(t *testing.T) {
+	fr := For(FR)
+	for fullAt, want := range map[int]string{
+		0: fr.ImageLegend, // relative to the week's best slot
+		1: "🟩 1+",
+		2: "🟩 2+ · 🟨 1",
+		4: "🟩 4+ · 🟨 2–3 · ⬛ 1",
+		6: "🟩 6+ · 🟨 3–5 · ⬛ 1–2",
+	} {
+		if got := fr.ColorLegend(fullAt); got != want {
+			t.Errorf("ColorLegend(%d) = %q, want %q", fullAt, got, want)
+		}
+	}
+	if got := fr.Players(1) + ", " + For(EN).Players(4); got != "1 joueur, 4 players" {
+		t.Errorf("Players: %q", got)
 	}
 }

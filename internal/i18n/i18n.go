@@ -4,6 +4,8 @@ package i18n
 
 import (
 	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
@@ -101,6 +103,38 @@ func (m *Messages) LanguageName(l Lang) string {
 		}
 	}
 	return m.LanguageNames[0]
+}
+
+// Players formats a number of players: "1 joueur", "4 joueurs".
+func (m *Messages) Players(n int) string {
+	if n == 1 {
+		return m.PlayersOne
+	}
+	return fmt.Sprintf(m.PlayersMany, n)
+}
+
+// ColorLegend explains the grid image's colors. With slots full from fullAt players, it
+// gives the actual thresholds ("🟩 4+ · 🟨 2–3 · ⬛ 1"); fullAt 0 keeps the relative
+// "many · some · few" legend.
+func (m *Messages) ColorLegend(fullAt int) string {
+	if fullAt <= 0 {
+		return m.ImageLegend
+	}
+	span := func(from, to int) string {
+		if from == to {
+			return strconv.Itoa(from)
+		}
+		return strconv.Itoa(from) + "–" + strconv.Itoa(to)
+	}
+	mid := availability.MidAt(fullAt)
+	parts := []string{"🟩 " + strconv.Itoa(fullAt) + "+"}
+	if mid < fullAt {
+		parts = append(parts, "🟨 "+span(mid, fullAt-1))
+	}
+	if mid > 1 {
+		parts = append(parts, "⬛ "+span(1, mid-1))
+	}
+	return strings.Join(parts, " · ")
 }
 
 // CountryName returns the name of a place of availability.Countries.

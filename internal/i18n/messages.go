@@ -122,6 +122,12 @@ type Messages struct {
 	DisplayHint    string
 	DisplayClassic string
 	DisplayImage   string
+	FullAtLabel    string
+	FullAtHint     string
+	FullAtAuto     string
+	FieldFullAt    string
+	PlayersOne     string
+	PlayersMany    string // %d players
 
 	// /help: timezone of the guild
 	GuildPickerContent string // %s current timezone
@@ -256,6 +262,12 @@ var fr = Messages{
 	DisplayHint:    "Changer l'affichage ou la langue republie le message de la semaine.",
 	DisplayClassic: "Classique (texte)",
 	DisplayImage:   "Image",
+	FullAtLabel:    "Case verte à partir de (affichage image)",
+	FullAtHint:     "Jaune dès la moitié, gris en dessous. Automatique : selon le meilleur créneau de la semaine.",
+	FullAtAuto:     "Automatique",
+	FieldFullAt:    "Vert dès",
+	PlayersOne:     "1 joueur",
+	PlayersMany:    "%d joueurs",
 
 	GuildPickerContent: "🌍 **Quel est le fuseau horaire du serveur ?** (actuellement : %s)\nToutes ses heures le suivent : créneaux, grille, semaines et publication. Choisis le décalage UTC actuel, puis le pays.",
 	GuildPickerCountry: "🌍 **Dans quel pays est le serveur ?** (%s)\nLe bot suivra tout seul les passages à l'heure d'été et d'hiver.",
@@ -387,6 +399,12 @@ var en = Messages{
 	DisplayHint:    "Changing the display or the language posts the weekly message again.",
 	DisplayClassic: "Classic (text)",
 	DisplayImage:   "Image",
+	FullAtLabel:    "Green cell from (image display)",
+	FullAtHint:     "Yellow from half of it, grey below. Automatic: against the week's best slot.",
+	FullAtAuto:     "Automatic",
+	FieldFullAt:    "Green from",
+	PlayersOne:     "1 player",
+	PlayersMany:    "%d players",
 
 	GuildPickerContent: "🌍 **What's the server's timezone?** (currently: %s)\nAll its hours follow it: slots, grid, weeks and posting. Pick the current UTC offset, then the country.",
 	GuildPickerCountry: "🌍 **Which country is the server in?** (%s)\nThe bot will follow daylight saving time changes by itself.",
