@@ -60,13 +60,14 @@ func (r *GuildConfigRepository) ListWithChannel(ctx context.Context) ([]*guildco
 
 func toGuildConfig(row db.GuildConfig) (*guildconfig.GuildConfig, error) {
 	cfg := &guildconfig.GuildConfig{
-		GuildID:    row.GuildID,
-		SlotLayout: availability.HalfDayLayout(),
-		Display:    guildconfig.DisplayClassic,
-		Language:   i18n.Parse(row.Language.String),
-		Schedule:   availability.DefaultSchedule(),
-		Active:     row.Active,
-		Location:   availability.DefaultLocation(),
+		GuildID:         row.GuildID,
+		SlotLayout:      availability.HalfDayLayout(),
+		Display:         guildconfig.DisplayClassic,
+		Language:        i18n.Parse(row.Language.String),
+		Schedule:        availability.DefaultSchedule(),
+		Active:          row.Active,
+		MemberTimezones: row.MemberTimezones,
+		Location:        availability.DefaultLocation(),
 	}
 	if row.Timezone.Valid {
 		loc, err := availability.ParseTimezone(row.Timezone.String)
@@ -128,6 +129,10 @@ func (r *GuildConfigRepository) SetTimezone(ctx context.Context, guildID string,
 		GuildID:  guildID,
 		Timezone: pgtype.Text{String: loc.String(), Valid: true},
 	})
+}
+
+func (r *GuildConfigRepository) SetMemberTimezones(ctx context.Context, guildID string, on bool) error {
+	return r.queries.SetGuildConfigMemberTimezones(ctx, db.SetGuildConfigMemberTimezonesParams{GuildID: guildID, MemberTimezones: on})
 }
 
 func (r *GuildConfigRepository) SetActive(ctx context.Context, guildID string, active bool) error {

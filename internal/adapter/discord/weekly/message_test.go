@@ -1,8 +1,10 @@
 package weekly
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"testing"
 
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
@@ -20,7 +22,7 @@ func view(t *testing.T) appavailability.WeeklyView {
 }
 
 func TestClassicPayload(t *testing.T) {
-	p, err := BuildPayload(i18n.For(i18n.FR), view(t), "r1", guildconfig.DisplayClassic)
+	p, err := BuildPayload(&guildconfig.GuildConfig{RoleID: "r1", Display: guildconfig.DisplayClassic, Language: i18n.FR}, view(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +44,7 @@ func TestClassicPayload(t *testing.T) {
 }
 
 func TestImagePayload(t *testing.T) {
-	p, err := BuildPayload(i18n.For(i18n.EN), view(t), "", guildconfig.DisplayImage)
+	p, err := BuildPayload(&guildconfig.GuildConfig{Display: guildconfig.DisplayImage, Language: i18n.EN}, view(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -79,5 +81,31 @@ func TestLostAccess(t *testing.T) {
 	}
 	if LostAccess(errors.New("timeout")) || LostAccess(nil) {
 		t.Error("errors other than Discord's are not a lost access")
+	}
+}
+
+// "Mon fuseau" only shows when members see the slots in their own timezone.
+func TestMyTimeButton(t *testing.T) {
+	hourly, _ := availability.HourlyLayout(20, 24)
+	hasMyTime := func(cfg *guildconfig.GuildConfig) bool {
+		p, err := BuildPayload(cfg, view(t))
+		if err != nil {
+			t.Fatal(err)
+		}
+		raw, _ := json.Marshal(p.Components)
+		return strings.Contains(string(raw), MyTimeCustomID)
+	}
+	for _, c := range []struct {
+		cfg  guildconfig.GuildConfig
+		want bool
+	}{
+		{guildconfig.GuildConfig{SlotLayout: hourly, MemberTimezones: true}, true},
+		{guildconfig.GuildConfig{SlotLayout: hourly, MemberTimezones: true, Display: guildconfig.DisplayImage}, true},
+		{guildconfig.GuildConfig{SlotLayout: hourly}, false},                                              // everyone on the server's time
+		{guildconfig.GuildConfig{SlotLayout: availability.HalfDayLayout(), MemberTimezones: true}, false}, // no hours
+	} {
+		if got := hasMyTime(&c.cfg); got != c.want {
+			t.Errorf("%+v: Mon fuseau shown %v, want %v", c.cfg, got, c.want)
+		}
 	}
 }

@@ -135,6 +135,12 @@ func buildPublishModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Messa
 	}
 }
 
+// Values of the slots form's member time select.
+const (
+	memberTimeServer = "server" // everyone sees the guild's time
+	memberTimeOwn    = "own"    // each member sees their own timezone
+)
+
 // buildSlotsModalComponents builds the slots form, prefilled with the current layout.
 func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.MessageComponent {
 	m := cfg.Messages()
@@ -157,11 +163,16 @@ func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Message
 			Label: m.HourLabel(h + 1), Value: strconv.Itoa(h + 1), Default: h+1 == end,
 		})
 	}
+	memberTime := []discordgo.SelectMenuOption{
+		{Label: m.MemberTimeServer, Value: memberTimeServer, Default: !cfg.MemberTimezones},
+		{Label: m.MemberTimeOwn, Value: memberTimeOwn, Default: cfg.MemberTimezones},
+	}
 	return []discordgo.MessageComponent{
 		selectField(m.ModeLabel, m.ModeHint, "slot_mode", true, modes),
 		// The hours are optional: they don't apply to "Après-midi / Soir".
 		selectField(m.StartHourLabel, m.StartHourHint, "slot_start_hour", false, startOptions),
 		selectField(m.EndHourLabel, m.EndHourHint, "slot_end_hour", false, endOptions),
+		selectField(m.MemberTimeLabel, m.MemberTimeHint, "member_time", true, memberTime),
 	}
 }
 
@@ -249,8 +260,8 @@ func (h *HelpConfigHandler) handlePublishSubmit(ctx context.Context, s *discordg
 	return h.saved(ctx, s, i, &cfg, m.ConfigSaved, republish)
 }
 
-// handleSlotsSubmit saves the slot layout. Slot indexes of the old layout would be misread
-// with the new one, so the week starts over.
+// handleSlotsSubmit saves the slot layout and whose time the members see. A new layout
+// starts the week over, as slot indexes of the old one would be misread with it.
 func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, data discordgo.ModalSubmitInteractionData) error {
 	m := previous.Messages()
 	layout := availability.HalfDayLayout()
@@ -268,22 +279,36 @@ func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.
 			return respondWithError(s, i, m.HourOrder)
 		}
 	}
-	if layout == previous.SlotLayout {
+	memberTimezones := modalSelectValue(data.Components, "member_time") == memberTimeOwn
+	layoutChanged := layout != previous.SlotLayout
+	if !layoutChanged && memberTimezones == previous.MemberTimezones {
 		return h.refreshPanel(ctx, s, i, m.NothingChanged)
 	}
 
-	if err := h.svc.SetMessageSettings(ctx, previous.GuildID, layout, previous.Display, previous.Language); err != nil {
-		slog.ErrorContext(ctx, "help config: set slots", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+	message := m.ConfigSaved
+	if layoutChanged {
+		if err := h.svc.SetMessageSettings(ctx, previous.GuildID, layout, previous.Display, previous.Language); err != nil {
+			slog.ErrorContext(ctx, "help config: set slots", "guild", i.GuildID, "err", err)
+			return respondWithError(s, i, m.ErrGeneric)
+		}
+		if err := h.availSvc.ResetWeek(ctx, previous.GuildID, h.availSvc.Week(previous.Schedule, previous.Location)); err != nil {
+			slog.ErrorContext(ctx, "help config: reset week", "guild", i.GuildID, "err", err)
+			return respondWithError(s, i, m.ErrGeneric)
+		}
+		message += m.SlotsReset
 	}
-	if err := h.availSvc.ResetWeek(ctx, previous.GuildID, h.availSvc.Week(previous.Schedule, previous.Location)); err != nil {
-		slog.ErrorContext(ctx, "help config: reset week", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+	if memberTimezones != previous.MemberTimezones {
+		if err := h.svc.SetMemberTimezones(ctx, previous.GuildID, memberTimezones); err != nil {
+			slog.ErrorContext(ctx, "help config: set member timezones", "guild", i.GuildID, "err", err)
+			return respondWithError(s, i, m.ErrGeneric)
+		}
 	}
 
 	cfg := *previous
-	cfg.SlotLayout = layout
-	return h.saved(ctx, s, i, &cfg, m.ConfigSaved+m.SlotsReset, true)
+	cfg.SlotLayout, cfg.MemberTimezones = layout, memberTimezones
+	// The message changes with the layout, or with the "Mon fuseau" button of hourly slots.
+	republish := layoutChanged || cfg.MemberTime() != previous.MemberTime()
+	return h.saved(ctx, s, i, &cfg, message, republish)
 }
 
 // handleMessageSubmit saves the display and the language, then posts the message again:

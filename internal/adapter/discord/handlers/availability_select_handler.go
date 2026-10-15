@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"strconv"
+	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
@@ -72,9 +73,11 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 		slog.ErrorContext(ctx, "get user availability after select", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
-	loc, err := h.svc.UserTimezone(ctx, userID)
-	if err != nil {
-		slog.ErrorContext(ctx, "get user timezone after select", "guild", i.GuildID, "err", err)
+	var loc *time.Location // the guild's time, unless members see their own
+	if cfg.MemberTime() {
+		if loc, err = h.svc.UserTimezone(ctx, userID); err != nil {
+			slog.ErrorContext(ctx, "get user timezone after select", "guild", i.GuildID, "err", err)
+		}
 	}
 	label := func(day, slot int) string { return h.svc.SlotLabelIn(m, layout, cfg.Location, week, day, slot, loc) }
 
@@ -85,7 +88,7 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 		components = buildUserDisposSelectMenus(m, layout, userSlots, closed, 0, 5, label)
 	} else {
 		components = buildUserDisposSelectMenus(m, layout, userSlots, closed, 5, 2, label)
-		if layout.IsHourly() {
+		if cfg.MemberTime() {
 			components = append(components, editTimezoneButton(m, tzNextDispos))
 		}
 	}

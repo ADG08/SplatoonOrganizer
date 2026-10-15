@@ -34,9 +34,10 @@ type Payload struct {
 	AllowedMentions *discordgo.MessageAllowedMentions
 }
 
-// BuildPayload builds the weekly message. If roleID is not empty, the message
-// mentions the role (<@&roleID>) to ping it.
-func BuildPayload(m *i18n.Messages, view appavailability.WeeklyView, roleID string, display guildconfig.Display) (*Payload, error) {
+// BuildPayload builds the guild's weekly message, in its display. When the guild has a
+// role, the message mentions it to ping it.
+func BuildPayload(cfg *guildconfig.GuildConfig, view appavailability.WeeklyView) (*Payload, error) {
+	m, roleID, display := cfg.Messages(), cfg.RoleID, cfg.Display
 	p := &Payload{AllowedMentions: &discordgo.MessageAllowedMentions{}}
 	if roleID != "" {
 		p.AllowedMentions.Roles = []string{roleID}
@@ -44,7 +45,7 @@ func BuildPayload(m *i18n.Messages, view appavailability.WeeklyView, roleID stri
 
 	if display != guildconfig.DisplayImage {
 		p.Embeds = []*discordgo.MessageEmbed{buildClassicEmbed(m, view)}
-		p.Components = buildClassicComponents(m, view.Hourly)
+		p.Components = buildClassicComponents(m, cfg.MemberTime())
 		if roleID != "" {
 			p.Content = "<@&" + roleID + ">"
 		}
@@ -60,7 +61,7 @@ func BuildPayload(m *i18n.Messages, view appavailability.WeeklyView, roleID stri
 	if roleID != "" {
 		p.Components = append(p.Components, discordgo.TextDisplay{Content: "<@&" + roleID + ">"})
 	}
-	p.Components = append(p.Components, buildImageContainer(m, view))
+	p.Components = append(p.Components, buildImageContainer(m, view, cfg.MemberTime()))
 	return p, nil
 }
 
@@ -116,8 +117,8 @@ func buildClassicEmbed(m *i18n.Messages, view appavailability.WeeklyView) *disco
 }
 
 // buildClassicComponents returns the action row with the original weekly buttons,
-// plus "Mon fuseau" when the slots are hours.
-func buildClassicComponents(m *i18n.Messages, hourly bool) []discordgo.MessageComponent {
+// plus "Mon fuseau" when members see the slots in their own timezone.
+func buildClassicComponents(m *i18n.Messages, memberTime bool) []discordgo.MessageComponent {
 	buttons := []discordgo.MessageComponent{
 		discordgo.Button{
 			Label:    m.BtnMyDispos,
@@ -135,7 +136,7 @@ func buildClassicComponents(m *i18n.Messages, hourly bool) []discordgo.MessageCo
 			CustomID: UnavailableCustomID,
 		},
 	}
-	if hourly {
+	if memberTime {
 		buttons = append(buttons, myTimeButton(m))
 	}
 	return []discordgo.MessageComponent{discordgo.ActionsRow{Components: buttons}}
@@ -151,7 +152,7 @@ func myTimeButton(m *i18n.Messages) discordgo.Button {
 }
 
 // buildImageContainer lays out the "image" display: title, grid image, actions.
-func buildImageContainer(m *i18n.Messages, view appavailability.WeeklyView) discordgo.Container {
+func buildImageContainer(m *i18n.Messages, view appavailability.WeeklyView, memberTime bool) discordgo.Container {
 	legend := m.ImageLegend
 	if view.Legend != "" {
 		legend = view.Legend + " · " + legend
@@ -168,7 +169,7 @@ func buildImageContainer(m *i18n.Messages, view appavailability.WeeklyView) disc
 			CustomID: UnavailableCustomID,
 		},
 	}
-	if view.Hourly {
+	if memberTime {
 		buttons = append(buttons, myTimeButton(m))
 	}
 

@@ -148,6 +148,8 @@ Le panneau (un message Components V2) liste la configuration par section, chacun
   - le **rôle** mentionné à chaque publication, optionnel : le retirer arrête les mentions ;
   - le **jour** et l'**heure** de publication (heure du serveur, voir [Publication automatique](#publication-automatique)).
 - **🕒 Créneaux** : le **découpage**, **Après-midi / Soir** (par défaut) ou **Par heure**, un créneau par heure entre une première heure et une heure de fin (heure du serveur, 20h → minuit par défaut ; ces deux champs sont ignorés en « Après-midi / Soir »). Changer le découpage réinitialise les dispos de la semaine en cours.
+
+  En mode **Par heure**, le champ **Heures des membres** choisit entre **🏠 Tout le monde à l'heure du serveur** (par défaut : un serveur dont les joueurs sont dans le même pays) et **🌍 International** (chacun indique son fuseau et voit les créneaux à son heure, voir [Le fuseau des membres](#le-fuseau-des-membres)).
 - **🌍 Fuseau horaire** : le fuseau du serveur, **Europe/Paris par défaut**. Le panneau se change en sélecteur (décalage UTC actuel, puis pays), puis revient avec le fuseau enregistré. En mode **Par heure**, changer de fuseau déplace les créneaux : les dispos de la semaine sont réinitialisées et le message republié.
 - **🎨 Message** :
   - l'**affichage** : **Classique** (par défaut, l'embed d'origine avec le tableau en texte) ou **Image** (la grille dessinée par le bot, cases colorées selon le nombre de dispos) ;
@@ -178,7 +180,9 @@ Le bot vérifie tous les quarts d'heure quels serveurs ont atteint leur heure de
 
 ### Le fuseau des membres
 
-La grille publique est à l'heure du serveur : elle est partagée par tous, et Discord ne convertit pas les heures dans un texte ni dans une image. En mode **Par heure**, chaque membre peut voir les créneaux à son heure.
+La grille publique est à l'heure du serveur : elle est partagée par tous, et Discord ne convertit pas les heures dans un texte ni dans une image. En mode **Par heure**, si le serveur est réglé en **🌍 International** (`/help` → **🕒 Créneaux** → **Heures des membres**), chaque membre peut voir les créneaux à son heure.
+
+Réglé sur **🏠 Tout le monde à l'heure du serveur** (par défaut), le bot ne demande rien aux membres et n'affiche pas **🌍 Mon fuseau** : tout est à l'heure du serveur. Les listes **📋 Voir les dispos** et **👀 Voir qui est dispo…** s'affichent quand même à l'heure de chacun, Discord convertissant lui-même leurs heures.
 
 Discord ne transmet pas le fuseau d'un membre. Au premier clic sur **✏️ Mes dispos** ou **🌍 Mon fuseau**, le bot le lui demande en deux étapes :
 
@@ -298,7 +302,8 @@ CREATE TABLE guild_config (
     publish_weekday SMALLINT,  -- NULL = lundi · 0 = dimanche (semaine qui suit), 1 = lundi
     publish_hour    SMALLINT,  -- NULL = 10h · heure de publication (0-23, heure du serveur)
     active          BOOLEAN NOT NULL DEFAULT TRUE, -- FALSE = en pause (bot retiré, salon inaccessible)
-    timezone        TEXT       -- NULL = Europe/Paris · fuseau du pays ou décalage fixe ("UTC+2")
+    timezone        TEXT,      -- NULL = Europe/Paris · fuseau du pays ou décalage fixe ("UTC+2")
+    member_timezones BOOLEAN NOT NULL DEFAULT FALSE  -- TRUE = international : chacun voit les créneaux à son heure
 );
 
 -- Fuseau horaire choisi par chaque membre (mode Par heure)

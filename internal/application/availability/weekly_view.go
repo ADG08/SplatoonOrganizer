@@ -17,7 +17,6 @@ const gridMaxColumns = 12
 type WeeklyView struct {
 	Title  string // e.g. "Dispos de la semaine du 12/10"
 	Legend string // timezone hint for hourly layouts, empty otherwise
-	Hourly bool   // slots are real hours, so the view can be shown in another timezone
 	Table  string // code block table (the classic display)
 
 	Counts  [][]int  // Counts[day][slot]
@@ -43,7 +42,6 @@ func (s *Service) BuildWeeklyView(m *i18n.Messages, layout availability.Layout, 
 
 	view := WeeklyView{
 		Title:  m.ClassicTitle,
-		Hourly: layout.IsHourly(),
 		Counts: grid,
 		Closed: availability.ClosedSlots(layout, schedule, week, ref),
 		Rows:   append([]string(nil), m.ShortDays[:]...),

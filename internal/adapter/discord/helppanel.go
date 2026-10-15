@@ -74,7 +74,7 @@ func BuildHelpPanel(cfg *guildconfig.GuildConfig, status, supportURL string) []d
 	}
 	components = append(components,
 		divider,
-		section(m.SectionSlots, HelpPanelOpenSlotsID, m.LayoutSummary(cfg.SlotLayout)),
+		section(m.SectionSlots, HelpPanelOpenSlotsID, slotsLines(cfg)...),
 		section(m.SectionTimezone, HelpPanelOpenTimezoneID,
 			m.TimezoneName(cfg.Location)+" · "+m.Clock(time.Now().In(cfg.Location)),
 		),
@@ -94,4 +94,19 @@ func BuildHelpPanel(cfg *guildconfig.GuildConfig, status, supportURL string) []d
 
 	accent := HelpPanelColorDefault
 	return []discordgo.MessageComponent{discordgo.Container{AccentColor: &accent, Components: components}}
+}
+
+// slotsLines describes the slots section: the layout and, for hourly slots, whose time
+// the members see.
+func slotsLines(cfg *guildconfig.GuildConfig) []string {
+	m := cfg.Messages()
+	lines := []string{m.LayoutSummary(cfg.SlotLayout)}
+	if cfg.SlotLayout.IsHourly() {
+		members := m.MembersServer
+		if cfg.MemberTimezones {
+			members = m.MembersOwn
+		}
+		lines = append(lines, m.Field(m.FieldMembers, members))
+	}
+	return lines
 }

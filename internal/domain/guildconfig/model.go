@@ -33,6 +33,15 @@ type GuildConfig struct {
 	// Active is false while the bot is out of the guild or can't post in its channel:
 	// nothing is published, and the configuration is kept for when it comes back.
 	Active bool
+	// MemberTimezones is on for international guilds: each member is asked their
+	// timezone and sees the hourly slots in it. Off, everyone uses Location.
+	MemberTimezones bool
+}
+
+// MemberTime reports whether members see the slots in their own timezone: hourly slots
+// (half-day ones have no hours) of a guild that turned MemberTimezones on.
+func (c *GuildConfig) MemberTime() bool {
+	return c.SlotLayout.IsHourly() && c.MemberTimezones
 }
 
 // Messages returns the texts in the guild's language.

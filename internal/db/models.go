@@ -18,18 +18,19 @@ type Dispo struct {
 }
 
 type GuildConfig struct {
-	GuildID        string      `json:"guild_id"`
-	ChannelID      pgtype.Text `json:"channel_id"`
-	RoleID         pgtype.Text `json:"role_id"`
-	SlotMode       pgtype.Text `json:"slot_mode"`
-	SlotStartHour  pgtype.Int2 `json:"slot_start_hour"`
-	SlotEndHour    pgtype.Int2 `json:"slot_end_hour"`
-	DisplayStyle   pgtype.Text `json:"display_style"`
-	Language       pgtype.Text `json:"language"`
-	PublishWeekday pgtype.Int2 `json:"publish_weekday"`
-	PublishHour    pgtype.Int2 `json:"publish_hour"`
-	Active         bool        `json:"active"`
-	Timezone       pgtype.Text `json:"timezone"`
+	GuildID         string      `json:"guild_id"`
+	ChannelID       pgtype.Text `json:"channel_id"`
+	RoleID          pgtype.Text `json:"role_id"`
+	SlotMode        pgtype.Text `json:"slot_mode"`
+	SlotStartHour   pgtype.Int2 `json:"slot_start_hour"`
+	SlotEndHour     pgtype.Int2 `json:"slot_end_hour"`
+	DisplayStyle    pgtype.Text `json:"display_style"`
+	Language        pgtype.Text `json:"language"`
+	PublishWeekday  pgtype.Int2 `json:"publish_weekday"`
+	PublishHour     pgtype.Int2 `json:"publish_hour"`
+	Active          bool        `json:"active"`
+	Timezone        pgtype.Text `json:"timezone"`
+	MemberTimezones bool        `json:"member_timezones"`
 }
 
 type UserTimezone struct {
