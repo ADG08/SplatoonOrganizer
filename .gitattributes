@@ -1,0 +1,9 @@
+# Line endings: LF everywhere, as gofmt and the Linux CI and images expect, whatever the
+# OS of whoever edits the files (Windows included).
+* text=auto eol=lf
+
+# Binary files are never converted.
+*.png binary
+*.jpg binary
+*.webp binary
+*.ico binary
