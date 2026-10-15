@@ -34,8 +34,8 @@ func lockGuild(guildID string) (unlock func()) {
 	return mu.(*sync.Mutex).Unlock
 }
 
-// Publish replaces the guild's weekly message: it deletes the previous one,
-// then posts a fresh one in the configured channel with the guild's layout and display.
+// Publish replaces the guild's weekly message: it posts a fresh one in the configured
+// channel with the guild's layout and display, then deletes the previous one.
 // Used by the weekly job and when /help changes how the message looks (an embed can't
 // always be edited into a Components V2 message, so it is posted again instead).
 func Publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, cfg *guildconfig.GuildConfig) error {
@@ -69,20 +69,32 @@ func publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Ser
 		return err
 	}
 
+	// Unknown, the previous message couldn't be deleted: don't post a second one.
 	previous, err := svc.WeeklyMessage(ctx, cfg.GuildID)
 	if err != nil {
-		slog.ErrorContext(ctx, "get weekly message", "guild", cfg.GuildID, "err", err)
-	} else if previous != nil {
-		if err := s.ChannelMessageDelete(cmp.Or(previous.ChannelID, cfg.ChannelID), previous.MessageID, discordgo.WithContext(ctx)); err != nil {
-			slog.ErrorContext(ctx, "delete previous weekly message", "guild", cfg.GuildID, "err", err)
-		}
+		return fmt.Errorf("get weekly message: %w", err)
 	}
 
+	// The new message is posted first: if that fails (a permission missing, such as
+	// attaching the image), the previous one stays in place.
 	msg, err := s.ChannelMessageSendComplex(cfg.ChannelID, payload.MessageSend(), discordgo.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("send weekly message: %w", err)
 	}
-	return svc.SetWeeklyMessage(ctx, cfg.GuildID, availability.WeeklyMessage{Week: week, ChannelID: cfg.ChannelID, MessageID: msg.ID})
+	if err := svc.SetWeeklyMessage(ctx, cfg.GuildID, availability.WeeklyMessage{Week: week, ChannelID: cfg.ChannelID, MessageID: msg.ID}); err != nil {
+		// Keep the message the database knows of, and remove the one just posted.
+		if err := s.ChannelMessageDelete(cfg.ChannelID, msg.ID, discordgo.WithContext(ctx)); err != nil {
+			slog.ErrorContext(ctx, "delete unsaved weekly message", "guild", cfg.GuildID, "err", err)
+		}
+		return fmt.Errorf("save weekly message: %w", err)
+	}
+
+	if previous != nil {
+		if err := s.ChannelMessageDelete(cmp.Or(previous.ChannelID, cfg.ChannelID), previous.MessageID, discordgo.WithContext(ctx)); err != nil {
+			slog.ErrorContext(ctx, "delete previous weekly message", "guild", cfg.GuildID, "err", err)
+		}
+	}
+	return nil
 }
 
 // LostAccess reports whether err means the bot can no longer post in the guild's
