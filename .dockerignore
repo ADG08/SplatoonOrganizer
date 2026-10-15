@@ -1,0 +1,8 @@
+# Only the sources are needed to build: keep the secrets and the history out of the
+# build context.
+.env
+.env.*
+!.env.example
+.git
+.claude
+*.md

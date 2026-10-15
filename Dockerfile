@@ -1,32 +1,24 @@
+# Build: a static binary (the timezones' data is embedded by the code).
 FROM golang:1.26-alpine AS builder
 
-WORKDIR /app
-
-RUN apk add --no-cache git ca-certificates
+WORKDIR /src
 
 COPY go.mod go.sum ./
-RUN go mod download
+RUN --mount=type=cache,target=/go/pkg/mod go mod download
 
 COPY . .
 
-# Build for host arch (Coolify VPS is often aarch64; local may be amd64/arm64).
-RUN CGO_ENABLED=0 GOOS=linux go build -o bot ./cmd/bot
+# Built for the host arch (the Coolify VPS may be arm64, a local machine amd64).
+RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache/go-build \
+    CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /bot ./cmd/bot
 
-FROM alpine:3.20
+# Run: distroless holds only the CA certificates (for Discord's HTTPS) and a non-root
+# user: no shell nor package manager to attack, a few MB.
+FROM gcr.io/distroless/static-debian12:nonroot
 
-WORKDIR /app
+COPY --from=builder /bot /bot
 
-RUN apk add --no-cache ca-certificates tzdata
+# No wget in the image: the bot checks its own /health.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 CMD ["/bot", "healthcheck"]
 
-COPY --from=builder /app/bot /app/bot
-
-ENV DISCORD_TOKEN=""
-ENV DISCORD_CLIENT_ID=""
-ENV DISCORD_GUILD_ID=""
-ENV DATABASE_URL=""
-ENV DISCORD_OWNER_ID=""
-ENV TZ="Europe/Paris"
-ENV HEALTH_PORT="8080"
-
-CMD ["/app/bot"]
-
+ENTRYPOINT ["/bot"]

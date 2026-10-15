@@ -1,3 +1,4 @@
 # Migrations image: includes SQL files so no host volume needed (works on Coolify).
+# It applies the migrations and exits; the bot starts once it succeeded.
 FROM migrate/migrate:v4.17.0
 COPY migrations /migrations

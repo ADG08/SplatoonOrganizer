@@ -2,14 +2,11 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/commands"
@@ -20,10 +17,14 @@ import (
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 )
 
 func main() {
+	// "bot healthcheck" is the container's healthcheck: the image has no shell nor wget.
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		os.Exit(checkHealth())
+	}
+
 	// key=value lines: Coolify's logs can be searched by guild, user or error.
 	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
 
@@ -34,12 +35,9 @@ func main() {
 }
 
 // run starts the bot and blocks until SIGINT or SIGTERM. Returning instead of exiting
-// lets the deferred cleanups run (Discord session, database pool).
+// lets the deferred cleanups run (Discord session, database pool). The configuration
+// comes from the environment (Docker Compose reads .env, Coolify its own variables).
 func run() error {
-	if err := godotenv.Load(); err != nil {
-		slog.Info("no .env file found, using environment variables")
-	}
-
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -132,30 +130,5 @@ func run() error {
 	slog.Info("SplatoonOrganizer bot is running. Press CTRL-C to exit.")
 	<-ctx.Done()
 	slog.Info("shutting down...")
-	return nil
-}
-
-// serveHealth answers the container healthcheck until ctx is done.
-func serveHealth(ctx context.Context, port string) error {
-	mux := http.NewServeMux()
-	mux.HandleFunc("GET /health", func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = w.Write([]byte("ok"))
-	})
-	srv := &http.Server{
-		Addr:              ":" + port,
-		Handler:           mux,
-		ReadHeaderTimeout: 5 * time.Second, // a client sending headers slowly can't hold a connection
-	}
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 5*time.Second)
-		defer cancel()
-		_ = srv.Shutdown(shutdownCtx)
-	}()
-
-	slog.Info("health server listening", "addr", srv.Addr)
-	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
-		return err
-	}
 	return nil
 }

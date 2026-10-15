@@ -5,8 +5,6 @@ go 1.26.0
 require (
 	github.com/bwmarrin/discordgo v0.29.1-0.20260214123928-f43dd94faaac
 	github.com/jackc/pgx/v5 v5.9.1
-	github.com/joho/godotenv v1.5.1
-	github.com/robfig/cron/v3 v3.0.1
 	golang.org/x/image v0.47.0
 )
 

@@ -2,6 +2,9 @@ package main
 
 import "os"
 
+// defaultHealthPort is the port of /health when HEALTH_PORT is not set.
+const defaultHealthPort = "8080"
+
 // Config holds application configuration from environment.
 type Config struct {
 	DiscordToken     string
@@ -18,7 +21,7 @@ type Config struct {
 func LoadConfig() (*Config, error) {
 	healthPort := os.Getenv("HEALTH_PORT")
 	if healthPort == "" {
-		healthPort = "8080"
+		healthPort = defaultHealthPort
 	}
 
 	cfg := &Config{

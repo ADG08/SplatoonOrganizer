@@ -17,10 +17,10 @@ Toutes les heures d'un serveur suivent **son fuseau horaire**, **Paris par défa
 | Base de données | PostgreSQL 16 |
 | Driver BDD | `github.com/jackc/pgx/v5` v5.9 (pgxpool) |
 | Génération de requêtes | `sqlc` v1.30.0 |
-| Scheduler | `github.com/robfig/cron/v3` v3.0.1 |
+| Planification | bibliothèque standard (une vérification par quart d'heure) |
 | Image de la grille | bibliothèque standard (`image`, `image/png`) + `golang.org/x/image` pour la police |
 | Logs | `log/slog` (lignes `clé=valeur`) |
-| Conteneurisation | Docker + Docker Compose |
+| Conteneurisation | Docker + Docker Compose, image `distroless/static` (~25 Mo, sans shell, utilisateur non root) |
 | Migrations | `migrate/migrate` v4.17.0 |
 
 L'architecture suit le pattern **Hexagonal / Clean Architecture** avec une séparation claire entre le domaine, les cas d'usage (application) et les adaptateurs (Discord + Postgres).
@@ -60,8 +60,10 @@ docker compose up -d --build
 Docker Compose démarre automatiquement trois services `dev` :
 
 - **`db-dev`** — PostgreSQL 16 avec un volume persistant local
-- **`migrate-dev`** — Applique les migrations sur la base de données locale
-- **`bot-dev`** — Compile et lance le bot Go
+- **`migrate-dev`** — Applique les migrations sur la base de données locale, puis s'arrête (`Exited (0)` est normal)
+- **`bot-dev`** — Compile et lance le bot Go, une fois les migrations appliquées
+
+Le bot lit sa configuration dans les variables d'environnement : Docker Compose les prend dans `.env`. Pour le lancer hors Docker, exportez-les d'abord dans le shell. Le `.env` n'est jamais envoyé à Docker (voir `.dockerignore`).
 
 Utilisez un **bot de test** (un autre token que la prod) : deux processus avec le même token répondraient chacun aux clics.
 
@@ -81,7 +83,9 @@ Pour éviter que Coolify suive l'état des services `dev`, utilisez un fichier C
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
-Ce fichier ne contient que `db-prod`, `migrate-prod` et `bot-prod` : les migrations sont appliquées avant le démarrage du bot.
+Ce fichier ne contient que `db-prod`, `migrate-prod` et `bot-prod` : `migrate-prod` applique les migrations puis s'arrête, et le bot ne démarre qu'une fois qu'il a réussi. `exclude_from_hc: true` dit à Coolify de ne pas compter ce conteneur arrêté comme en mauvaise santé ; cette clé est propre à Coolify : `docker compose` seul la refuse.
+
+Le healthcheck du bot appelle le bot lui-même (`/bot healthcheck`, qui interroge `/health`) : l'image ne contient ni shell ni `wget`.
 
 Le bot doit tourner en **un seul exemplaire** : la configuration des serveurs et les fuseaux des membres sont gardés en cache mémoire, et deux exemplaires publieraient chaque message deux fois.
 
@@ -234,7 +238,9 @@ SplatoonOrganizer/
 │   └── db/                      # Code généré par sqlc (ne pas modifier)
 │
 ├── migrations/                  # Fichiers de migration SQL
-├── Dockerfile
+├── Dockerfile               # Image du bot (distroless)
+├── Dockerfile.migrate       # Image des migrations
+├── .dockerignore            # Garde .env et .git hors du build
 ├── docker-compose.yml           # Stack locale dev
 ├── docker-compose.prod.yml      # Stack prod pour Coolify
 ├── sqlc.yaml
