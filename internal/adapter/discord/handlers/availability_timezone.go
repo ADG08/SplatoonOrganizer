@@ -162,7 +162,7 @@ func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.Inter
 
 	params := &discordgo.WebhookParams{Flags: discordgo.MessageFlagsEphemeral}
 	if cfg.Display == guildconfig.DisplayImage {
-		img, err := gridimage.Render(view)
+		img, err := gridimage.Render(view, cfg.FullAt)
 		if err != nil {
 			slog.ErrorContext(ctx, "render local grid", "guild", i.GuildID, "err", err)
 			return respondWithError(s, i, m.ErrGeneric)
@@ -173,7 +173,7 @@ func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.Inter
 		params.Components = []discordgo.MessageComponent{discordgo.Container{
 			AccentColor: &accent,
 			Components: []discordgo.MessageComponent{
-				discordgo.TextDisplay{Content: "### " + title + "\n-# " + view.Legend},
+				discordgo.TextDisplay{Content: "### " + title + "\n-# " + view.Legend + " · " + m.ColorLegend(cfg.FullAt)},
 				discordgo.MediaGallery{Items: []discordgo.MediaGalleryItem{{Media: discordgo.UnfurledMediaItem{URL: "attachment://" + weekly.ImageName}}}},
 				editTimezoneButton(m, tzNextGrid),
 			},

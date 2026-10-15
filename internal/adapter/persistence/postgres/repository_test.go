@@ -191,6 +191,14 @@ func TestGuildConfigRepository(t *testing.T) {
 			t.Errorf("timezone %s: got %v, %v", zone, cfg.Location, err)
 		}
 	}
+	must(t, repo.SetFullAt(ctx, "g2", 4))
+	if cfg, _ := repo.Get(ctx, "g2"); cfg.FullAt != 4 {
+		t.Errorf("full at: %d, want 4", cfg.FullAt)
+	}
+	must(t, repo.SetFullAt(ctx, "g2", 0)) // back to relative
+	if cfg, _ := repo.Get(ctx, "g2"); cfg.FullAt != 0 {
+		t.Errorf("full at after reset: %d, want 0", cfg.FullAt)
+	}
 	must(t, repo.SetMemberTimezones(ctx, "g2", true))
 	if cfg, _ := repo.Get(ctx, "g2"); !cfg.MemberTimezones {
 		t.Error("member timezones not saved")

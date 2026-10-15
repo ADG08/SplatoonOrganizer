@@ -13,6 +13,7 @@ import (
 	"sync"
 
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/gofont/gobold"
 	"golang.org/x/image/font/gofont/goregular"
@@ -90,10 +91,11 @@ func newFaces() (faces, error) {
 	return fs, err
 }
 
-// Render draws view.Counts as a PNG: one row per day, one rounded cell per slot,
-// colored by headcount relative to the best slot of the week.
-func Render(view appavailability.WeeklyView) ([]byte, error) {
-	img, err := drawGrid(view)
+// Render draws view.Counts as a PNG: one row per day, one rounded cell per slot, colored
+// by availability.SlotLevel: full from fullAt players, or relative to the best slot of
+// the week when fullAt is 0.
+func Render(view appavailability.WeeklyView, fullAt int) ([]byte, error) {
+	img, err := drawGrid(view, fullAt)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +108,7 @@ func Render(view appavailability.WeeklyView) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func drawGrid(view appavailability.WeeklyView) (*image.RGBA, error) {
+func drawGrid(view appavailability.WeeklyView, fullAt int) (*image.RGBA, error) {
 	fs, err := newFaces()
 	if err != nil {
 		return nil, fmt.Errorf("load fonts: %w", err)
@@ -135,7 +137,7 @@ func drawGrid(view appavailability.WeeklyView) (*image.RGBA, error) {
 				fillRoundRect(img, cell, radius*scale, colorClosed, hatched)
 				continue
 			}
-			fillRoundRect(img, cell, radius*scale, cellColor(count, view.Peak), nil)
+			fillRoundRect(img, cell, radius*scale, cellColor(availability.SlotLevel(count, view.Peak, fullAt)), nil)
 			if count > 0 {
 				drawText(img, fs.count, fmt.Sprint(count), colorText, (x+cellW/2)*scale, (y+cellH/2)*scale)
 			}
@@ -145,18 +147,17 @@ func drawGrid(view appavailability.WeeklyView) (*image.RGBA, error) {
 	return img, nil
 }
 
-// cellColor uses the same thresholds as the text styles: >= 75% of the best slot is
-// green, >= 40% yellow, anything else grey.
-func cellColor(count, peak int) color.RGBA {
-	switch {
-	case count == 0:
-		return colorEmpty
-	case count*4 >= peak*3:
+// cellColor is the color of a slot's level: green when full, yellow when getting there.
+func cellColor(level availability.Level) color.RGBA {
+	switch level {
+	case availability.LevelHigh:
 		return colorHigh
-	case count*5 >= peak*2:
+	case availability.LevelMid:
 		return colorMid
-	default:
+	case availability.LevelLow:
 		return colorLow
+	default:
+		return colorEmpty
 	}
 }
 

@@ -95,7 +95,7 @@ func run() error {
 		handlers.NewWhoDisposHandler(availSvc, guildConfigSvc),
 		handlers.NewSelectDisposHandler(availSvc, guildConfigSvc, refresher),
 		handlers.NewUnavailableDisposHandler(availSvc, guildConfigSvc, refresher),
-		handlers.NewHelpConfigHandler(guildConfigSvc, availSvc, cfg.DiscordOwnerID, cfg.SupportURL),
+		handlers.NewHelpConfigHandler(guildConfigSvc, availSvc, refresher, cfg.DiscordOwnerID, cfg.SupportURL),
 	} {
 		if err := reg.RegisterHandler(h); err != nil {
 			return fmt.Errorf("register handler: %w", err)

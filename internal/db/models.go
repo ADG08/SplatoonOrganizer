@@ -31,6 +31,7 @@ type GuildConfig struct {
 	Active          bool        `json:"active"`
 	Timezone        pgtype.Text `json:"timezone"`
 	MemberTimezones bool        `json:"member_timezones"`
+	FullAt          pgtype.Int2 `json:"full_at"`
 }
 
 type UserTimezone struct {

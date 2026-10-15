@@ -22,7 +22,7 @@ func TestRenderConcurrently(t *testing.T) {
 	var wg sync.WaitGroup
 	for range 16 {
 		wg.Go(func() {
-			if img, err := Render(view); err != nil || len(img) == 0 {
+			if img, err := Render(view, 4); err != nil || len(img) == 0 {
 				t.Errorf("Render: %d bytes, %v", len(img), err)
 			}
 		})

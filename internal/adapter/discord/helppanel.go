@@ -45,6 +45,10 @@ func BuildHelpPanel(cfg *guildconfig.GuildConfig, status, supportURL string) []d
 	if cfg.Display == guildconfig.DisplayImage {
 		display = m.DisplayImage
 	}
+	fullAt := m.FullAtAuto
+	if cfg.FullAt > 0 {
+		fullAt = m.Players(cfg.FullAt)
+	}
 
 	header := "## " + m.PanelTitle + "\n" + m.PanelDescription
 	if status != "" {
@@ -82,6 +86,7 @@ func BuildHelpPanel(cfg *guildconfig.GuildConfig, status, supportURL string) []d
 		section(m.SectionMessage, HelpPanelOpenMessageID,
 			m.Field(m.FieldDisplay, display),
 			m.Field(m.FieldLanguage, m.LanguageName(cfg.Language)),
+			m.Field(m.FieldFullAt, fullAt),
 		),
 		divider,
 	)

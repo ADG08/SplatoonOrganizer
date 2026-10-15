@@ -50,6 +50,9 @@ func (r *fakeRepo) SetRole(_ context.Context, _, id string) error {
 func (r *fakeRepo) SetMemberTimezones(_ context.Context, _ string, on bool) error {
 	return r.set(func(c *guildconfig.GuildConfig) { c.MemberTimezones = on })
 }
+func (r *fakeRepo) SetFullAt(_ context.Context, _ string, fullAt int) error {
+	return r.set(func(c *guildconfig.GuildConfig) { c.FullAt = fullAt })
+}
 func (r *fakeRepo) SetActive(_ context.Context, _ string, active bool) error {
 	return r.set(func(c *guildconfig.GuildConfig) { c.Active = active })
 }
