@@ -59,67 +59,67 @@ type Messages struct {
 	AnnonceMessageDesc string
 	AnnonceRoleDesc    string
 
-	// /help panel
-	PanelTitle        string
-	PanelDescription  string
-	PanelUpdated      string
-	PanelChannel      string
-	PanelRole         string
-	PanelMessage      string
-	PanelFooter       string
-	NotConfigured     string
-	ChannelPaused     string
-	BtnConfigChannel  string
-	BtnConfigRole     string
-	BtnConfigMessage  string
-	ChannelModalTitle string
-	ChannelLabel      string
-	ChannelHint       string
-	RoleModalTitle    string
-	RoleLabel         string
-	RoleHint          string
-	MessageModalTitle string
-	LanguageLabel     string
-	LanguageNames     [2]string // in the order of Langs
-	DisplayLabel      string
-	DisplayHint       string
-	DisplayClassic    string
-	DisplayImage      string
-	ModeLabel         string
-	ModeHint          string
-	ModeHourly        string
-	StartHourLabel    string
-	StartHourHint     string
-	EndHourLabel      string
-	EndHourHint       string
-	ConfigSaved       string
-	NothingChanged    string
-	Republished       string
-	SlotsReset        string
-	NotPublished      string
-	HourOrder         string
-	NothingSelected   string
+	// /help panel: three sections, each with its button and form
+	PanelTitle       string
+	PanelDescription string
+	PanelUpdated     string
+	PanelFooter      string
+	SectionPublish   string
+	SectionSlots     string
+	SectionMessage   string
+	FieldChannel     string
+	FieldRole        string
+	FieldWhen        string
+	FieldTimezone    string
+	FieldDisplay     string
+	FieldLanguage    string
+	NotConfigured    string
+	NoRole           string
+	PausedTitle      string
+	PausedHint       string
+	BtnPublish       string
+	BtnSlots         string
+	BtnTimezone      string
+	BtnMessage       string
+	ConfigSaved      string
+	NothingChanged   string
+	PublishedNow     string
 
-	// /help: publication schedule
-	PanelPublication      string
-	BtnConfigPublication  string
-	PublicationModalTitle string
-	PublishDayLabel       string
-	PublishDayHint        string
-	PublishSunday         string
-	PublishMonday         string
-	PublishHourLabel      string
-	PublishHourHint       string
-	PublicationSaved      string // %s schedule summary
-	PublishedNow          string
+	// /help: publication form
+	ChannelLabel     string
+	ChannelHint      string
+	RoleLabel        string
+	RoleHint         string
+	PublishDayLabel  string
+	PublishDayHint   string
+	PublishSunday    string
+	PublishMonday    string
+	PublishHourLabel string
+	PublishHourHint  string
+
+	// /help: slots form
+	ModeLabel      string
+	ModeHint       string
+	ModeHourly     string
+	StartHourLabel string
+	StartHourHint  string
+	EndHourLabel   string
+	EndHourHint    string
+	HourOrder      string
+	SlotsReset     string
+
+	// /help: message form
+	LanguageLabel  string
+	LanguageNames  [2]string // in the order of Langs
+	DisplayLabel   string
+	DisplayHint    string
+	DisplayClassic string
+	DisplayImage   string
 
 	// /help: timezone of the guild
-	PanelTimezone      string
-	BtnConfigTimezone  string
 	GuildPickerContent string // %s current timezone
 	GuildPickerCountry string // %s UTC offset
 	GuildTimezoneSaved string // %s timezone name, %s current time there
-	TimezoneSlotsReset string
 
 	// /annonce
 	AnnounceBy        string // %s mention
@@ -190,64 +190,62 @@ var fr = Messages{
 	AnnonceMessageDesc: "Contenu de l'annonce (utilise \\n pour un retour à la ligne)",
 	AnnonceRoleDesc:    "Rôle à mentionner (optionnel)",
 
-	PanelTitle:        "⚙️  Panneau de configuration",
-	PanelDescription:  "Gère les paramètres du bot pour ce serveur.",
-	PanelUpdated:      "✅  Configuration mise à jour",
-	PanelChannel:      "📢  Salon des dispos",
-	PanelRole:         "🏷️  Rôle à mentionner",
-	PanelMessage:      "🕒  Message",
-	PanelFooter:       "🔒 Réservé aux administrateurs",
-	NotConfigured:     "❌  Non configuré",
-	ChannelPaused:     "⏸️ Publication en pause : le bot ne peut plus publier dans ce salon. Vérifie ses permissions, puis choisis à nouveau le salon.",
-	BtnConfigChannel:  "📢  Configurer le salon",
-	BtnConfigRole:     "🏷️  Configurer le rôle",
-	BtnConfigMessage:  "🕒  Créneaux, affichage, langue",
-	ChannelModalTitle: "Configurer le salon",
-	ChannelLabel:      "Salon des dispos",
-	ChannelHint:       "Choisis un salon texte",
-	RoleModalTitle:    "Configurer le rôle",
-	RoleLabel:         "Rôle à mentionner",
-	RoleHint:          "Choisis le rôle à mentionner",
-	MessageModalTitle: "Créneaux, affichage, langue",
-	LanguageLabel:     "Langue du bot",
-	LanguageNames:     [2]string{"Français", "English"},
-	DisplayLabel:      "Affichage du message",
-	DisplayHint:       "Changer l'affichage ou la langue republie le message de la semaine.",
-	DisplayClassic:    "Classique (texte)",
-	DisplayImage:      "Image",
-	ModeLabel:         "Découpage des journées",
-	ModeHint:          "⚠️ Changer le découpage réinitialise les dispos de la semaine en cours.",
-	ModeHourly:        "Par heure",
-	StartHourLabel:    "Première heure (mode par heure)",
-	StartHourHint:     "Heure du serveur. Ignorée en Après-midi / Soir.",
-	EndHourLabel:      "Fin du dernier créneau (mode par heure)",
-	EndHourHint:       "Ignorée en Après-midi / Soir.",
-	ConfigSaved:       "Configuration enregistrée.",
-	NothingChanged:    "Rien n'a changé.",
-	Republished:       "Configuration enregistrée : le message de la semaine a été republié.",
-	SlotsReset:        "Créneaux mis à jour : les dispos de la semaine ont été réinitialisées et le message republié.",
-	NotPublished:      " (aucun salon configuré : rien n'a été publié)",
-	HourOrder:         "La première heure doit être avant la fin du dernier créneau.",
-	NothingSelected:   "Rien n'a été sélectionné.",
+	PanelTitle:       "⚙️  Panneau de configuration",
+	PanelDescription: "Gère les paramètres du bot pour ce serveur.",
+	PanelUpdated:     "✅  Configuration mise à jour",
+	PanelFooter:      "🔒 Réservé aux administrateurs",
+	SectionPublish:   "📢  Publication",
+	SectionSlots:     "🕒  Créneaux",
+	SectionMessage:   "🎨  Message",
+	FieldChannel:     "Salon",
+	FieldRole:        "Rôle",
+	FieldWhen:        "Quand",
+	FieldTimezone:    "Fuseau",
+	FieldDisplay:     "Affichage",
+	FieldLanguage:    "Langue",
+	NotConfigured:    "❌ non configuré",
+	NoRole:           "aucun",
+	PausedTitle:      "⏸️  Publication en pause",
+	PausedHint:       "Le bot ne peut plus publier dans ce salon. Vérifie ses permissions, puis choisis à nouveau le salon avec **📢 Publication**.",
+	BtnPublish:       "📢  Publication",
+	BtnSlots:         "🕒  Créneaux",
+	BtnTimezone:      "🌍  Fuseau horaire",
+	BtnMessage:       "🎨  Message",
+	ConfigSaved:      "Configuration enregistrée.",
+	NothingChanged:   "Rien n'a changé.",
+	PublishedNow:     " Le message de la semaine est en cours de publication.",
 
-	PanelPublication:      "📅  Publication",
-	BtnConfigPublication:  "📅  Publication",
-	PublicationModalTitle: "Publication du message",
-	PublishDayLabel:       "Jour de publication",
-	PublishDayHint:        "Le message couvre toujours une semaine du lundi au dimanche.",
-	PublishSunday:         "Dimanche, pour la semaine qui suit",
-	PublishMonday:         "Lundi, pour la semaine qui commence",
-	PublishHourLabel:      "Heure de publication",
-	PublishHourHint:       "Heure du serveur.",
-	PublicationSaved:      "Publication enregistrée : %s.",
-	PublishedNow:          " Le message de la semaine est en cours de publication.",
+	ChannelLabel:     "Salon des dispos",
+	ChannelHint:      "Où le message de la semaine est publié.",
+	RoleLabel:        "Rôle à mentionner",
+	RoleHint:         "Optionnel : sans rôle, personne n'est mentionné.",
+	PublishDayLabel:  "Jour de publication",
+	PublishDayHint:   "Le message couvre toujours une semaine du lundi au dimanche.",
+	PublishSunday:    "Dimanche, pour la semaine qui suit",
+	PublishMonday:    "Lundi, pour la semaine qui commence",
+	PublishHourLabel: "Heure de publication",
+	PublishHourHint:  "Heure du serveur.",
 
-	PanelTimezone:      "🌍  Fuseau horaire",
-	BtnConfigTimezone:  "🌍  Fuseau horaire",
+	ModeLabel:      "Découpage des journées",
+	ModeHint:       "⚠️ Changer le découpage réinitialise les dispos de la semaine en cours.",
+	ModeHourly:     "Par heure",
+	StartHourLabel: "Première heure (mode par heure)",
+	StartHourHint:  "Heure du serveur. Ignorée en Après-midi / Soir.",
+	EndHourLabel:   "Fin du dernier créneau (mode par heure)",
+	EndHourHint:    "Ignorée en Après-midi / Soir.",
+	HourOrder:      "La première heure doit être avant la fin du dernier créneau.",
+	SlotsReset:     " Les créneaux ayant changé, les dispos de la semaine ont été réinitialisées.",
+
+	LanguageLabel:  "Langue du bot",
+	LanguageNames:  [2]string{"Français", "English"},
+	DisplayLabel:   "Affichage du message",
+	DisplayHint:    "Changer l'affichage ou la langue republie le message de la semaine.",
+	DisplayClassic: "Classique (texte)",
+	DisplayImage:   "Image",
+
 	GuildPickerContent: "🌍 **Quel est le fuseau horaire du serveur ?** (actuellement : %s)\nToutes ses heures le suivent : créneaux, grille, semaines et publication. Choisis le décalage UTC actuel, puis le pays.",
 	GuildPickerCountry: "🌍 **Dans quel pays est le serveur ?** (%s)\nLe bot suivra tout seul les passages à l'heure d'été et d'hiver.",
 	GuildTimezoneSaved: "Fuseau du serveur : **%s** (il y est %s).",
-	TimezoneSlotsReset: " Les créneaux ayant changé d'heure, les dispos de la semaine ont été réinitialisées.",
 
 	AnnounceBy:        "**Annonce de** %s",
 	AnnouncePublished: "✅ Annonce publiée dans %s.",
@@ -316,64 +314,62 @@ var en = Messages{
 	AnnonceMessageDesc: "Content of the announcement (use \\n for a line break)",
 	AnnonceRoleDesc:    "Role to mention (optional)",
 
-	PanelTitle:        "⚙️  Settings",
-	PanelDescription:  "Manage the bot's settings for this server.",
-	PanelUpdated:      "✅  Settings updated",
-	PanelChannel:      "📢  Availability channel",
-	PanelRole:         "🏷️  Role to mention",
-	PanelMessage:      "🕒  Message",
-	PanelFooter:       "🔒 Admins only",
-	NotConfigured:     "❌  Not set",
-	ChannelPaused:     "⏸️ Posting paused: the bot can no longer post in this channel. Check its permissions, then pick the channel again.",
-	BtnConfigChannel:  "📢  Set the channel",
-	BtnConfigRole:     "🏷️  Set the role",
-	BtnConfigMessage:  "🕒  Slots, display, language",
-	ChannelModalTitle: "Set the channel",
-	ChannelLabel:      "Availability channel",
-	ChannelHint:       "Pick a text channel",
-	RoleModalTitle:    "Set the role",
-	RoleLabel:         "Role to mention",
-	RoleHint:          "Pick the role to mention",
-	MessageModalTitle: "Slots, display, language",
-	LanguageLabel:     "Bot language",
-	LanguageNames:     [2]string{"Français", "English"},
-	DisplayLabel:      "Message display",
-	DisplayHint:       "Changing the display or the language posts the weekly message again.",
-	DisplayClassic:    "Classic (text)",
-	DisplayImage:      "Image",
-	ModeLabel:         "Day slots",
-	ModeHint:          "⚠️ Changing the slots resets this week's availability.",
-	ModeHourly:        "Hourly",
-	StartHourLabel:    "First hour (hourly slots)",
-	StartHourHint:     "Server time. Ignored for Afternoon / Evening.",
-	EndHourLabel:      "End of the last slot (hourly slots)",
-	EndHourHint:       "Ignored for Afternoon / Evening.",
-	ConfigSaved:       "Settings saved.",
-	NothingChanged:    "Nothing changed.",
-	Republished:       "Settings saved: the weekly message was posted again.",
-	SlotsReset:        "Slots updated: this week's availability was reset and the message posted again.",
-	NotPublished:      " (no channel set: nothing was posted)",
-	HourOrder:         "The first hour must be before the end of the last slot.",
-	NothingSelected:   "Nothing was selected.",
+	PanelTitle:       "⚙️  Settings",
+	PanelDescription: "Manage the bot's settings for this server.",
+	PanelUpdated:     "✅  Settings updated",
+	PanelFooter:      "🔒 Admins only",
+	SectionPublish:   "📢  Posting",
+	SectionSlots:     "🕒  Slots",
+	SectionMessage:   "🎨  Message",
+	FieldChannel:     "Channel",
+	FieldRole:        "Role",
+	FieldWhen:        "When",
+	FieldTimezone:    "Timezone",
+	FieldDisplay:     "Display",
+	FieldLanguage:    "Language",
+	NotConfigured:    "❌ not set",
+	NoRole:           "none",
+	PausedTitle:      "⏸️  Posting paused",
+	PausedHint:       "The bot can no longer post in this channel. Check its permissions, then pick the channel again with **📢 Posting**.",
+	BtnPublish:       "📢  Posting",
+	BtnSlots:         "🕒  Slots",
+	BtnTimezone:      "🌍  Timezone",
+	BtnMessage:       "🎨  Message",
+	ConfigSaved:      "Settings saved.",
+	NothingChanged:   "Nothing changed.",
+	PublishedNow:     " The weekly message is being posted.",
 
-	PanelPublication:      "📅  Posting",
-	BtnConfigPublication:  "📅  Posting",
-	PublicationModalTitle: "Weekly message posting",
-	PublishDayLabel:       "Posting day",
-	PublishDayHint:        "The message always covers a week from Monday to Sunday.",
-	PublishSunday:         "Sunday, for the following week",
-	PublishMonday:         "Monday, for the week starting",
-	PublishHourLabel:      "Posting time",
-	PublishHourHint:       "Server time.",
-	PublicationSaved:      "Posting schedule saved: %s.",
-	PublishedNow:          " The weekly message is being posted.",
+	ChannelLabel:     "Availability channel",
+	ChannelHint:      "Where the weekly message is posted.",
+	RoleLabel:        "Role to mention",
+	RoleHint:         "Optional: without a role, nobody is mentioned.",
+	PublishDayLabel:  "Posting day",
+	PublishDayHint:   "The message always covers a week from Monday to Sunday.",
+	PublishSunday:    "Sunday, for the following week",
+	PublishMonday:    "Monday, for the week starting",
+	PublishHourLabel: "Posting time",
+	PublishHourHint:  "Server time.",
 
-	PanelTimezone:      "🌍  Timezone",
-	BtnConfigTimezone:  "🌍  Timezone",
+	ModeLabel:      "Day slots",
+	ModeHint:       "⚠️ Changing the slots resets this week's availability.",
+	ModeHourly:     "Hourly",
+	StartHourLabel: "First hour (hourly slots)",
+	StartHourHint:  "Server time. Ignored for Afternoon / Evening.",
+	EndHourLabel:   "End of the last slot (hourly slots)",
+	EndHourHint:    "Ignored for Afternoon / Evening.",
+	HourOrder:      "The first hour must be before the end of the last slot.",
+	SlotsReset:     " The slots changed, so this week's availability was reset.",
+
+	LanguageLabel:  "Bot language",
+	LanguageNames:  [2]string{"Français", "English"},
+	DisplayLabel:   "Message display",
+	DisplayHint:    "Changing the display or the language posts the weekly message again.",
+	DisplayClassic: "Classic (text)",
+	DisplayImage:   "Image",
+
 	GuildPickerContent: "🌍 **What's the server's timezone?** (currently: %s)\nAll its hours follow it: slots, grid, weeks and posting. Pick the current UTC offset, then the country.",
 	GuildPickerCountry: "🌍 **Which country is the server in?** (%s)\nThe bot will follow daylight saving time changes by itself.",
 	GuildTimezoneSaved: "Server timezone: **%s** (it is %s there).",
-	TimezoneSlotsReset: " The slots moved, so this week's availability was reset.",
 
 	AnnounceBy:        "**Announcement by** %s",
 	AnnouncePublished: "✅ Announcement posted in %s.",

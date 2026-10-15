@@ -130,18 +130,23 @@ Le message est mis à jour tout de suite au premier clic, puis au plus une fois 
 
 ## Configuration avec `/help`
 
-Le panneau affiche la configuration actuelle et cinq boutons :
+Le panneau montre la configuration en trois colonnes, chacune modifiable avec son bouton :
 
-- **📢 Configurer le salon** : où le message de la semaine est publié.
-- **🏷️ Configurer le rôle** : le rôle mentionné à chaque publication (optionnel).
-- **🕒 Créneaux, affichage, langue** :
-  - la **langue** du bot sur le serveur : **Français** (par défaut) ou **English** ; tout le bot suit ce choix (message de la semaine, menus, réponses privées, `/help`) ;
-  - le **découpage** : **Après-midi / Soir** (par défaut) ou **Par heure**, un créneau par heure entre une première heure et une heure de fin (heure du serveur, 20h → minuit par défaut ; ces deux champs sont ignorés en « Après-midi / Soir ») ;
-  - l'**affichage** : **Classique** (par défaut, l'embed d'origine avec le tableau en texte) ou **Image** (la grille dessinée par le bot, cases colorées selon le nombre de dispos).
+| 📢 Publication | 🕒 Créneaux | 🎨 Message |
+|---|---|---|
+| Salon, rôle, jour et heure | Découpage, fuseau horaire | Affichage, langue |
 
-  Changer le découpage réinitialise les dispos de la semaine en cours ; changer l'affichage ou la langue republie le message.
-- **📅 Publication** : le jour et l'heure de publication (heure du serveur, voir ci-dessous).
+- **📢 Publication** :
+  - le **salon** où le message de la semaine est publié ; en choisir un nouveau y publie le message tout de suite ;
+  - le **rôle** mentionné à chaque publication, optionnel : le retirer arrête les mentions ;
+  - le **jour** et l'**heure** de publication (heure du serveur, voir [Publication automatique](#publication-automatique)).
+- **🕒 Créneaux** : le **découpage**, **Après-midi / Soir** (par défaut) ou **Par heure**, un créneau par heure entre une première heure et une heure de fin (heure du serveur, 20h → minuit par défaut ; ces deux champs sont ignorés en « Après-midi / Soir »). Changer le découpage réinitialise les dispos de la semaine en cours.
 - **🌍 Fuseau horaire** : le fuseau du serveur, **Europe/Paris par défaut**. Le panneau se change en sélecteur (décalage UTC actuel, puis pays), puis revient avec le fuseau enregistré. En mode **Par heure**, changer de fuseau déplace les créneaux : les dispos de la semaine sont réinitialisées et le message republié.
+- **🎨 Message** :
+  - l'**affichage** : **Classique** (par défaut, l'embed d'origine avec le tableau en texte) ou **Image** (la grille dessinée par le bot, cases colorées selon le nombre de dispos) ;
+  - la **langue** du bot sur le serveur : **Français** (par défaut) ou **English** ; tout le bot suit ce choix (message de la semaine, menus, réponses privées, `/help`).
+
+  Changer l'affichage ou la langue republie le message.
 
 ## Publication automatique
 
@@ -193,7 +198,7 @@ Un serveur passe **en pause** (plus aucune publication) quand :
 Sa configuration est gardée. Il redevient **actif** quand :
 
 - le bot est ajouté de nouveau au serveur (ou le retrouve en redémarrant) ;
-- un admin choisit à nouveau le salon dans `/help`, qui signale un salon en pause par un ⚠️.
+- un admin choisit à nouveau le salon dans `/help` → **📢 Publication** ; le panneau signale un salon en pause par un ⚠️.
 
 ## Structure du projet
 

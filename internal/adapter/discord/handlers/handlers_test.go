@@ -84,9 +84,15 @@ func TestTimezonePicker(t *testing.T) {
 
 func TestPublishModal(t *testing.T) {
 	schedule, _ := availability.NewSchedule(time.Sunday, 18)
-	fields := buildPublishModalComponents(&guildconfig.GuildConfig{Schedule: schedule})
-	day := fields[0].(discordgo.Label).Component.(discordgo.SelectMenu)
-	hour := fields[1].(discordgo.Label).Component.(discordgo.SelectMenu)
+	fields := buildPublishModalComponents(&guildconfig.GuildConfig{ChannelID: "c1", Schedule: schedule})
+	menu := func(n int) discordgo.SelectMenu { return fields[n].(discordgo.Label).Component.(discordgo.SelectMenu) }
+	channel, role, day, hour := menu(0), menu(1), menu(2), menu(3)
+	if len(channel.DefaultValues) != 1 || channel.DefaultValues[0].ID != "c1" || *channel.MinValues != 1 {
+		t.Errorf("the channel is required and prefilled: %+v", channel)
+	}
+	if len(role.DefaultValues) != 0 || *role.MinValues != 0 {
+		t.Errorf("the role is optional, empty without one: %+v", role)
+	}
 	if !day.Options[0].Default || day.Options[1].Default {
 		t.Errorf("Sunday should be preselected: %+v", day.Options)
 	}
@@ -102,15 +108,21 @@ func TestPublishModal(t *testing.T) {
 	}
 }
 
-func TestSlotsModalFitsDiscord(t *testing.T) {
+func TestModalsFitDiscord(t *testing.T) {
 	layout, _ := availability.HourlyLayout(13, 24)
-	fields := buildSlotsModalComponents(&guildconfig.GuildConfig{SlotLayout: layout, Language: i18n.EN})
-	if len(fields) > 5 {
-		t.Errorf("%d fields, Discord allows 5 per form", len(fields))
-	}
-	for _, f := range fields {
-		if menu := f.(discordgo.Label).Component.(discordgo.SelectMenu); len(menu.Options) > 25 {
-			t.Errorf("%s: %d options, Discord allows 25", menu.CustomID, len(menu.Options))
+	cfg := &guildconfig.GuildConfig{SlotLayout: layout, Language: i18n.EN, Schedule: availability.DefaultSchedule()}
+	for name, fields := range map[string][]discordgo.MessageComponent{
+		"publish": buildPublishModalComponents(cfg),
+		"slots":   buildSlotsModalComponents(cfg),
+		"message": buildMessageModalComponents(cfg),
+	} {
+		if len(fields) > 5 {
+			t.Errorf("%s: %d fields, Discord allows 5 per form", name, len(fields))
+		}
+		for _, f := range fields {
+			if menu := f.(discordgo.Label).Component.(discordgo.SelectMenu); len(menu.Options) > 25 {
+				t.Errorf("%s: %s has %d options, Discord allows 25", name, menu.CustomID, len(menu.Options))
+			}
 		}
 	}
 }

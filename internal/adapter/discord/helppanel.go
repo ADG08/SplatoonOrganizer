@@ -1,24 +1,25 @@
 package discord
 
 import (
+	"strings"
 	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
-	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
 
+// The panel has three sections, each opened by its button: publication (channel, role,
+// day and hour), slots (layout, and the timezone through its own picker) and message
+// (display and language).
 const (
-	HelpPanelOpenChannelModalID = "help:config_open_channel_modal"
-	HelpPanelOpenRoleModalID    = "help:config_open_role_modal"
-	HelpPanelOpenSlotsModalID   = "help:config_open_slots_modal"
-	HelpPanelOpenPublishModalID = "help:config_open_publish_modal"
-	HelpPanelOpenTimezoneID     = "help:config_open_timezone"
-	HelpPanelTimezoneID         = "help:config_timezone" // the picker's selects: <id>:<step>
-	HelpPanelModalChannelID     = "help:config_modal_channel"
-	HelpPanelModalRoleID        = "help:config_modal_role"
-	HelpPanelModalSlotsID       = "help:config_modal_slots"
-	HelpPanelModalPublishID     = "help:config_modal_publish"
+	HelpPanelOpenPublishID  = "help:config_open_publish"
+	HelpPanelOpenSlotsID    = "help:config_open_slots"
+	HelpPanelOpenTimezoneID = "help:config_open_timezone"
+	HelpPanelOpenMessageID  = "help:config_open_message"
+	HelpPanelModalPublishID = "help:config_modal_publish"
+	HelpPanelModalSlotsID   = "help:config_modal_slots"
+	HelpPanelModalMessageID = "help:config_modal_message"
+	HelpPanelTimezoneID     = "help:config_timezone" // the timezone picker's selects: <id>:<step>
 
 	HelpPanelColorDefault = 0x5865F2
 	HelpPanelColorSuccess = 0x57F287
@@ -28,74 +29,68 @@ const (
 // settings, in the guild's language.
 func BuildHelpPanelEmbed(title, description string, color int, cfg *guildconfig.GuildConfig) *discordgo.MessageEmbed {
 	m := cfg.Messages()
+	channel := m.NotConfigured
+	if cfg.ChannelID != "" {
+		channel = "<#" + cfg.ChannelID + ">"
+		if !cfg.Active {
+			channel = "⚠️ " + channel
+		}
+	}
+	role := m.NoRole
+	if cfg.RoleID != "" {
+		role = "<@&" + cfg.RoleID + ">"
+	}
 	display := m.DisplayClassic
 	if cfg.Display == guildconfig.DisplayImage {
 		display = m.DisplayImage
 	}
-	language := m.LanguageNames[0]
-	if cfg.Language == i18n.EN {
-		language = m.LanguageNames[1]
+
+	fields := []*discordgo.MessageEmbedField{
+		{Name: m.SectionPublish, Inline: true, Value: lines(
+			m.Field(m.FieldChannel, channel),
+			m.Field(m.FieldRole, role),
+			m.Field(m.FieldWhen, m.ScheduleSummary(cfg.Schedule)),
+		)},
+		{Name: m.SectionSlots, Inline: true, Value: lines(
+			m.LayoutSummary(cfg.SlotLayout),
+			m.Field(m.FieldTimezone, m.TimezoneName(cfg.Location)+" · "+m.Clock(time.Now().In(cfg.Location))),
+		)},
+		{Name: m.SectionMessage, Inline: true, Value: lines(
+			m.Field(m.FieldDisplay, display),
+			m.Field(m.FieldLanguage, m.LanguageName(cfg.Language)),
+		)},
 	}
-	channelValue := m.NotConfigured
-	if cfg.ChannelID != "" {
-		channelValue = "✅  <#" + cfg.ChannelID + ">"
-		if !cfg.Active {
-			channelValue = "⚠️  <#" + cfg.ChannelID + ">\n" + m.ChannelPaused
-		}
-	}
-	roleValue := m.NotConfigured
-	if cfg.RoleID != "" {
-		roleValue = "✅  <@&" + cfg.RoleID + ">"
+	if cfg.ChannelID != "" && !cfg.Active {
+		fields = append(fields, &discordgo.MessageEmbedField{Name: m.PausedTitle, Value: m.PausedHint})
 	}
 
 	return &discordgo.MessageEmbed{
 		Title:       title,
 		Description: description,
 		Color:       color,
-		Fields: []*discordgo.MessageEmbedField{
-			{Name: m.PanelChannel, Value: channelValue, Inline: true},
-			{Name: m.PanelRole, Value: roleValue, Inline: true},
-			{Name: m.PanelMessage, Value: m.LayoutSummary(cfg.SlotLayout) + "\n" + display + "\n" + language, Inline: true},
-			{Name: m.PanelPublication, Value: m.ScheduleSummary(cfg.Schedule), Inline: true},
-			{Name: m.PanelTimezone, Value: m.TimezoneName(cfg.Location) + " · " + m.Clock(time.Now().In(cfg.Location)), Inline: true},
-		},
-		Footer:    &discordgo.MessageEmbedFooter{Text: m.PanelFooter},
-		Timestamp: time.Now().Format(time.RFC3339),
+		Fields:      fields,
+		Footer:      &discordgo.MessageEmbedFooter{Text: m.PanelFooter},
+		Timestamp:   time.Now().Format(time.RFC3339),
 	}
 }
 
-// BuildHelpPanelComponents returns the action row with the channel, role, message,
-// publication and timezone config buttons.
+func lines(l ...string) string {
+	return strings.Join(l, "\n")
+}
+
+// BuildHelpPanelComponents returns the panel's buttons, in the order of its sections.
 func BuildHelpPanelComponents(cfg *guildconfig.GuildConfig) []discordgo.MessageComponent {
 	m := cfg.Messages()
+	button := func(label, customID string) discordgo.Button {
+		return discordgo.Button{Label: label, Style: discordgo.PrimaryButton, CustomID: customID}
+	}
 	return []discordgo.MessageComponent{
 		discordgo.ActionsRow{
 			Components: []discordgo.MessageComponent{
-				discordgo.Button{
-					Label:    m.BtnConfigChannel,
-					Style:    discordgo.PrimaryButton,
-					CustomID: HelpPanelOpenChannelModalID,
-				},
-				discordgo.Button{
-					Label:    m.BtnConfigRole,
-					Style:    discordgo.PrimaryButton,
-					CustomID: HelpPanelOpenRoleModalID,
-				},
-				discordgo.Button{
-					Label:    m.BtnConfigMessage,
-					Style:    discordgo.PrimaryButton,
-					CustomID: HelpPanelOpenSlotsModalID,
-				},
-				discordgo.Button{
-					Label:    m.BtnConfigPublication,
-					Style:    discordgo.PrimaryButton,
-					CustomID: HelpPanelOpenPublishModalID,
-				},
-				discordgo.Button{
-					Label:    m.BtnConfigTimezone,
-					Style:    discordgo.PrimaryButton,
-					CustomID: HelpPanelOpenTimezoneID,
-				},
+				button(m.BtnPublish, HelpPanelOpenPublishID),
+				button(m.BtnSlots, HelpPanelOpenSlotsID),
+				button(m.BtnTimezone, HelpPanelOpenTimezoneID),
+				button(m.BtnMessage, HelpPanelOpenMessageID),
 			},
 		},
 	}

@@ -85,6 +85,24 @@ func (m *Messages) ScheduleSummary(s availability.Schedule) string {
 	return day + " · " + m.HourLabel(s.Hour)
 }
 
+// Field formats a labelled value of the /help panel: "Salon : #dispos" / "Channel: #dispos".
+func (m *Messages) Field(label, value string) string {
+	if m.lang == EN {
+		return label + ": " + value
+	}
+	return label + " : " + value
+}
+
+// LanguageName returns the name of a language, in that language: "Français", "English".
+func (m *Messages) LanguageName(l Lang) string {
+	for n, lang := range Langs {
+		if lang == Parse(string(l)) {
+			return m.LanguageNames[n]
+		}
+	}
+	return m.LanguageNames[0]
+}
+
 // CountryName returns the name of a place of availability.Countries.
 func (m *Messages) CountryName(tz availability.Timezone) string {
 	if m.lang == EN {
