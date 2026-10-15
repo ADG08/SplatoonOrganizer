@@ -302,6 +302,26 @@ CREATE TABLE user_timezone (
 );
 ```
 
+## CI / CD
+
+Le workflow GitHub Actions `.github/workflows/ci.yml` tourne sur chaque push sur `main` et chaque pull request :
+
+| Job | Vérifie |
+|---|---|
+| **Lint and test** | `gofmt`, `go vet`, staticcheck, les tests avec le détecteur de courses (`-race`) sur un vrai PostgreSQL, et les migrations appliquées, annulées puis réappliquées |
+| **Generated code up to date** | que le code sqlc correspond aux requêtes (`sqlc diff`) |
+| **Docker images build** | que les images du bot et des migrations se construisent |
+| **Deploy to Coolify** | sur `main` seulement, une fois tout le reste au vert : déclenche le déploiement Coolify |
+
+Pour que seul du code testé parte en prod :
+
+1. Dans Coolify, sur l'application : désactiver le **déploiement automatique** (il n'attend pas les tests), puis copier l'URL du **Deploy Webhook**.
+2. Dans Coolify → **Keys & Tokens** : créer un **API token** avec le droit de déployer.
+3. Dans GitHub → **Settings → Secrets and variables → Actions** : ajouter `COOLIFY_WEBHOOK` (l'URL) et `COOLIFY_TOKEN` (le token).
+4. Dans GitHub → **Settings → Branches** : protéger `main` en exigeant que les jobs de la CI passent avant un merge.
+
+Sans les deux secrets, le job de déploiement ne fait rien et le signale.
+
 ## Développement
 
 ### Régénérer le code sqlc
