@@ -97,15 +97,23 @@ type Messages struct {
 	PublishHourHint  string
 
 	// /help: slots form
-	ModeLabel      string
-	ModeHint       string
-	ModeHourly     string
-	StartHourLabel string
-	StartHourHint  string
-	EndHourLabel   string
-	EndHourHint    string
-	HourOrder      string
-	SlotsReset     string
+	ModeLabel        string
+	ModeHint         string
+	ModeHourly       string
+	StartHourLabel   string
+	StartHourHint    string
+	EndHourLabel     string
+	EndHourHint      string
+	HourOrder        string
+	MemberTimeLabel  string
+	MemberTimeHint   string
+	MemberTimeServer string
+	MemberTimeOwn    string
+	FieldMembers     string
+	MembersServer    string
+	MembersOwn       string
+	MemberTimeOff    string
+	SlotsReset       string
 
 	// /help: message form
 	LanguageLabel  string
@@ -224,15 +232,23 @@ var fr = Messages{
 	PublishHourLabel: "Heure de publication",
 	PublishHourHint:  "Heure du serveur.",
 
-	ModeLabel:      "Découpage des journées",
-	ModeHint:       "⚠️ Changer le découpage réinitialise les dispos de la semaine en cours.",
-	ModeHourly:     "Par heure",
-	StartHourLabel: "Première heure (mode par heure)",
-	StartHourHint:  "Heure du serveur. Ignorée en Après-midi / Soir.",
-	EndHourLabel:   "Fin du dernier créneau (mode par heure)",
-	EndHourHint:    "Ignorée en Après-midi / Soir.",
-	HourOrder:      "La première heure doit être avant la fin du dernier créneau.",
-	SlotsReset:     " Les créneaux ayant changé, les dispos de la semaine ont été réinitialisées.",
+	ModeLabel:        "Découpage des journées",
+	ModeHint:         "⚠️ Changer le découpage réinitialise les dispos de la semaine en cours.",
+	ModeHourly:       "Par heure",
+	StartHourLabel:   "Première heure (mode par heure)",
+	StartHourHint:    "Heure du serveur. Ignorée en Après-midi / Soir.",
+	EndHourLabel:     "Fin du dernier créneau (mode par heure)",
+	EndHourHint:      "Ignorée en Après-midi / Soir.",
+	HourOrder:        "La première heure doit être avant la fin du dernier créneau.",
+	MemberTimeLabel:  "Heures des membres (mode par heure)",
+	MemberTimeHint:   "International : chacun indique son fuseau et voit les créneaux à son heure.",
+	MemberTimeServer: "🏠 Tout le monde à l'heure du serveur",
+	MemberTimeOwn:    "🌍 International : chacun à son heure",
+	FieldMembers:     "Membres",
+	MembersServer:    "à l'heure du serveur",
+	MembersOwn:       "chacun à son heure",
+	MemberTimeOff:    "Sur ce serveur, tout le monde voit les créneaux à l'heure du serveur.",
+	SlotsReset:       " Les créneaux ayant changé, les dispos de la semaine ont été réinitialisées.",
 
 	LanguageLabel:  "Langue du bot",
 	LanguageNames:  [2]string{"Français", "English"},
@@ -347,15 +363,23 @@ var en = Messages{
 	PublishHourLabel: "Posting time",
 	PublishHourHint:  "Server time.",
 
-	ModeLabel:      "Day slots",
-	ModeHint:       "⚠️ Changing the slots resets this week's availability.",
-	ModeHourly:     "Hourly",
-	StartHourLabel: "First hour (hourly slots)",
-	StartHourHint:  "Server time. Ignored for Afternoon / Evening.",
-	EndHourLabel:   "End of the last slot (hourly slots)",
-	EndHourHint:    "Ignored for Afternoon / Evening.",
-	HourOrder:      "The first hour must be before the end of the last slot.",
-	SlotsReset:     " The slots changed, so this week's availability was reset.",
+	ModeLabel:        "Day slots",
+	ModeHint:         "⚠️ Changing the slots resets this week's availability.",
+	ModeHourly:       "Hourly",
+	StartHourLabel:   "First hour (hourly slots)",
+	StartHourHint:    "Server time. Ignored for Afternoon / Evening.",
+	EndHourLabel:     "End of the last slot (hourly slots)",
+	EndHourHint:      "Ignored for Afternoon / Evening.",
+	HourOrder:        "The first hour must be before the end of the last slot.",
+	MemberTimeLabel:  "Members' hours (hourly slots)",
+	MemberTimeHint:   "International: everyone sets their timezone and sees the slots in their own time.",
+	MemberTimeServer: "🏠 Everyone on the server's time",
+	MemberTimeOwn:    "🌍 International: everyone in their own time",
+	FieldMembers:     "Members",
+	MembersServer:    "on the server's time",
+	MembersOwn:       "each in their own time",
+	MemberTimeOff:    "On this server, everyone sees the slots in the server's time.",
+	SlotsReset:       " The slots changed, so this week's availability was reset.",
 
 	LanguageLabel:  "Bot language",
 	LanguageNames:  [2]string{"Français", "English"},

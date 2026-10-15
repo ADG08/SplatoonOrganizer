@@ -49,9 +49,10 @@ func (h *OpenDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 
-	// Hourly slots are shown in the member's timezone: ask for it the first time.
+	// In an international guild, hourly slots are shown in the member's timezone: ask for
+	// it the first time.
 	var loc *time.Location
-	if cfg.SlotLayout.IsHourly() {
+	if cfg.MemberTime() {
 		var err error
 		if loc, err = h.svc.UserTimezone(ctx, userID); err != nil {
 			slog.ErrorContext(ctx, "get user timezone", "guild", i.GuildID, "err", err)
@@ -65,9 +66,13 @@ func (h *OpenDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 }
 
 // sendDisposMenus sends the "Mes dispos" menus (5 days, then 2 days because of Discord's
-// 5 rows limit), labelled in the member's timezone. With followup, both are follow-ups.
+// 5 rows limit), labelled in the member's timezone loc when the guild shows member time,
+// else in the guild's. With followup, both are follow-ups.
 func sendDisposMenus(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, cfg *guildconfig.GuildConfig, userID string, loc *time.Location, followup bool) error {
 	m, layout := cfg.Messages(), cfg.SlotLayout
+	if !cfg.MemberTime() {
+		loc = nil // a picker left from when the guild showed member time
+	}
 	week := svc.Week(cfg.Schedule, cfg.Location)
 	userSlots, err := svc.UserAvailability(ctx, i.GuildID, week, userID)
 	if err != nil {
@@ -93,7 +98,7 @@ func sendDisposMenus(ctx context.Context, s *discordgo.Session, i *discordgo.Int
 		return err
 	}
 	second := buildUserDisposSelectMenus(m, layout, userSlots, closed, 5, 2, label)
-	if layout.IsHourly() {
+	if cfg.MemberTime() {
 		second = append(second, editTimezoneButton(m, tzNextDispos))
 	}
 	_, err = s.FollowupMessageCreate(i.Interaction, true, &discordgo.WebhookParams{

@@ -77,6 +77,11 @@ func (s *Service) SetTimezone(ctx context.Context, guildID string, loc *time.Loc
 	return s.update(ctx, guildID, func() error { return s.repo.SetTimezone(ctx, guildID, loc) })
 }
 
+// SetMemberTimezones turns on or off members seeing the slots in their own timezone.
+func (s *Service) SetMemberTimezones(ctx context.Context, guildID string, on bool) error {
+	return s.update(ctx, guildID, func() error { return s.repo.SetMemberTimezones(ctx, guildID, on) })
+}
+
 // SetActive turns the publication of the weekly message on or off for a guild, keeping
 // its configuration.
 func (s *Service) SetActive(ctx context.Context, guildID string, active bool) error {

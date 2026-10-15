@@ -191,6 +191,10 @@ func TestGuildConfigRepository(t *testing.T) {
 			t.Errorf("timezone %s: got %v, %v", zone, cfg.Location, err)
 		}
 	}
+	must(t, repo.SetMemberTimezones(ctx, "g2", true))
+	if cfg, _ := repo.Get(ctx, "g2"); !cfg.MemberTimezones {
+		t.Error("member timezones not saved")
+	}
 	must(t, repo.SetChannel(ctx, "g1", "c2")) // setting a channel resumes it
 	if list, _ := repo.ListWithChannel(ctx); len(list) != 1 || list[0].ChannelID != "c2" || !list[0].Active {
 		t.Errorf("resumed guild: %v", list)

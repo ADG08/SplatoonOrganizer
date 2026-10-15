@@ -13,7 +13,7 @@ import (
 
 const getGuildConfig = `-- name: GetGuildConfig :one
 SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language,
-       publish_weekday, publish_hour, active, timezone
+       publish_weekday, publish_hour, active, timezone, member_timezones
 FROM guild_config
 WHERE guild_id = $1
 `
@@ -34,13 +34,14 @@ func (q *Queries) GetGuildConfig(ctx context.Context, guildID string) (GuildConf
 		&i.PublishHour,
 		&i.Active,
 		&i.Timezone,
+		&i.MemberTimezones,
 	)
 	return i, err
 }
 
 const listGuildConfigsWithChannel = `-- name: ListGuildConfigsWithChannel :many
 SELECT guild_id, channel_id, role_id, slot_mode, slot_start_hour, slot_end_hour, display_style, language,
-       publish_weekday, publish_hour, active, timezone
+       publish_weekday, publish_hour, active, timezone, member_timezones
 FROM guild_config
 WHERE channel_id IS NOT NULL AND active
 ORDER BY guild_id
@@ -68,6 +69,7 @@ func (q *Queries) ListGuildConfigsWithChannel(ctx context.Context) ([]GuildConfi
 			&i.PublishHour,
 			&i.Active,
 			&i.Timezone,
+			&i.MemberTimezones,
 		); err != nil {
 			return nil, err
 		}
@@ -110,6 +112,23 @@ type SetGuildConfigChannelParams struct {
 
 func (q *Queries) SetGuildConfigChannel(ctx context.Context, arg SetGuildConfigChannelParams) error {
 	_, err := q.db.Exec(ctx, setGuildConfigChannel, arg.GuildID, arg.ChannelID)
+	return err
+}
+
+const setGuildConfigMemberTimezones = `-- name: SetGuildConfigMemberTimezones :exec
+INSERT INTO guild_config (guild_id, member_timezones)
+VALUES ($1, $2)
+ON CONFLICT (guild_id) DO UPDATE
+SET member_timezones = EXCLUDED.member_timezones
+`
+
+type SetGuildConfigMemberTimezonesParams struct {
+	GuildID         string `json:"guild_id"`
+	MemberTimezones bool   `json:"member_timezones"`
+}
+
+func (q *Queries) SetGuildConfigMemberTimezones(ctx context.Context, arg SetGuildConfigMemberTimezonesParams) error {
+	_, err := q.db.Exec(ctx, setGuildConfigMemberTimezones, arg.GuildID, arg.MemberTimezones)
 	return err
 }
 

@@ -326,8 +326,12 @@ func (h *MyTimeHandler) Handle(ctx context.Context, s *discordgo.Session, i *dis
 	if userID == "" {
 		return respondWithError(s, i, m.ErrUnknownUser)
 	}
+	// Messages posted before the guild turned member timezones off still show the button.
 	if !cfg.SlotLayout.IsHourly() {
 		return respondWithError(s, i, m.NoHoursToConvert)
+	}
+	if !cfg.MemberTime() {
+		return respondWithError(s, i, m.MemberTimeOff)
 	}
 	loc, err := h.svc.UserTimezone(ctx, userID)
 	if err != nil {

@@ -64,7 +64,7 @@ func publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Ser
 		return fmt.Errorf("get availability summary: %w", err)
 	}
 	m := cfg.Messages()
-	payload, err := BuildPayload(m, svc.BuildWeeklyView(m, cfg.SlotLayout, cfg.Location, cfg.Schedule, week, counts), cfg.RoleID, cfg.Display)
+	payload, err := BuildPayload(cfg, svc.BuildWeeklyView(m, cfg.SlotLayout, cfg.Location, cfg.Schedule, week, counts))
 	if err != nil {
 		return err
 	}
@@ -201,7 +201,7 @@ func (r *Refresher) refresh(ctx context.Context, s *discordgo.Session, guildID s
 		return
 	}
 	m := cfg.Messages()
-	payload, err := BuildPayload(m, r.svc.BuildWeeklyView(m, cfg.SlotLayout, cfg.Location, cfg.Schedule, week, counts), cfg.RoleID, cfg.Display)
+	payload, err := BuildPayload(cfg, r.svc.BuildWeeklyView(m, cfg.SlotLayout, cfg.Location, cfg.Schedule, week, counts))
 	if err != nil {
 		slog.ErrorContext(ctx, "build weekly message", "guild", guildID, "err", err)
 		return
