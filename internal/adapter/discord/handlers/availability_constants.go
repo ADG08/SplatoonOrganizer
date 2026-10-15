@@ -1,8 +1,8 @@
 package handlers
 
+// Custom IDs of the ephemeral components; the weekly message's own are in package weekly.
 const (
-	OpenDisposCustomIDPrefix   = "availability:open"
-	ViewDisposCustomIDPrefix   = "availability:view"
+	TimezoneCustomIDPrefix     = "availability:tz"
+	TimezoneEditCustomIDPrefix = "availability:tzedit"
 	SelectDisposCustomIDPrefix = "availability:select"
-	UnavailableCustomIDPrefix  = "availability:unavailable"
 )

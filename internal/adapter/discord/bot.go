@@ -1,11 +1,17 @@
 package discord
 
 import (
+	"context"
 	"fmt"
-	"log"
+	"log/slog"
+	"time"
 
 	"github.com/bwmarrin/discordgo"
 )
+
+// interactionTimeout bounds the work done for one interaction: Discord drops an
+// interaction not answered within 3 seconds, so waiting longer on the database is useless.
+const interactionTimeout = 3 * time.Second
 
 // Bot wraps the Discord session and command registry.
 type Bot struct {
@@ -47,7 +53,7 @@ func (b *Bot) Open() error {
 	if err := b.session.Open(); err != nil {
 		return fmt.Errorf("opening discord session: %w", err)
 	}
-	log.Println("Discord session opened")
+	slog.Info("Discord session opened")
 	return nil
 }
 
@@ -57,47 +63,49 @@ func (b *Bot) Close() error {
 		return nil
 	}
 	b.session.Close()
-	log.Println("Discord session closed")
+	slog.Info("Discord session closed")
 	return nil
 }
 
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
+	ctx, cancel := context.WithTimeout(context.Background(), interactionTimeout)
+	defer cancel()
 	defer func() {
 		if r := recover(); r != nil {
-			log.Printf("panic in interaction handler: %v", r)
+			slog.ErrorContext(ctx, "panic in interaction handler", "guild", i.GuildID, "panic", r)
 		}
 	}()
 
 	switch i.Type {
 	case discordgo.InteractionApplicationCommand:
 		data := i.ApplicationCommandData()
-		cmd, ok := b.registry.GetCommand(data.Name)
+		cmd, ok := b.registry.Command(data.Name)
 		if !ok {
-			log.Printf("no command registered for %q", data.Name)
+			slog.WarnContext(ctx, "no command registered", "command", data.Name)
 			return
 		}
-		if err := cmd.Execute(s, i); err != nil {
-			log.Printf("error executing command %q: %v", data.Name, err)
+		if err := cmd.Execute(ctx, s, i); err != nil {
+			slog.ErrorContext(ctx, "command failed", "command", data.Name, "guild", i.GuildID, "err", err)
 		}
 	case discordgo.InteractionMessageComponent:
 		data := i.MessageComponentData()
-		handler, ok := b.registry.GetHandler(data.CustomID)
+		handler, ok := b.registry.Handler(data.CustomID)
 		if !ok {
-			log.Printf("no handler registered for %q", data.CustomID)
+			slog.WarnContext(ctx, "no handler registered", "custom_id", data.CustomID)
 			return
 		}
-		if err := handler.Handle(s, i); err != nil {
-			log.Printf("error handling interaction %q: %v", data.CustomID, err)
+		if err := handler.Handle(ctx, s, i); err != nil {
+			slog.ErrorContext(ctx, "interaction failed", "custom_id", data.CustomID, "guild", i.GuildID, "err", err)
 		}
 	case discordgo.InteractionModalSubmit:
 		data := i.ModalSubmitData()
-		handler, ok := b.registry.GetHandler(data.CustomID)
+		handler, ok := b.registry.Handler(data.CustomID)
 		if !ok {
-			log.Printf("no handler registered for modal %q", data.CustomID)
+			slog.WarnContext(ctx, "no handler registered for modal", "custom_id", data.CustomID)
 			return
 		}
-		if err := handler.Handle(s, i); err != nil {
-			log.Printf("error handling modal %q: %v", data.CustomID, err)
+		if err := handler.Handle(ctx, s, i); err != nil {
+			slog.ErrorContext(ctx, "modal failed", "custom_id", data.CustomID, "guild", i.GuildID, "err", err)
 		}
 	default:
 		// ignore other interaction types for now
@@ -106,12 +114,12 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 
 // RegisterSlashCommands syncs slash commands with Discord using a bulk overwrite,
 // which removes any previously registered commands that are no longer in the registry.
-func (b *Bot) RegisterSlashCommands(appID, guildID string) error {
+// Commands are global, so every guild that adds the bot gets them. legacyGuildID, when
+// set, is a guild that had them registered as guild commands (single-guild versions of
+// the bot): they are removed there, else members would see each command twice.
+func (b *Bot) RegisterSlashCommands(appID, legacyGuildID string) error {
 	if appID == "" {
 		return fmt.Errorf("application ID is empty")
-	}
-	if guildID == "" {
-		return fmt.Errorf("guild ID is empty")
 	}
 
 	var acs []*discordgo.ApplicationCommand
@@ -126,8 +134,13 @@ func (b *Bot) RegisterSlashCommands(appID, guildID string) error {
 		acs = append(acs, ac)
 	}
 
-	if _, err := b.session.ApplicationCommandBulkOverwrite(appID, guildID, acs); err != nil {
+	if _, err := b.session.ApplicationCommandBulkOverwrite(appID, "", acs); err != nil {
 		return fmt.Errorf("bulk overwriting slash commands: %w", err)
+	}
+	if legacyGuildID != "" {
+		if _, err := b.session.ApplicationCommandBulkOverwrite(appID, legacyGuildID, nil); err != nil {
+			return fmt.Errorf("removing guild slash commands: %w", err)
+		}
 	}
 
 	return nil

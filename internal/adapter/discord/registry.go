@@ -1,6 +1,7 @@
 package discord
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -11,13 +12,13 @@ import (
 type Command interface {
 	Name() string
 	ApplicationCommand() *discordgo.ApplicationCommand
-	Execute(s *discordgo.Session, i *discordgo.InteractionCreate) error
+	Execute(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error
 }
 
 // InteractionHandler handles Discord message component interactions.
 type InteractionHandler interface {
 	CustomID() string
-	Handle(s *discordgo.Session, i *discordgo.InteractionCreate) error
+	Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error
 }
 
 // Registry holds commands and handlers.
@@ -50,8 +51,8 @@ func (r *Registry) RegisterCommand(cmd Command) error {
 	return nil
 }
 
-// GetCommand returns a command by name.
-func (r *Registry) GetCommand(name string) (Command, bool) {
+// Command returns a command by name.
+func (r *Registry) Command(name string) (Command, bool) {
 	cmd, ok := r.commands[name]
 	return cmd, ok
 }
@@ -72,8 +73,8 @@ func (r *Registry) RegisterHandler(h InteractionHandler) error {
 	return nil
 }
 
-// GetHandler returns a handler by custom ID (supports prefix matching).
-func (r *Registry) GetHandler(customID string) (InteractionHandler, bool) {
+// Handler returns a handler by custom ID (supports prefix matching).
+func (r *Registry) Handler(customID string) (InteractionHandler, bool) {
 	if h, ok := r.handlers[customID]; ok {
 		return h, true
 	}

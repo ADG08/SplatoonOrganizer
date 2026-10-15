@@ -14,21 +14,40 @@ type Dispo struct {
 	SlotIndex int16              `json:"slot_index"`
 	Week      string             `json:"week"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	GuildID   string             `json:"guild_id"`
 }
 
 type GuildConfig struct {
-	GuildID   string      `json:"guild_id"`
-	ChannelID pgtype.Text `json:"channel_id"`
-	RoleID    pgtype.Text `json:"role_id"`
+	GuildID        string      `json:"guild_id"`
+	ChannelID      pgtype.Text `json:"channel_id"`
+	RoleID         pgtype.Text `json:"role_id"`
+	SlotMode       pgtype.Text `json:"slot_mode"`
+	SlotStartHour  pgtype.Int2 `json:"slot_start_hour"`
+	SlotEndHour    pgtype.Int2 `json:"slot_end_hour"`
+	DisplayStyle   pgtype.Text `json:"display_style"`
+	Language       pgtype.Text `json:"language"`
+	PublishWeekday pgtype.Int2 `json:"publish_weekday"`
+	PublishHour    pgtype.Int2 `json:"publish_hour"`
+	Active         bool        `json:"active"`
+	Timezone       pgtype.Text `json:"timezone"`
 }
 
-type SondageMessage struct {
-	Week      string `json:"week"`
-	MessageID string `json:"message_id"`
+type UserTimezone struct {
+	UserID    string             `json:"user_id"`
+	Timezone  string             `json:"timezone"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type WeekUnavailable struct {
 	UserID    string             `json:"user_id"`
 	Week      string             `json:"week"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	GuildID   string             `json:"guild_id"`
+}
+
+type WeeklyMessage struct {
+	GuildID   string `json:"guild_id"`
+	Week      string `json:"week"`
+	ChannelID string `json:"channel_id"`
+	MessageID string `json:"message_id"`
 }

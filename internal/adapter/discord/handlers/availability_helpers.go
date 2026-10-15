@@ -3,46 +3,70 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
-	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
+	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
 
-// refreshWeeklyMessage re-renders the main weekly availability message (best-effort).
-func refreshWeeklyMessage(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, week availability.WeekKey, channelID string) {
-	defer func() {
-		if r := recover(); r != nil {
-			log.Printf("panic while refreshing main table: %v", r)
+// embedDescriptionLimit is Discord's maximum length of an embed description.
+const embedDescriptionLimit = 4096
+
+// splitLines splits text into chunks of at most limit bytes, cutting between lines when possible.
+func splitLines(text string, limit int) []string {
+	var chunks []string
+	var cur strings.Builder
+	for _, line := range strings.SplitAfter(text, "\n") {
+		for len(line) > limit { // a single line longer than the limit: hard cut on a rune boundary
+			if cur.Len() > 0 {
+				chunks = append(chunks, cur.String())
+				cur.Reset()
+			}
+			cut := limit
+			for cut > 0 && !utf8.RuneStart(line[cut]) {
+				cut--
+			}
+			chunks = append(chunks, line[:cut])
+			line = line[cut:]
 		}
-	}()
+		if cur.Len()+len(line) > limit {
+			chunks = append(chunks, cur.String())
+			cur.Reset()
+		}
+		cur.WriteString(line)
+	}
+	if cur.Len() > 0 || len(chunks) == 0 {
+		chunks = append(chunks, cur.String())
+	}
+	return chunks
+}
 
-	counts, err := svc.GetAvailabilitySummary(ctx, week)
+// withLegend appends the optional timezone legend to an ephemeral message content.
+func withLegend(content, legend string) string {
+	if legend == "" {
+		return content
+	}
+	return content + "\n" + legend
+}
+
+// loadGuildConfig returns the config (and so the language) of the interaction's guild.
+// When it can't be read, it answers the member in French and returns nil.
+func loadGuildConfig(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, guildCfg *appguildconfig.Service) *guildconfig.GuildConfig {
+	cfg, err := guildCfg.Get(ctx, i.GuildID)
 	if err != nil {
-		log.Printf("error getting availability summary: %v", err)
-		return
+		slog.ErrorContext(ctx, "get guild config", "guild", i.GuildID, "err", err)
+		if err := respondWithError(s, i, i18n.For(i18n.FR).ErrGeneric); err != nil {
+			slog.ErrorContext(ctx, "respond", "guild", i.GuildID, "err", err)
+		}
+		return nil
 	}
-
-	embed := BuildWeeklyEmbed(svc.FormatTable(counts))
-
-	msgID, err := svc.GetSondageMessageID(ctx, week)
-	if err != nil {
-		log.Printf("error getting sondage message id: %v", err)
-		return
-	}
-
-	components := BuildWeeklyComponents()
-	if _, err := s.ChannelMessageEditComplex(&discordgo.MessageEdit{
-		ID:         msgID,
-		Channel:    channelID,
-		Embeds:     &[]*discordgo.MessageEmbed{embed},
-		Components: &components,
-	}); err != nil {
-		log.Printf("error editing weekly message: %v", err)
-	}
+	return cfg
 }
 
 func respondWithError(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) error {

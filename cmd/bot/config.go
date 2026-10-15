@@ -2,24 +2,27 @@ package main
 
 import "os"
 
+// defaultHealthPort is the port of /health when HEALTH_PORT is not set.
+const defaultHealthPort = "8080"
+
 // Config holds application configuration from environment.
 type Config struct {
 	DiscordToken     string
 	DiscordClientID  string
-	DiscordGuildID   string
-	DiscordChannelID string
+	DiscordGuildID   string // Optional: the guild of single-guild versions, migrated on startup (see main).
+	DiscordChannelID string // Optional: that guild's channel, used when /help never set one.
 	DiscordOwnerID   string // Optional: Discord user ID of the bot creator (can use admin commands without being server admin).
 	DatabaseURL      string
-	CronSchedule     string
 	RunWeeklyOnStart bool
 	HealthPort       string
+	SupportURL       string // Optional: donation page, linked from the /help panel.
 }
 
 // LoadConfig reads configuration from environment variables.
 func LoadConfig() (*Config, error) {
 	healthPort := os.Getenv("HEALTH_PORT")
 	if healthPort == "" {
-		healthPort = "8080"
+		healthPort = defaultHealthPort
 	}
 
 	cfg := &Config{
@@ -29,9 +32,9 @@ func LoadConfig() (*Config, error) {
 		DiscordChannelID: os.Getenv("DISCORD_CHANNEL_ID"),
 		DiscordOwnerID:   os.Getenv("DISCORD_OWNER_ID"),
 		DatabaseURL:      os.Getenv("DATABASE_URL"),
-		CronSchedule:     os.Getenv("CRON_SCHEDULE"),
 		RunWeeklyOnStart: os.Getenv("RUN_WEEKLY_ON_START") == "1",
 		HealthPort:       healthPort,
+		SupportURL:       os.Getenv("SUPPORT_URL"),
 	}
 
 	if cfg.DiscordToken == "" {
@@ -39,9 +42,6 @@ func LoadConfig() (*Config, error) {
 	}
 	if cfg.DiscordClientID == "" {
 		return nil, ErrEnv("DISCORD_CLIENT_ID is required")
-	}
-	if cfg.DiscordGuildID == "" {
-		return nil, ErrEnv("DISCORD_GUILD_ID is required")
 	}
 	if cfg.DatabaseURL == "" {
 		return nil, ErrEnv("DATABASE_URL is required")

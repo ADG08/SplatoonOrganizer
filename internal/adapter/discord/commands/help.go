@@ -2,10 +2,11 @@ package commands
 
 import (
 	"context"
-	"log"
+	"log/slog"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -13,13 +14,14 @@ const CommandNameHelp = "help"
 
 // HelpCommand handles the /help slash command for admin configuration.
 type HelpCommand struct {
-	svc     *appguildconfig.Service
-	ownerID string
+	svc        *appguildconfig.Service
+	ownerID    string
+	supportURL string
 }
 
-// NewHelpCommand creates a new help command. ownerID is optional.
-func NewHelpCommand(svc *appguildconfig.Service, ownerID string) *HelpCommand {
-	return &HelpCommand{svc: svc, ownerID: ownerID}
+// NewHelpCommand creates a new help command. ownerID and supportURL are optional.
+func NewHelpCommand(svc *appguildconfig.Service, ownerID, supportURL string) *HelpCommand {
+	return &HelpCommand{svc: svc, ownerID: ownerID, supportURL: supportURL}
 }
 
 func (c *HelpCommand) Name() string {
@@ -27,45 +29,35 @@ func (c *HelpCommand) Name() string {
 }
 
 func (c *HelpCommand) ApplicationCommand() *discordgo.ApplicationCommand {
+	desc, descEN := description(func(m *i18n.Messages) string { return m.HelpDescription })
 	return &discordgo.ApplicationCommand{
-		Name:        CommandNameHelp,
-		Description: "Panneau admin pour configurer le bot",
+		Name:                     CommandNameHelp,
+		Description:              desc,
+		DescriptionLocalizations: descEN,
 	}
 }
 
 var _ discord.Command = (*HelpCommand)(nil)
 
-func (c *HelpCommand) Execute(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	if !isAdminOrOwner(i, c.ownerID) {
-		return respondWithError(s, i, ErrAdminOrOwner)
-	}
-	guildID := i.GuildID
-	if guildID == "" {
-		return respondWithError(s, i, "Cette commande doit etre utilisee sur un serveur.")
-	}
-
-	ctx := context.Background()
-	cfg, err := c.svc.Get(ctx, guildID)
+func (c *HelpCommand) Execute(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg, err := c.svc.Get(ctx, i.GuildID)
 	if err != nil {
-		log.Printf("help: get guild config: %v", err)
-		return respondWithError(s, i, "Erreur lors de la recuperation de la configuration.")
+		slog.ErrorContext(ctx, "help: get guild config", "guild", i.GuildID, "err", err)
+		return respondWithError(s, i, i18n.For(i18n.FR).ErrGeneric)
 	}
-
-	embed := discord.BuildHelpPanelEmbed(
-		"⚙️  Panneau de configuration",
-		"Gerez les parametres du bot pour ce serveur.",
-		discord.HelpPanelColorDefault,
-		cfg.ChannelID,
-		cfg.RoleID,
-	)
-	components := discord.BuildHelpPanelComponents()
+	m := cfg.Messages()
+	if !isAdminOrOwner(i, c.ownerID) {
+		return respondWithError(s, i, m.ErrAdminOnly)
+	}
+	if i.GuildID == "" {
+		return respondWithError(s, i, m.ErrGuildOnly)
+	}
 
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Flags:      discordgo.MessageFlagsEphemeral,
-			Embeds:     []*discordgo.MessageEmbed{embed},
-			Components: components,
+			Flags:      discordgo.MessageFlagsEphemeral | discordgo.MessageFlagsIsComponentsV2,
+			Components: discord.BuildHelpPanel(cfg, "", c.supportURL),
 		},
 	})
 }

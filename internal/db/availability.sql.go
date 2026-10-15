@@ -11,68 +11,69 @@ import (
 
 const deleteAllUserAvailability = `-- name: DeleteAllUserAvailability :exec
 DELETE FROM dispos
-WHERE user_id = $1
+WHERE guild_id = $1
   AND week = $2
+  AND user_id = $3
 `
 
 type DeleteAllUserAvailabilityParams struct {
-	UserID string `json:"user_id"`
-	Week   string `json:"week"`
+	GuildID string `json:"guild_id"`
+	Week    string `json:"week"`
+	UserID  string `json:"user_id"`
 }
 
 func (q *Queries) DeleteAllUserAvailability(ctx context.Context, arg DeleteAllUserAvailabilityParams) error {
-	_, err := q.db.Exec(ctx, deleteAllUserAvailability, arg.UserID, arg.Week)
+	_, err := q.db.Exec(ctx, deleteAllUserAvailability, arg.GuildID, arg.Week, arg.UserID)
 	return err
 }
 
-const deleteAvailability = `-- name: DeleteAvailability :exec
+const deleteWeekAvailability = `-- name: DeleteWeekAvailability :exec
 DELETE FROM dispos
-WHERE user_id = $1
-  AND day_index = $2
-  AND slot_index = $3
-  AND week = $4
+WHERE guild_id = $1
+  AND week = $2
 `
 
-type DeleteAvailabilityParams struct {
-	UserID    string `json:"user_id"`
-	DayIndex  int16  `json:"day_index"`
-	SlotIndex int16  `json:"slot_index"`
-	Week      string `json:"week"`
+type DeleteWeekAvailabilityParams struct {
+	GuildID string `json:"guild_id"`
+	Week    string `json:"week"`
 }
 
-func (q *Queries) DeleteAvailability(ctx context.Context, arg DeleteAvailabilityParams) error {
-	_, err := q.db.Exec(ctx, deleteAvailability,
-		arg.UserID,
-		arg.DayIndex,
-		arg.SlotIndex,
-		arg.Week,
-	)
+func (q *Queries) DeleteWeekAvailability(ctx context.Context, arg DeleteWeekAvailabilityParams) error {
+	_, err := q.db.Exec(ctx, deleteWeekAvailability, arg.GuildID, arg.Week)
 	return err
 }
 
 const deleteWeekUnavailable = `-- name: DeleteWeekUnavailable :exec
 DELETE FROM week_unavailable
-WHERE user_id = $1
+WHERE guild_id = $1
   AND week = $2
+  AND user_id = $3
 `
 
 type DeleteWeekUnavailableParams struct {
-	UserID string `json:"user_id"`
-	Week   string `json:"week"`
+	GuildID string `json:"guild_id"`
+	Week    string `json:"week"`
+	UserID  string `json:"user_id"`
 }
 
 func (q *Queries) DeleteWeekUnavailable(ctx context.Context, arg DeleteWeekUnavailableParams) error {
-	_, err := q.db.Exec(ctx, deleteWeekUnavailable, arg.UserID, arg.Week)
+	_, err := q.db.Exec(ctx, deleteWeekUnavailable, arg.GuildID, arg.Week, arg.UserID)
 	return err
 }
 
 const getAvailabilityCounts = `-- name: GetAvailabilityCounts :many
 SELECT day_index, slot_index, COUNT(*) AS count
 FROM dispos
-WHERE week = $1
+WHERE guild_id = $1
+  AND week = $2
 GROUP BY day_index, slot_index
 ORDER BY day_index, slot_index
 `
+
+type GetAvailabilityCountsParams struct {
+	GuildID string `json:"guild_id"`
+	Week    string `json:"week"`
+}
 
 type GetAvailabilityCountsRow struct {
 	DayIndex  int16 `json:"day_index"`
@@ -80,8 +81,8 @@ type GetAvailabilityCountsRow struct {
 	Count     int64 `json:"count"`
 }
 
-func (q *Queries) GetAvailabilityCounts(ctx context.Context, week string) ([]GetAvailabilityCountsRow, error) {
-	rows, err := q.db.Query(ctx, getAvailabilityCounts, week)
+func (q *Queries) GetAvailabilityCounts(ctx context.Context, arg GetAvailabilityCountsParams) ([]GetAvailabilityCountsRow, error) {
+	rows, err := q.db.Query(ctx, getAvailabilityCounts, arg.GuildID, arg.Week)
 	if err != nil {
 		return nil, err
 	}
@@ -103,9 +104,15 @@ func (q *Queries) GetAvailabilityCounts(ctx context.Context, week string) ([]Get
 const getAvailabilityUsers = `-- name: GetAvailabilityUsers :many
 SELECT day_index, slot_index, user_id
 FROM dispos
-WHERE week = $1
+WHERE guild_id = $1
+  AND week = $2
 ORDER BY day_index, slot_index, user_id
 `
+
+type GetAvailabilityUsersParams struct {
+	GuildID string `json:"guild_id"`
+	Week    string `json:"week"`
+}
 
 type GetAvailabilityUsersRow struct {
 	DayIndex  int16  `json:"day_index"`
@@ -113,8 +120,8 @@ type GetAvailabilityUsersRow struct {
 	UserID    string `json:"user_id"`
 }
 
-func (q *Queries) GetAvailabilityUsers(ctx context.Context, week string) ([]GetAvailabilityUsersRow, error) {
-	rows, err := q.db.Query(ctx, getAvailabilityUsers, week)
+func (q *Queries) GetAvailabilityUsers(ctx context.Context, arg GetAvailabilityUsersParams) ([]GetAvailabilityUsersRow, error) {
+	rows, err := q.db.Query(ctx, getAvailabilityUsers, arg.GuildID, arg.Week)
 	if err != nil {
 		return nil, err
 	}
@@ -133,30 +140,19 @@ func (q *Queries) GetAvailabilityUsers(ctx context.Context, week string) ([]GetA
 	return items, nil
 }
 
-const getSondageMessageByWeek = `-- name: GetSondageMessageByWeek :one
-SELECT week, message_id
-FROM sondage_messages
-WHERE week = $1
-`
-
-func (q *Queries) GetSondageMessageByWeek(ctx context.Context, week string) (SondageMessage, error) {
-	row := q.db.QueryRow(ctx, getSondageMessageByWeek, week)
-	var i SondageMessage
-	err := row.Scan(&i.Week, &i.MessageID)
-	return i, err
-}
-
 const getUserAvailability = `-- name: GetUserAvailability :many
 SELECT day_index, slot_index
 FROM dispos
-WHERE week = $1
-  AND user_id = $2
+WHERE guild_id = $1
+  AND week = $2
+  AND user_id = $3
 ORDER BY day_index, slot_index
 `
 
 type GetUserAvailabilityParams struct {
-	Week   string `json:"week"`
-	UserID string `json:"user_id"`
+	GuildID string `json:"guild_id"`
+	Week    string `json:"week"`
+	UserID  string `json:"user_id"`
 }
 
 type GetUserAvailabilityRow struct {
@@ -165,7 +161,7 @@ type GetUserAvailabilityRow struct {
 }
 
 func (q *Queries) GetUserAvailability(ctx context.Context, arg GetUserAvailabilityParams) ([]GetUserAvailabilityRow, error) {
-	rows, err := q.db.Query(ctx, getUserAvailability, arg.Week, arg.UserID)
+	rows, err := q.db.Query(ctx, getUserAvailability, arg.GuildID, arg.Week, arg.UserID)
 	if err != nil {
 		return nil, err
 	}
@@ -187,12 +183,18 @@ func (q *Queries) GetUserAvailability(ctx context.Context, arg GetUserAvailabili
 const getWeekUnavailableUsers = `-- name: GetWeekUnavailableUsers :many
 SELECT user_id
 FROM week_unavailable
-WHERE week = $1
+WHERE guild_id = $1
+  AND week = $2
 ORDER BY user_id
 `
 
-func (q *Queries) GetWeekUnavailableUsers(ctx context.Context, week string) ([]string, error) {
-	rows, err := q.db.Query(ctx, getWeekUnavailableUsers, week)
+type GetWeekUnavailableUsersParams struct {
+	GuildID string `json:"guild_id"`
+	Week    string `json:"week"`
+}
+
+func (q *Queries) GetWeekUnavailableUsers(ctx context.Context, arg GetWeekUnavailableUsersParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, getWeekUnavailableUsers, arg.GuildID, arg.Week)
 	if err != nil {
 		return nil, err
 	}
@@ -211,101 +213,126 @@ func (q *Queries) GetWeekUnavailableUsers(ctx context.Context, week string) ([]s
 	return items, nil
 }
 
-const insertAvailability = `-- name: InsertAvailability :exec
-INSERT INTO dispos (user_id, day_index, slot_index, week)
-VALUES ($1, $2, $3, $4)
-ON CONFLICT (user_id, day_index, slot_index, week) DO NOTHING
+const getWeeklyMessage = `-- name: GetWeeklyMessage :one
+SELECT week, channel_id, message_id
+FROM weekly_messages
+WHERE guild_id = $1
 `
 
-type InsertAvailabilityParams struct {
-	UserID    string `json:"user_id"`
-	DayIndex  int16  `json:"day_index"`
-	SlotIndex int16  `json:"slot_index"`
+type GetWeeklyMessageRow struct {
 	Week      string `json:"week"`
+	ChannelID string `json:"channel_id"`
+	MessageID string `json:"message_id"`
 }
 
-func (q *Queries) InsertAvailability(ctx context.Context, arg InsertAvailabilityParams) error {
-	_, err := q.db.Exec(ctx, insertAvailability,
-		arg.UserID,
-		arg.DayIndex,
-		arg.SlotIndex,
-		arg.Week,
-	)
-	return err
+func (q *Queries) GetWeeklyMessage(ctx context.Context, guildID string) (GetWeeklyMessageRow, error) {
+	row := q.db.QueryRow(ctx, getWeeklyMessage, guildID)
+	var i GetWeeklyMessageRow
+	err := row.Scan(&i.Week, &i.ChannelID, &i.MessageID)
+	return i, err
 }
 
 const isUserWeekUnavailable = `-- name: IsUserWeekUnavailable :one
 SELECT EXISTS (
     SELECT 1 FROM week_unavailable
-    WHERE user_id = $1 AND week = $2
+    WHERE guild_id = $1 AND week = $2 AND user_id = $3
 ) AS unavailable
 `
 
 type IsUserWeekUnavailableParams struct {
-	UserID string `json:"user_id"`
-	Week   string `json:"week"`
+	GuildID string `json:"guild_id"`
+	Week    string `json:"week"`
+	UserID  string `json:"user_id"`
 }
 
 func (q *Queries) IsUserWeekUnavailable(ctx context.Context, arg IsUserWeekUnavailableParams) (bool, error) {
-	row := q.db.QueryRow(ctx, isUserWeekUnavailable, arg.UserID, arg.Week)
+	row := q.db.QueryRow(ctx, isUserWeekUnavailable, arg.GuildID, arg.Week, arg.UserID)
 	var unavailable bool
 	err := row.Scan(&unavailable)
 	return unavailable, err
 }
 
-const listSondageMessageIDs = `-- name: ListSondageMessageIDs :many
-SELECT message_id FROM sondage_messages
+const setDayAvailability = `-- name: SetDayAvailability :exec
+WITH removed AS (
+    DELETE FROM dispos
+    WHERE guild_id = $1::text
+      AND week = $2::text
+      AND user_id = $3::text
+      AND day_index = $4::smallint
+      AND NOT (slot_index = ANY ($5::smallint[]))
+), available_again AS (
+    DELETE FROM week_unavailable
+    WHERE guild_id = $1::text
+      AND week = $2::text
+      AND user_id = $3::text
+      AND cardinality($5::smallint[]) > 0
+)
+INSERT INTO dispos (guild_id, week, user_id, day_index, slot_index)
+SELECT $1::text, $2::text, $3::text, $4::smallint, unnest($5::smallint[])
+ON CONFLICT DO NOTHING
 `
 
-func (q *Queries) ListSondageMessageIDs(ctx context.Context) ([]string, error) {
-	rows, err := q.db.Query(ctx, listSondageMessageIDs)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var message_id string
-		if err := rows.Scan(&message_id); err != nil {
-			return nil, err
-		}
-		items = append(items, message_id)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+type SetDayAvailabilityParams struct {
+	GuildID  string  `json:"guild_id"`
+	Week     string  `json:"week"`
+	UserID   string  `json:"user_id"`
+	DayIndex int16   `json:"day_index"`
+	Slots    []int16 `json:"slots"`
 }
 
-const setWeekUnavailable = `-- name: SetWeekUnavailable :exec
-INSERT INTO week_unavailable (user_id, week)
-VALUES ($1, $2)
-ON CONFLICT (user_id, week) DO NOTHING
-`
-
-type SetWeekUnavailableParams struct {
-	UserID string `json:"user_id"`
-	Week   string `json:"week"`
-}
-
-func (q *Queries) SetWeekUnavailable(ctx context.Context, arg SetWeekUnavailableParams) error {
-	_, err := q.db.Exec(ctx, setWeekUnavailable, arg.UserID, arg.Week)
+// Replaces a member's slots of one day in a single round trip: the deleted rows (slots
+// not selected anymore) and the inserted ones (selected slots) never overlap. Selecting
+// at least one slot also clears the "unavailable for the week" status.
+func (q *Queries) SetDayAvailability(ctx context.Context, arg SetDayAvailabilityParams) error {
+	_, err := q.db.Exec(ctx, setDayAvailability,
+		arg.GuildID,
+		arg.Week,
+		arg.UserID,
+		arg.DayIndex,
+		arg.Slots,
+	)
 	return err
 }
 
-const upsertSondageMessage = `-- name: UpsertSondageMessage :exec
-INSERT INTO sondage_messages (week, message_id)
-VALUES ($1, $2)
-ON CONFLICT (week) DO UPDATE
-SET message_id = EXCLUDED.message_id
+const setWeekUnavailable = `-- name: SetWeekUnavailable :exec
+INSERT INTO week_unavailable (guild_id, week, user_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (guild_id, week, user_id) DO NOTHING
 `
 
-type UpsertSondageMessageParams struct {
+type SetWeekUnavailableParams struct {
+	GuildID string `json:"guild_id"`
+	Week    string `json:"week"`
+	UserID  string `json:"user_id"`
+}
+
+func (q *Queries) SetWeekUnavailable(ctx context.Context, arg SetWeekUnavailableParams) error {
+	_, err := q.db.Exec(ctx, setWeekUnavailable, arg.GuildID, arg.Week, arg.UserID)
+	return err
+}
+
+const upsertWeeklyMessage = `-- name: UpsertWeeklyMessage :exec
+INSERT INTO weekly_messages (guild_id, week, channel_id, message_id)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (guild_id) DO UPDATE
+SET week       = EXCLUDED.week,
+    channel_id = EXCLUDED.channel_id,
+    message_id = EXCLUDED.message_id
+`
+
+type UpsertWeeklyMessageParams struct {
+	GuildID   string `json:"guild_id"`
 	Week      string `json:"week"`
+	ChannelID string `json:"channel_id"`
 	MessageID string `json:"message_id"`
 }
 
-func (q *Queries) UpsertSondageMessage(ctx context.Context, arg UpsertSondageMessageParams) error {
-	_, err := q.db.Exec(ctx, upsertSondageMessage, arg.Week, arg.MessageID)
+func (q *Queries) UpsertWeeklyMessage(ctx context.Context, arg UpsertWeeklyMessageParams) error {
+	_, err := q.db.Exec(ctx, upsertWeeklyMessage,
+		arg.GuildID,
+		arg.Week,
+		arg.ChannelID,
+		arg.MessageID,
+	)
 	return err
 }

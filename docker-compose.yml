@@ -13,23 +13,16 @@ services:
       timeout: 3s
       retries: 5
 
+  # Applies the migrations, then exits: the bot waits for it to succeed.
   migrate-dev:
     build:
       context: .
       dockerfile: Dockerfile.migrate
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - "/usr/local/bin/migrate -path /migrations -database ${DATABASE_URL} up && touch /tmp/migrations-done && exec sleep infinity"
-    healthcheck:
-      test: ["CMD-SHELL", "test -f /tmp/migrations-done"]
-      interval: 2s
-      timeout: 1s
-      retries: 5
-      start_period: 10s
+    command: ["-path", "/migrations", "-database", "${DATABASE_URL}", "up"]
     depends_on:
       db-dev:
         condition: service_healthy
-    restart: "on-failure"
+    restart: "no"
 
   bot-dev:
     build: .
@@ -39,8 +32,8 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       HEALTH_PORT: ${HEALTH_PORT:-8081}
     healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:${HEALTH_PORT:-8081}/health || exit 1"]
-      interval: 10s
+      test: ["CMD", "/bot", "healthcheck"]
+      interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
@@ -48,7 +41,7 @@ services:
       db-dev:
         condition: service_healthy
       migrate-dev:
-        condition: service_healthy
+        condition: service_completed_successfully
     restart: unless-stopped
 
 volumes:

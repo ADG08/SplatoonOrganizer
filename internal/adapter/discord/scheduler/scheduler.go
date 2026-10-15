@@ -2,134 +2,100 @@ package scheduler
 
 import (
 	"context"
-	"errors"
-	"fmt"
-	"log"
+	"log/slog"
+	"sync"
+	"time"
 
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
-	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/handlers"
 	"github.com/bwmarrin/discordgo"
-	"github.com/robfig/cron/v3"
 )
 
-// Scheduler runs the weekly availability posting job.
+// Scheduler publishes the weekly availability messages.
 type Scheduler struct {
 	availSvc    *appavailability.Service
 	guildConfig *appguildconfig.Service
 	session     *discordgo.Session
-	guildID     string
-	channelID   string // default from env
 }
 
-// NewScheduler creates a scheduler. channelID is the default channel (e.g. from env).
+// NewScheduler creates a scheduler.
 func NewScheduler(
 	availSvc *appavailability.Service,
 	guildConfig *appguildconfig.Service,
 	session *discordgo.Session,
-	guildID, channelID string,
 ) *Scheduler {
 	return &Scheduler{
 		availSvc:    availSvc,
 		guildConfig: guildConfig,
 		session:     session,
-		guildID:     guildID,
-		channelID:   channelID,
 	}
 }
 
-// DefaultCronSchedule is the production schedule: every Monday at 10:00.
-const DefaultCronSchedule = "0 10 * * MON"
+// publishConcurrency bounds the guilds published in parallel: each one renders its
+// message (possibly an image) and calls Discord.
+const publishConcurrency = 4
 
-// ErrChannelNotConfigured is returned when no channel is set (neither env nor /set-message-channel).
-var ErrChannelNotConfigured = errors.New("channel not configured")
+// checkEvery is how often the guilds are checked, on the quarter of an hour: each guild
+// publishes on the hour of its own timezone, and some timezones are a half or a quarter
+// of an hour off UTC (India, Nepal).
+const checkEvery = 15 * time.Minute
 
-// Start starts the cron scheduler.
-func (s *Scheduler) Start(ctx context.Context, schedule string) error {
-	if schedule == "" {
-		schedule = DefaultCronSchedule
-	}
-
-	loc := s.availSvc.Location()
-	c := cron.New(cron.WithLocation(loc))
-
-	_, err := c.AddFunc(schedule, func() {
-		if err := s.runWeeklyJob(ctx); err != nil {
-			log.Printf("weekly scheduler job failed: %v", err)
-		}
-	})
-	if err != nil {
-		return fmt.Errorf("adding cron job: %w", err)
-	}
-
-	c.Start()
-
+// Start checks right away which guilds reached their publication time (each picks its own
+// in /help), to catch up on the publications missed while the bot was down, then every
+// quarter of an hour until ctx is done. With force, that first check publishes in every
+// guild instead (for tests). Checks never overlap.
+func (s *Scheduler) Start(ctx context.Context, force bool) {
 	go func() {
-		<-ctx.Done()
-		log.Println("stopping availability scheduler...")
-		c.Stop()
+		s.run(ctx, force)
+		for {
+			// Truncate rounds absolute time: the next quarter of an hour of every timezone.
+			next := time.Now().Truncate(checkEvery).Add(checkEvery)
+			select {
+			case <-ctx.Done():
+				slog.Info("stopping availability scheduler")
+				return
+			case <-time.After(time.Until(next)):
+				s.run(ctx, false)
+			}
+		}
 	}()
-
-	return nil
 }
 
-// RunWeeklyNow runs the weekly job once (for testing or manual trigger).
-func (s *Scheduler) RunWeeklyNow(ctx context.Context) error {
-	return s.runWeeklyJob(ctx)
-}
-
-func (s *Scheduler) runWeeklyJob(ctx context.Context) error {
-	channelID := s.channelID
-	roleID := ""
-
-	if s.guildConfig != nil && s.guildID != "" {
-		cfg, err := s.guildConfig.Get(ctx, s.guildID)
-		if err != nil {
-			log.Printf("get guild config: %v", err)
-		} else if cfg != nil {
-			if cfg.ChannelID != "" {
-				channelID = cfg.ChannelID
-			}
-			roleID = cfg.RoleID
-		}
-	}
-
-	if channelID == "" {
-		return ErrChannelNotConfigured
-	}
-
-	week := s.availSvc.CurrentWeek()
-
-	counts, err := s.availSvc.GetAvailabilitySummary(ctx, week)
+// run publishes the weekly message of the active guilds that configured a channel and
+// are due (all of them with force). A guild whose channel is out of reach is paused.
+func (s *Scheduler) run(ctx context.Context, force bool) {
+	cfgs, err := s.guildConfig.ListWithChannel(ctx)
 	if err != nil {
-		return fmt.Errorf("get availability summary: %w", err)
+		slog.ErrorContext(ctx, "weekly scheduler: list guild configs", "err", err)
+		return
 	}
 
-	content := s.availSvc.FormatTable(counts)
-
-	// Delete all known sondage messages in this channel, then post the new one
-	ids, err := s.availSvc.ListSondageMessageIDs(ctx)
-	if err != nil {
-		log.Printf("list sondage message ids: %v", err)
-	} else {
-		for _, msgID := range ids {
-			if msgID == "" {
-				continue
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, publishConcurrency)
+	for _, cfg := range cfgs {
+		sem <- struct{}{}
+		wg.Go(func() {
+			defer func() { <-sem }()
+			ctx, cancel := context.WithTimeout(ctx, weekly.Timeout)
+			defer cancel()
+			var err error
+			if force {
+				err = weekly.Publish(ctx, s.session, s.availSvc, cfg)
+			} else {
+				_, err = weekly.PublishDue(ctx, s.session, s.availSvc, cfg)
 			}
-			if err := s.session.ChannelMessageDelete(channelID, msgID); err != nil {
-				log.Printf("error deleting sondage message %s: %v", msgID, err)
+			switch {
+			case weekly.LostAccess(err):
+				// Paused until the bot is back in the guild or /help sets a channel again.
+				slog.WarnContext(ctx, "lost access to the weekly channel, pausing the guild", "guild", cfg.GuildID, "err", err)
+				if err := s.guildConfig.SetActive(ctx, cfg.GuildID, false); err != nil {
+					slog.ErrorContext(ctx, "pause guild", "guild", cfg.GuildID, "err", err)
+				}
+			case err != nil:
+				slog.ErrorContext(ctx, "publish weekly message", "guild", cfg.GuildID, "err", err)
 			}
-		}
+		})
 	}
-
-	msg, err := s.session.ChannelMessageSendComplex(channelID, handlers.BuildWeeklyMessage(content, roleID))
-	if err != nil {
-		return fmt.Errorf("send weekly message: %w", err)
-	}
-
-	if err := s.availSvc.UpsertSondageMessage(ctx, week, msg.ID); err != nil {
-		return fmt.Errorf("upsert sondage message: %w", err)
-	}
-
-	return nil
+	wg.Wait()
 }

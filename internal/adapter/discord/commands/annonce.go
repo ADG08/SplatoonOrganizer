@@ -2,12 +2,14 @@ package commands
 
 import (
 	"context"
-	"log"
+	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -15,14 +17,13 @@ const CommandNameAnnonce = "annonce"
 
 // AnnonceCommand handles the /annonce slash command for publishing an embed announcement.
 type AnnonceCommand struct {
-	svc            *appguildconfig.Service
-	ownerID        string
-	defaultChannel string
+	svc     *appguildconfig.Service
+	ownerID string
 }
 
-// NewAnnonceCommand creates a new annonce command. ownerID and defaultChannelID are optional.
-func NewAnnonceCommand(svc *appguildconfig.Service, ownerID, defaultChannelID string) *AnnonceCommand {
-	return &AnnonceCommand{svc: svc, ownerID: ownerID, defaultChannel: defaultChannelID}
+// NewAnnonceCommand creates a new annonce command. ownerID is optional.
+func NewAnnonceCommand(svc *appguildconfig.Service, ownerID string) *AnnonceCommand {
+	return &AnnonceCommand{svc: svc, ownerID: ownerID}
 }
 
 func (c *AnnonceCommand) Name() string {
@@ -30,56 +31,42 @@ func (c *AnnonceCommand) Name() string {
 }
 
 func (c *AnnonceCommand) ApplicationCommand() *discordgo.ApplicationCommand {
+	option := func(kind discordgo.ApplicationCommandOptionType, name string, required bool, text func(*i18n.Messages) string) *discordgo.ApplicationCommandOption {
+		desc, descEN := description(text)
+		return &discordgo.ApplicationCommandOption{Type: kind, Name: name, Description: desc, DescriptionLocalizations: *descEN, Required: required}
+	}
+	desc, descEN := description(func(m *i18n.Messages) string { return m.AnnonceDescription })
 	return &discordgo.ApplicationCommand{
-		Name:        CommandNameAnnonce,
-		Description: "Publier une annonce (embed) dans le salon des dispos",
+		Name:                     CommandNameAnnonce,
+		Description:              desc,
+		DescriptionLocalizations: descEN,
 		Options: []*discordgo.ApplicationCommandOption{
-			{
-				Type:        discordgo.ApplicationCommandOptionString,
-				Name:        "titre",
-				Description: "Titre de l'annonce",
-				Required:    true,
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionString,
-				Name:        "message",
-				Description: "Contenu de l'annonce (utilise \\n pour un retour à la ligne)",
-				Required:    true,
-			},
-			{
-				Type:        discordgo.ApplicationCommandOptionRole,
-				Name:        "role",
-				Description: "Rôle à mentionner (optionnel)",
-				Required:    false,
-			},
+			option(discordgo.ApplicationCommandOptionString, "titre", true, func(m *i18n.Messages) string { return m.AnnonceTitleDesc }),
+			option(discordgo.ApplicationCommandOptionString, "message", true, func(m *i18n.Messages) string { return m.AnnonceMessageDesc }),
+			option(discordgo.ApplicationCommandOptionRole, "role", false, func(m *i18n.Messages) string { return m.AnnonceRoleDesc }),
 		},
 	}
 }
 
 var _ discord.Command = (*AnnonceCommand)(nil)
 
-func (c *AnnonceCommand) Execute(s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	if !isAdminOrOwner(i, c.ownerID) {
-		return respondWithError(s, i, ErrAdminOrOwner)
-	}
-	guildID := i.GuildID
-	if guildID == "" {
-		return respondWithError(s, i, "Cette commande doit être utilisée sur un serveur.")
-	}
-
-	ctx := context.Background()
-	cfg, err := c.svc.Get(ctx, guildID)
+func (c *AnnonceCommand) Execute(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	cfg, err := c.svc.Get(ctx, i.GuildID)
 	if err != nil {
-		log.Printf("annonce: get guild config: %v", err)
-		return respondWithError(s, i, "Erreur lors de la récupération de la configuration.")
+		slog.ErrorContext(ctx, "annonce: get guild config", "guild", i.GuildID, "err", err)
+		return respondWithError(s, i, i18n.For(i18n.FR).ErrGeneric)
+	}
+	m := cfg.Messages()
+	if !isAdminOrOwner(i, c.ownerID) {
+		return respondWithError(s, i, m.ErrAdminOnly)
+	}
+	if i.GuildID == "" {
+		return respondWithError(s, i, m.ErrGuildOnly)
 	}
 
 	channelID := cfg.ChannelID
 	if channelID == "" {
-		channelID = c.defaultChannel
-	}
-	if channelID == "" {
-		return respondWithError(s, i, "Aucun salon configuré. Utilise `/help` pour définir le salon des dispos.")
+		return respondWithError(s, i, m.NoChannel)
 	}
 
 	opts := newOptionMap(i.ApplicationCommandData().Options)
@@ -88,21 +75,21 @@ func (c *AnnonceCommand) Execute(s *discordgo.Session, i *discordgo.InteractionC
 	roleID := opts.roleID("role")
 
 	if titre == "" || strings.TrimSpace(message) == "" {
-		return respondWithError(s, i, "Le titre et le message ne peuvent pas être vides.")
+		return respondWithError(s, i, m.AnnounceEmpty)
 	}
 
 	// Allow line breaks via the literal "\n" typed in the slash command option.
 	message = strings.ReplaceAll(message, "\\n", "\n")
 
-	description := message
+	body := message
 	if i.Member != nil && i.Member.User != nil {
 		// A mention pill is clickable and opens the Discord profile card (embed mentions never ping).
-		description += "\n\n**Annonce de** <@" + i.Member.User.ID + ">"
+		body += "\n\n" + fmt.Sprintf(m.AnnounceBy, "<@"+i.Member.User.ID+">")
 	}
 
 	embed := &discordgo.MessageEmbed{
 		Title:       titre,
-		Description: description,
+		Description: body,
 		Color:       discord.HelpPanelColorDefault,
 		Timestamp:   time.Now().Format(time.RFC3339),
 	}
@@ -116,14 +103,14 @@ func (c *AnnonceCommand) Execute(s *discordgo.Session, i *discordgo.InteractionC
 	}
 
 	if _, err := s.ChannelMessageSendComplex(channelID, send); err != nil {
-		log.Printf("annonce: send message: %v", err)
-		return respondWithError(s, i, "Erreur lors de l'envoi de l'annonce.")
+		slog.ErrorContext(ctx, "annonce: send message", "guild", i.GuildID, "err", err)
+		return respondWithError(s, i, m.ErrGeneric)
 	}
 
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
-			Content: "✅ Annonce publiée dans <#" + channelID + ">.",
+			Content: fmt.Sprintf(m.AnnouncePublished, "<#"+channelID+">"),
 			Flags:   discordgo.MessageFlagsEphemeral,
 		},
 	})

@@ -1,195 +1,120 @@
 package availability
 
 import (
+	"cmp"
 	"context"
 	"fmt"
+	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 )
 
-// Service implements availability use cases.
+// Service implements availability use cases. Except members' timezones, everything is
+// scoped to a guild. Hours are in the guild's timezone, passed as ref.
 type Service struct {
 	repo Repository
-	loc  *time.Location
+
+	// timezones caches members' timezones (nil = never picked): read on most clicks of an
+	// hourly guild, written only when a member picks one.
+	timezones sync.Map // userID -> *time.Location
+	// timezoneWrites serializes the timezone changes, so the cache keeps the last one saved.
+	timezoneWrites sync.Mutex
 }
 
 // NewService creates a new availability service.
-func NewService(repo Repository, loc *time.Location) *Service {
-	if loc == nil {
-		loc = time.UTC
-	}
-	return &Service{
-		repo: repo,
-		loc:  loc,
-	}
+func NewService(repo Repository) *Service {
+	return &Service{repo: repo}
 }
 
-// Location returns the timezone used by the service.
-func (s *Service) Location() *time.Location {
-	return s.loc
+// Week returns the week a guild's members currently fill in: the one of the latest weekly
+// message of its publication schedule, in the guild's timezone.
+func (s *Service) Week(schedule availability.Schedule, ref *time.Location) availability.WeekKey {
+	return schedule.Week(time.Now(), ref)
 }
 
-// CurrentWeek returns the current week key.
-func (s *Service) CurrentWeek() availability.WeekKey {
-	return availability.CurrentWeekKey(s.loc)
-}
-
-// ToggleAvailability toggles a user's availability for a given day/slot.
-func (s *Service) ToggleAvailability(ctx context.Context, userID string, dayIndex, slotIndex int) (availability.WeekKey, error) {
-	week := s.CurrentWeek()
-
-	current, err := s.repo.GetUserAvailability(ctx, week, userID)
-	if err != nil {
-		return "", err
-	}
-
-	daySlots := current[dayIndex]
-	available := !daySlots[slotIndex]
-
-	if err := s.repo.SetAvailability(ctx, week, userID, dayIndex, slotIndex, available); err != nil {
-		return "", err
-	}
-
-	return week, nil
-}
-
-// SetDayAvailability sets a user's availability for an entire day.
+// SetDayAvailability sets a member's availability for an entire day, in one round trip.
+// slots has one entry per slot of the guild's layout.
 // Selecting at least one slot clears any "unavailable for the week" status.
-func (s *Service) SetDayAvailability(ctx context.Context, userID string, dayIndex int, slots [availability.SlotsPerDay]bool) (availability.WeekKey, error) {
-	week := s.CurrentWeek()
-	anyAvailable := false
-	for slotIndex := 0; slotIndex < availability.SlotsPerDay; slotIndex++ {
-		if err := s.repo.SetAvailability(ctx, week, userID, dayIndex, slotIndex, slots[slotIndex]); err != nil {
-			return "", err
-		}
-		if slots[slotIndex] {
-			anyAvailable = true
+func (s *Service) SetDayAvailability(ctx context.Context, guildID string, week availability.WeekKey, userID string, dayIndex int, slots []bool) error {
+	var selected []int
+	for slot, ok := range slots {
+		if ok {
+			selected = append(selected, slot)
 		}
 	}
-	if anyAvailable {
-		if err := s.repo.DeleteWeekUnavailable(ctx, week, userID); err != nil {
-			return "", err
-		}
-	}
-	return week, nil
+	return s.repo.SetDayAvailability(ctx, guildID, week, userID, dayIndex, selected)
 }
 
-// ToggleWeekUnavailable toggles a user's "unavailable for the whole week" status.
-// Marking unavailable also clears all the user's slot selections for the week.
+// ToggleWeekUnavailable toggles a member's "unavailable for the whole week" status.
+// Marking unavailable also clears all the member's slot selections for the week.
 // It returns the new state (true = now marked unavailable).
-func (s *Service) ToggleWeekUnavailable(ctx context.Context, userID string) (availability.WeekKey, bool, error) {
-	week := s.CurrentWeek()
-
-	unavailable, err := s.repo.IsUserWeekUnavailable(ctx, week, userID)
+func (s *Service) ToggleWeekUnavailable(ctx context.Context, guildID string, week availability.WeekKey, userID string) (bool, error) {
+	unavailable, err := s.repo.IsUserWeekUnavailable(ctx, guildID, week, userID)
 	if err != nil {
-		return "", false, err
+		return false, err
 	}
 
 	if unavailable {
-		if err := s.repo.DeleteWeekUnavailable(ctx, week, userID); err != nil {
-			return "", false, err
-		}
-		return week, false, nil
+		return false, s.repo.DeleteWeekUnavailable(ctx, guildID, week, userID)
 	}
 
-	if err := s.repo.DeleteAllUserAvailability(ctx, week, userID); err != nil {
-		return "", false, err
+	if err := s.repo.DeleteAllUserAvailability(ctx, guildID, week, userID); err != nil {
+		return false, err
 	}
-	if err := s.repo.SetWeekUnavailable(ctx, week, userID); err != nil {
-		return "", false, err
-	}
-	return week, true, nil
+	return true, s.repo.SetWeekUnavailable(ctx, guildID, week, userID)
 }
 
-// IsUserWeekUnavailable reports whether the user is marked unavailable for the current week.
-func (s *Service) IsUserWeekUnavailable(ctx context.Context, userID string) (bool, error) {
-	return s.repo.IsUserWeekUnavailable(ctx, s.CurrentWeek(), userID)
+// ClearWeekUnavailable removes a member's "unavailable for the week" status.
+// Opening "Mes dispos" makes the member available again.
+func (s *Service) ClearWeekUnavailable(ctx context.Context, guildID string, week availability.WeekKey, userID string) error {
+	return s.repo.DeleteWeekUnavailable(ctx, guildID, week, userID)
 }
 
-// ClearWeekUnavailable removes a user's "unavailable for the week" status for the current week.
-// Opening "Mes dispos" makes the user available again.
-func (s *Service) ClearWeekUnavailable(ctx context.Context, userID string) error {
-	return s.repo.DeleteWeekUnavailable(ctx, s.CurrentWeek(), userID)
+// ResetWeek deletes every slot selection of the guild's week. Used when the slot layout
+// changes, since slot indexes of the old layout would be misread with the new one.
+func (s *Service) ResetWeek(ctx context.Context, guildID string, week availability.WeekKey) error {
+	return s.repo.DeleteWeekAvailability(ctx, guildID, week)
 }
 
-// GetWeekUnavailableUsers returns the user IDs marked unavailable for a week.
-func (s *Service) GetWeekUnavailableUsers(ctx context.Context, week availability.WeekKey) ([]string, error) {
-	return s.repo.GetWeekUnavailableUsers(ctx, week)
+// WeekUnavailableUsers returns the members marked unavailable for a week.
+func (s *Service) WeekUnavailableUsers(ctx context.Context, guildID string, week availability.WeekKey) ([]string, error) {
+	return s.repo.WeekUnavailableUsers(ctx, guildID, week)
 }
 
-// GetUserAvailability returns a user's availability for the current week.
-func (s *Service) GetUserAvailability(ctx context.Context, userID string) (availability.WeekKey, map[int]map[int]bool, error) {
-	week := s.CurrentWeek()
-	data, err := s.repo.GetUserAvailability(ctx, week, userID)
-	if err != nil {
-		return "", nil, err
-	}
-	return week, data, nil
+// UserAvailability returns a member's availability for a week.
+func (s *Service) UserAvailability(ctx context.Context, guildID string, week availability.WeekKey, userID string) (map[int]map[int]bool, error) {
+	return s.repo.UserAvailability(ctx, guildID, week, userID)
 }
 
-// UpsertSondageMessage stores the sondage message ID for a week.
-func (s *Service) UpsertSondageMessage(ctx context.Context, week availability.WeekKey, messageID string) error {
-	return s.repo.UpsertSondageMessage(ctx, week, messageID)
+// WeeklyMessage returns the guild's latest weekly message, or nil when there is none.
+func (s *Service) WeeklyMessage(ctx context.Context, guildID string) (*availability.WeeklyMessage, error) {
+	return s.repo.WeeklyMessage(ctx, guildID)
 }
 
-// GetSondageMessageID returns the sondage message ID for a week.
-func (s *Service) GetSondageMessageID(ctx context.Context, week availability.WeekKey) (string, error) {
-	return s.repo.GetSondageMessage(ctx, week)
+// SetWeeklyMessage remembers the guild's latest weekly message.
+func (s *Service) SetWeeklyMessage(ctx context.Context, guildID string, msg availability.WeeklyMessage) error {
+	return s.repo.SetWeeklyMessage(ctx, guildID, msg)
 }
 
-// ListSondageMessageIDs returns all known sondage message IDs.
-func (s *Service) ListSondageMessageIDs(ctx context.Context) ([]string, error) {
-	return s.repo.ListSondageMessageIDs(ctx)
+// AvailabilitySummary returns availability counts per slot for a week.
+func (s *Service) AvailabilitySummary(ctx context.Context, guildID string, week availability.WeekKey) ([]availability.SlotCount, error) {
+	return s.repo.AvailabilityCounts(ctx, guildID, week)
 }
 
-// GetAvailabilitySummary returns availability counts per slot for a week.
-func (s *Service) GetAvailabilitySummary(ctx context.Context, week availability.WeekKey) ([]availability.SlotCount, error) {
-	return s.repo.GetAvailabilityCounts(ctx, week)
-}
-
-// GetAvailabilityUsers returns users per slot for a week.
-func (s *Service) GetAvailabilityUsers(ctx context.Context, week availability.WeekKey) ([]availability.SlotUsers, error) {
-	return s.repo.GetAvailabilityUsers(ctx, week)
-}
-
-// FormatTable formats availability counts as a markdown table string.
-func (s *Service) FormatTable(counts []availability.SlotCount) string {
-	labelsDays := []string{"Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"}
-	slotIndices := []int{0, 1}
-	labelsSlots := []string{"Après-midi", "Soir"}
-
-	grid := make([][]int, availability.DaysPerWeek)
-	for i := range grid {
-		grid[i] = make([]int, availability.SlotsPerDay)
-	}
-	for _, c := range counts {
-		if c.DayIndex >= 0 && c.DayIndex < availability.DaysPerWeek && c.SlotIndex >= 0 && c.SlotIndex < availability.SlotsPerDay {
-			grid[c.DayIndex][c.SlotIndex] = c.Count
-		}
-	}
-
-	var b strings.Builder
-	b.WriteString("```md\n")
-	fmt.Fprintf(&b, "%-10s %-11s %-11s\n", "Jour", labelsSlots[0], labelsSlots[1])
-
-	for day := 0; day < availability.DaysPerWeek; day++ {
-		fmt.Fprintf(&b, "%-10s", labelsDays[day])
-		for _, slot := range slotIndices {
-			fmt.Fprintf(&b, " %-11d", grid[day][slot])
-		}
-		b.WriteString("\n")
-	}
-
-	b.WriteString("```")
-	return b.String()
+// AvailabilityUsers returns members per slot for a week.
+func (s *Service) AvailabilityUsers(ctx context.Context, guildID string, week availability.WeekKey) ([]availability.SlotUsers, error) {
+	return s.repo.AvailabilityUsers(ctx, guildID, week)
 }
 
 // FormatUsersBySlot formats users per slot as a human-readable string.
-func (s *Service) FormatUsersBySlot(users []availability.SlotUsers) string {
-	labelsDays := []string{"Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"}
-	labelsSlots := []string{"Après-midi", "Soir"}
+func (s *Service) FormatUsersBySlot(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, users []availability.SlotUsers) string {
+	if layout.IsHourly() {
+		return s.formatUsersByHour(m, layout, ref, week, users)
+	}
 
 	type key struct {
 		day  int
@@ -205,25 +130,132 @@ func (s *Service) FormatUsersBySlot(users []availability.SlotUsers) string {
 	}
 
 	var b strings.Builder
-	for day := 0; day < availability.DaysPerWeek; day++ {
-		parts := make([]string, 0, availability.SlotsPerDay)
-		for slot := 0; slot < availability.SlotsPerDay; slot++ {
+	for day := range availability.DaysPerWeek {
+		parts := make([]string, 0, layout.Len())
+		for slot := 0; slot < layout.Len(); slot++ {
 			k := key{day: day, slot: slot}
 			mentions := group[k]
 			value := "—"
 			if len(mentions) > 0 {
 				value = strings.Join(mentions, ", ")
 			}
-			parts = append(parts, labelsSlots[slot]+" : "+value)
+			parts = append(parts, m.SlotLabel(layout, slot)+" : "+value)
 		}
-		fmt.Fprintf(&b, "• **%s** · %s\n", labelsDays[day], strings.Join(parts, " · "))
+		fmt.Fprintf(&b, "• **%s** · %s\n", m.Days[day], strings.Join(parts, " · "))
 	}
 	return b.String()
 }
 
+// formatUsersByHour lists, per day, each user with their ranges of consecutive hours.
+func (s *Service) formatUsersByHour(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, users []availability.SlotUsers) string {
+	byDay := usersByDay(layout, users)
+
+	var b strings.Builder
+	b.WriteString("*" + m.YourTimezoneNote + "*\n")
+	for day := range availability.DaysPerWeek {
+		if len(byDay[day]) == 0 {
+			fmt.Fprintf(&b, "\n**%s** · —\n", m.Days[day])
+			continue
+		}
+		fmt.Fprintf(&b, "\n**%s**\n", m.Days[day])
+		for _, line := range s.dayUserLines(m, layout, ref, week, day, byDay[day]) {
+			b.WriteString(line + "\n")
+		}
+	}
+	return b.String()
+}
+
+// FormatDayUsers lists who is available on one day, one line per user with their ranges.
+func (s *Service) FormatDayUsers(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, users []availability.SlotUsers, dayIndex int) string {
+	byUser := usersByDay(layout, users)[dayIndex]
+	if len(byUser) == 0 {
+		return m.NobodyThatDay
+	}
+
+	var b strings.Builder
+	if layout.IsHourly() {
+		b.WriteString("-# " + m.YourTimezoneNote + "\n")
+	}
+	b.WriteString(strings.Join(s.dayUserLines(m, layout, ref, week, dayIndex, byUser), "\n"))
+	return b.String()
+}
+
+// usersByDay indexes availabilities as byDay[day][userID][slot] = available.
+func usersByDay(layout availability.Layout, users []availability.SlotUsers) []map[string][]bool {
+	byDay := make([]map[string][]bool, availability.DaysPerWeek)
+	for _, u := range users {
+		if u.DayIndex < 0 || u.DayIndex >= availability.DaysPerWeek || !layout.Valid(u.SlotIndex) {
+			continue
+		}
+		if byDay[u.DayIndex] == nil {
+			byDay[u.DayIndex] = make(map[string][]bool)
+		}
+		for _, id := range u.UserIDs {
+			if byDay[u.DayIndex][id] == nil {
+				byDay[u.DayIndex][id] = make([]bool, layout.Len())
+			}
+			byDay[u.DayIndex][id][u.SlotIndex] = true
+		}
+	}
+	return byDay
+}
+
+// dayUserLines renders one line per user of a day, earliest availability first.
+// Consecutive hours are merged into one range: 14h to minuit shows as "14:00 – 00:00".
+func (s *Service) dayUserLines(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, day int, byUser map[string][]bool) []string {
+	firstSlot := func(slots []bool) int {
+		for slot, ok := range slots {
+			if ok {
+				return slot
+			}
+		}
+		return len(slots)
+	}
+	ids := make([]string, 0, len(byUser))
+	for id := range byUser {
+		ids = append(ids, id)
+	}
+	slices.SortFunc(ids, func(a, b string) int {
+		return cmp.Or(cmp.Compare(firstSlot(byUser[a]), firstSlot(byUser[b])), cmp.Compare(a, b))
+	})
+
+	lines := make([]string, 0, len(ids))
+	for _, id := range ids {
+		slots := byUser[id]
+		var ranges []string
+		for slot := 0; slot < len(slots); slot++ {
+			if !slots[slot] {
+				continue
+			}
+			if !layout.IsHourly() {
+				ranges = append(ranges, m.SlotLabel(layout, slot))
+				continue
+			}
+			end := slot + 1
+			for end < len(slots) && slots[end] {
+				end++
+			}
+			ranges = append(ranges, s.slotTime(m, layout, ref, week, day, slot)+" – "+s.slotTime(m, layout, ref, week, day, end))
+			slot = end
+		}
+		lines = append(lines, fmt.Sprintf("<@%s> : %s", id, strings.Join(ranges, ", ")))
+	}
+	return lines
+}
+
+// slotTime renders the start of a slot (or the end of the previous one) as a Discord
+// timestamp, which each member sees in their own timezone.
+func (s *Service) slotTime(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, dayIndex, slot int) string {
+	t, err := layout.SlotStart(week, dayIndex, slot, ref)
+	if err != nil {
+		return m.HourLabel(layout.StartHour + slot)
+	}
+	return fmt.Sprintf("<t:%d:t>", t.Unix())
+}
+
 // FormatUnavailableUsers formats the users marked unavailable for the week as a mention list.
 // Returns an empty string when nobody is marked unavailable.
-func (s *Service) FormatUnavailableUsers(userIDs []string) string {
+func (s *Service) FormatUnavailableUsers(m *i18n.Messages, userIDs []string) string {
 	if len(userIDs) == 0 {
 		return ""
 	}
@@ -231,5 +263,5 @@ func (s *Service) FormatUnavailableUsers(userIDs []string) string {
 	for _, id := range userIDs {
 		mentions = append(mentions, "<@"+id+">")
 	}
-	return "🚫 **Indisponibles cette semaine** : " + strings.Join(mentions, ", ")
+	return fmt.Sprintf(m.UnavailableUsers, strings.Join(mentions, ", "))
 }

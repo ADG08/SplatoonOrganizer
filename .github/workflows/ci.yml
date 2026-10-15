@@ -1,0 +1,107 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+# A newer push cancels the run of the previous one on the same branch or pull request.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: splatoon
+          POSTGRES_PASSWORD: splatoon
+          POSTGRES_DB: splatoon
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U splatoon -d splatoon"
+          --health-interval 5s --health-timeout 3s --health-retries 10
+    env:
+      DATABASE_URL: postgres://splatoon:splatoon@localhost:5432/splatoon?sslmode=disable
+      # The repository tests create their own schema in this database.
+      TEST_DATABASE_URL: postgres://splatoon:splatoon@localhost:5432/splatoon?sslmode=disable
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Formatting
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "::error::Not gofmt'ed: $unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: staticcheck
+        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+
+      - name: Tests (race detector, with Postgres)
+        run: go test -race ./...
+
+      # Every migration must apply, roll back and apply again, as on a real deployment.
+      - name: Migrations up, down, up
+        run: |
+          migrate() {
+            docker run --rm --network host -v "$PWD/migrations:/migrations:ro" \
+              migrate/migrate:v4.17.0 -path /migrations -database "$DATABASE_URL" "$@"
+          }
+          migrate up
+          migrate down -all
+          migrate up
+
+  sqlc:
+    name: Generated code up to date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: sqlc-dev/setup-sqlc@v4
+        with:
+          sqlc-version: "1.30.0"
+      # Fails when internal/db doesn't match the queries: run sqlc generate and commit.
+      - run: sqlc diff
+
+  docker:
+    name: Docker images build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t splatoon-bot .
+      - run: docker build -f Dockerfile.migrate -t splatoon-migrate .
+
+  # Deploys main once everything passed, through Coolify's deploy webhook. Turn off
+  # Coolify's own automatic deployment, which doesn't wait for the tests, and add the
+  # COOLIFY_WEBHOOK and COOLIFY_TOKEN secrets; without them, this job only says so.
+  deploy:
+    name: Deploy to Coolify
+    needs: [test, sqlc, docker]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the deployment
+        env:
+          COOLIFY_WEBHOOK: ${{ secrets.COOLIFY_WEBHOOK }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          if [ -z "$COOLIFY_WEBHOOK" ] || [ -z "$COOLIFY_TOKEN" ]; then
+            echo "::notice::COOLIFY_WEBHOOK or COOLIFY_TOKEN is not set: nothing deployed."
+            exit 0
+          fi
+          curl --fail-with-body -sS "$COOLIFY_WEBHOOK" -H "Authorization: Bearer $COOLIFY_TOKEN"

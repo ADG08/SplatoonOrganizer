@@ -2,143 +2,133 @@ package main
 
 import (
 	"context"
-	"log"
-	"net/http"
+	"fmt"
+	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/commands"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/handlers"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/scheduler"
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/persistence/postgres"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 )
 
 func main() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("no .env file found, using environment variables")
+	// "bot healthcheck" is the container's healthcheck: the image has no shell nor wget.
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		os.Exit(checkHealth())
 	}
 
-	ctx, cancel := signalContext()
-	defer cancel()
+	// key=value lines: Coolify's logs can be searched by guild, user or error.
+	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+
+	if err := run(); err != nil {
+		slog.Error("bot stopped", "err", err)
+		os.Exit(1)
+	}
+}
+
+// run starts the bot and blocks until SIGINT or SIGTERM. Returning instead of exiting
+// lets the deferred cleanups run (Discord session, database pool). The configuration
+// comes from the environment (Docker Compose reads .env, Coolify its own variables).
+func run() error {
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
 	cfg, err := LoadConfig()
 	if err != nil {
-		log.Fatalf("config error: %v", err)
+		return fmt.Errorf("config: %w", err)
 	}
 
 	// Infrastructure: database
 	pool, err := pgxpool.New(ctx, cfg.DatabaseURL)
 	if err != nil {
-		log.Fatalf("failed to create pgx pool: %v", err)
+		return fmt.Errorf("create pgx pool: %w", err)
 	}
 	defer pool.Close()
-
-	// Timezone for availability
-	loc, err := time.LoadLocation("Europe/Paris")
-	if err != nil {
-		log.Printf("failed to load Europe/Paris location, falling back to UTC: %v", err)
-		loc = time.UTC
-	}
 
 	// Adapters (secondary / driven): persistence
 	availRepo := postgres.NewAvailabilityRepository(pool)
 	guildConfigRepo := postgres.NewGuildConfigRepository(pool)
 
 	// Application services (use cases)
-	availSvc := appavailability.NewService(availRepo, loc)
+	availSvc := appavailability.NewService(availRepo)
 	guildConfigSvc := appguildconfig.NewService(guildConfigRepo)
+
+	// Single-guild versions took the weekly channel from the environment: keep it as that
+	// guild's configured channel, the only source of channels now.
+	if cfg.DiscordGuildID != "" && cfg.DiscordChannelID != "" {
+		gc, err := guildConfigSvc.Get(ctx, cfg.DiscordGuildID)
+		if err != nil {
+			return fmt.Errorf("get guild config: %w", err)
+		}
+		if gc.ChannelID == "" {
+			if err := guildConfigSvc.SetChannel(ctx, cfg.DiscordGuildID, cfg.DiscordChannelID); err != nil {
+				return fmt.Errorf("set guild channel from env: %w", err)
+			}
+		}
+	}
 
 	// Adapters (primary / driving): Discord
 	reg := discord.NewRegistry()
-
-	if err := reg.RegisterCommand(commands.NewHelpCommand(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
-		log.Fatalf("register help command: %v", err)
+	refresher := weekly.NewRefresher(availSvc, guildConfigSvc)
+	for _, c := range []discord.Command{
+		commands.NewHelpCommand(guildConfigSvc, cfg.DiscordOwnerID, cfg.SupportURL),
+		commands.NewAnnonceCommand(guildConfigSvc, cfg.DiscordOwnerID),
+	} {
+		if err := reg.RegisterCommand(c); err != nil {
+			return fmt.Errorf("register command: %w", err)
+		}
 	}
-
-	if err := reg.RegisterCommand(commands.NewAnnonceCommand(guildConfigSvc, cfg.DiscordOwnerID, cfg.DiscordChannelID)); err != nil {
-		log.Fatalf("register annonce command: %v", err)
-	}
-
-	if err := reg.RegisterHandler(handlers.NewOpenDisposHandler(availSvc)); err != nil {
-		log.Fatalf("register open handler: %v", err)
-	}
-
-	if err := reg.RegisterHandler(handlers.NewViewDisposHandler(availSvc)); err != nil {
-		log.Fatalf("register view dispos handler: %v", err)
-	}
-
-	if err := reg.RegisterHandler(handlers.NewSelectDisposHandler(availSvc, cfg.DiscordChannelID)); err != nil {
-		log.Fatalf("register select dispos handler: %v", err)
-	}
-	if err := reg.RegisterHandler(handlers.NewUnavailableDisposHandler(availSvc, cfg.DiscordChannelID)); err != nil {
-		log.Fatalf("register unavailable dispos handler: %v", err)
-	}
-	if err := reg.RegisterHandler(handlers.NewHelpConfigHandler(guildConfigSvc, cfg.DiscordOwnerID)); err != nil {
-		log.Fatalf("register help config handler: %v", err)
+	for _, h := range []discord.InteractionHandler{
+		handlers.NewOpenDisposHandler(availSvc, guildConfigSvc),
+		handlers.NewViewDisposHandler(availSvc, guildConfigSvc),
+		handlers.NewTimezoneSelectHandler(availSvc, guildConfigSvc),
+		handlers.NewTimezoneEditHandler(guildConfigSvc),
+		handlers.NewMyTimeHandler(availSvc, guildConfigSvc),
+		handlers.NewWhoDisposHandler(availSvc, guildConfigSvc),
+		handlers.NewSelectDisposHandler(availSvc, guildConfigSvc, refresher),
+		handlers.NewUnavailableDisposHandler(availSvc, guildConfigSvc, refresher),
+		handlers.NewHelpConfigHandler(guildConfigSvc, availSvc, cfg.DiscordOwnerID, cfg.SupportURL),
+	} {
+		if err := reg.RegisterHandler(h); err != nil {
+			return fmt.Errorf("register handler: %w", err)
+		}
 	}
 
 	b, err := discord.NewBot(cfg.DiscordToken, reg)
 	if err != nil {
-		log.Fatalf("failed to create Discord bot: %v", err)
+		return fmt.Errorf("create Discord bot: %w", err)
+	}
+	membership := handlers.NewGuildMembership(guildConfigSvc)
+	b.Session().AddHandler(membership.OnGuildCreate)
+	b.Session().AddHandler(membership.OnGuildDelete)
+	if err := b.Open(); err != nil {
+		return err
 	}
 	defer b.Close()
 
-	if err := b.Open(); err != nil {
-		log.Fatalf("error opening Discord connection: %v", err)
-	}
-
 	// Scheduler for weekly posting
-	weeklyPoster := scheduler.NewScheduler(availSvc, guildConfigSvc, b.Session(), cfg.DiscordGuildID, cfg.DiscordChannelID)
-	if err := weeklyPoster.Start(ctx, cfg.CronSchedule); err != nil {
-		log.Fatalf("start weekly scheduler: %v", err)
-	}
-	if cfg.RunWeeklyOnStart {
-		go func() {
-			if err := weeklyPoster.RunWeeklyNow(ctx); err != nil {
-				log.Printf("run weekly on start: %v", err)
-			}
-		}()
-	}
+	scheduler.NewScheduler(availSvc, guildConfigSvc, b.Session()).Start(ctx, cfg.RunWeeklyOnStart)
 
 	if err := b.RegisterSlashCommands(cfg.DiscordClientID, cfg.DiscordGuildID); err != nil {
-		log.Fatalf("failed to register slash commands: %v", err)
+		return fmt.Errorf("register slash commands: %w", err)
 	}
 
-	go startHealthServer(cfg.HealthPort)
-
-	log.Println("SplatoonOrganizer bot is running. Press CTRL-C to exit.")
-
-	<-ctx.Done()
-	log.Println("shutting down...")
-}
-
-func startHealthServer(port string) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
-	})
-	addr := ":" + port
-	log.Printf("health server listening on %s", addr)
-	if err := http.ListenAndServe(addr, mux); err != nil {
-		log.Printf("health server error: %v", err)
-	}
-}
-
-func signalContext() (context.Context, context.CancelFunc) {
-	ctx, cancel := context.WithCancel(context.Background())
-	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
-		defer cancel()
-		<-ch
+		if err := serveHealth(ctx, cfg.HealthPort); err != nil {
+			slog.Error("health server stopped", "err", err)
+		}
 	}()
-	return ctx, cancel
+
+	slog.Info("SplatoonOrganizer bot is running. Press CTRL-C to exit.")
+	<-ctx.Done()
+	slog.Info("shutting down...")
+	return nil
 }
