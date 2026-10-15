@@ -79,6 +79,7 @@ type Messages struct {
 	PausedTitle      string
 	PausedHint       string
 	BtnEdit          string
+	BtnSupport       string
 	ConfigSaved      string
 	NothingChanged   string
 	PublishedNow     string
@@ -207,6 +208,7 @@ var fr = Messages{
 	PausedTitle:      "⏸️ Publication en pause",
 	PausedHint:       "Le bot ne peut plus publier dans ce salon. Vérifie ses permissions, puis choisis à nouveau le salon.",
 	BtnEdit:          "✏️ Modifier",
+	BtnSupport:       "💸 Soutenir le bot",
 	ConfigSaved:      "Configuration enregistrée.",
 	NothingChanged:   "Rien n'a changé.",
 	PublishedNow:     " Le message de la semaine est en cours de publication.",
@@ -329,6 +331,7 @@ var en = Messages{
 	PausedTitle:      "⏸️ Posting paused",
 	PausedHint:       "The bot can no longer post in this channel. Check its permissions, then pick the channel again.",
 	BtnEdit:          "✏️ Edit",
+	BtnSupport:       "💸 Support the bot",
 	ConfigSaved:      "Settings saved.",
 	NothingChanged:   "Nothing changed.",
 	PublishedNow:     " The weekly message is being posted.",

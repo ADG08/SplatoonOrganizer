@@ -1,5 +1,7 @@
 # SplatoonOrganizer
 
+[![Soutenir le bot](https://img.shields.io/badge/Soutenir_le_bot-Revolut-0075EB?logo=revolut&logoColor=white)](https://revolut.me/adg01)
+
 Un bot Discord conçu pour coordonner les sessions de jeu Splatoon en collectant et affichant les disponibilités hebdomadaires des membres d'un serveur. Une seule instance du bot peut servir plusieurs serveurs : chacun a sa configuration, ses dispos et son message de la semaine.
 
 ## Fonctionnement
@@ -7,6 +9,10 @@ Un bot Discord conçu pour coordonner les sessions de jeu Splatoon en collectant
 Chaque semaine, le bot publie un message dans le salon choisi par le serveur. Les membres cliquent sur **✏️ Mes dispos** pour indiquer en privé leurs créneaux, jour par jour : **Après-midi / Soir**, ou des créneaux d'une heure (20h → minuit par défaut). Le message affiche en temps réel combien de joueurs sont disponibles sur chaque créneau, pour trouver quand jouer.
 
 Toutes les heures d'un serveur suivent **son fuseau horaire**, **Paris par défaut**, modifiable dans `/help` : créneaux, grille publique, semaines, heure de publication. Chaque membre peut en plus voir les créneaux à sa propre heure (voir [Fuseaux horaires](#fuseaux-horaires)).
+
+## Soutenir le projet
+
+Le bot est gratuit. Si tu veux participer aux frais d'hébergement : [revolut.me/adg01](https://revolut.me/adg01) 💸
 
 ## Stack technique
 
@@ -50,6 +56,7 @@ Renseigner ensuite les valeurs dans `.env` (environnement local `dev`) :
 | `DISCORD_CHANNEL_ID` | Non | Salon de ce serveur, repris dans sa configuration s'il n'en a pas encore |
 | `RUN_WEEKLY_ON_START` | Non | Mettre `1` pour republier dans tous les serveurs au démarrage (tests) |
 | `HEALTH_PORT` | Non | Port du healthcheck `/health` (défaut : `8080`) |
+| `SUPPORT_URL` | Non | Page de dons : ajoute un bouton « 💸 Soutenir le bot » en bas de `/help` |
 
 ### 2. Lancer le projet en local (dev)
 

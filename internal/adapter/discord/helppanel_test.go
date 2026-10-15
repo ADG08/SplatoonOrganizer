@@ -18,7 +18,7 @@ func TestHelpPanel(t *testing.T) {
 		Location:   availability.DefaultLocation(),
 		Active:     false, // shows the paused notice too
 	}
-	panel := BuildHelpPanel(cfg, "Configuration enregistrée.")
+	panel := BuildHelpPanel(cfg, "Configuration enregistrée.", "https://revolut.me/example")
 	raw, err := json.Marshal(panel)
 	if err != nil {
 		t.Fatal(err)
@@ -31,8 +31,11 @@ func TestHelpPanel(t *testing.T) {
 	container := panel[0].(discordgo.Container)
 	var buttons []string
 	var text strings.Builder
+	support := ""
 	for _, c := range container.Components {
 		switch c := c.(type) {
+		case discordgo.ActionsRow:
+			support = c.Components[0].(discordgo.Button).URL
 		case discordgo.TextDisplay:
 			text.WriteString(c.Content + "\n")
 		case discordgo.Section:
@@ -40,6 +43,15 @@ func TestHelpPanel(t *testing.T) {
 			buttons = append(buttons, c.Accessory.(discordgo.Button).CustomID)
 		}
 	}
+	if support != "https://revolut.me/example" {
+		t.Errorf("support link: %q", support)
+	}
+	for _, c := range BuildHelpPanel(cfg, "", "")[0].(discordgo.Container).Components {
+		if _, ok := c.(discordgo.ActionsRow); ok {
+			t.Error("no support link configured, yet the panel shows one")
+		}
+	}
+
 	want := []string{HelpPanelOpenPublishID, HelpPanelOpenSlotsID, HelpPanelOpenTimezoneID, HelpPanelOpenMessageID}
 	if strings.Join(buttons, ",") != strings.Join(want, ",") {
 		t.Errorf("section buttons: %v, want %v", buttons, want)

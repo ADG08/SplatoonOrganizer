@@ -26,8 +26,9 @@ const (
 
 // BuildHelpPanel builds the configuration panel, a Components V2 message (send it with
 // discordgo.MessageFlagsIsComponentsV2): one section per setting, its button on the
-// right. status, when not empty, reports the last change under the title.
-func BuildHelpPanel(cfg *guildconfig.GuildConfig, status string) []discordgo.MessageComponent {
+// right. status, when not empty, reports the last change under the title; supportURL,
+// when not empty, adds a link to support the bot.
+func BuildHelpPanel(cfg *guildconfig.GuildConfig, status, supportURL string) []discordgo.MessageComponent {
 	m := cfg.Messages()
 	channel := m.NotConfigured
 	if cfg.ChannelID != "" {
@@ -83,8 +84,13 @@ func BuildHelpPanel(cfg *guildconfig.GuildConfig, status string) []discordgo.Mes
 			m.Field(m.FieldLanguage, m.LanguageName(cfg.Language)),
 		),
 		divider,
-		discordgo.TextDisplay{Content: "-# " + m.PanelFooter},
 	)
+	if supportURL != "" {
+		components = append(components, discordgo.ActionsRow{Components: []discordgo.MessageComponent{
+			discordgo.Button{Label: m.BtnSupport, Style: discordgo.LinkButton, URL: supportURL},
+		}})
+	}
+	components = append(components, discordgo.TextDisplay{Content: "-# " + m.PanelFooter})
 
 	accent := HelpPanelColorDefault
 	return []discordgo.MessageComponent{discordgo.Container{AccentColor: &accent, Components: components}}

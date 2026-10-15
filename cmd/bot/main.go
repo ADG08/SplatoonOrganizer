@@ -79,7 +79,7 @@ func run() error {
 	reg := discord.NewRegistry()
 	refresher := weekly.NewRefresher(availSvc, guildConfigSvc)
 	for _, c := range []discord.Command{
-		commands.NewHelpCommand(guildConfigSvc, cfg.DiscordOwnerID),
+		commands.NewHelpCommand(guildConfigSvc, cfg.DiscordOwnerID, cfg.SupportURL),
 		commands.NewAnnonceCommand(guildConfigSvc, cfg.DiscordOwnerID),
 	} {
 		if err := reg.RegisterCommand(c); err != nil {
@@ -95,7 +95,7 @@ func run() error {
 		handlers.NewWhoDisposHandler(availSvc, guildConfigSvc),
 		handlers.NewSelectDisposHandler(availSvc, guildConfigSvc, refresher),
 		handlers.NewUnavailableDisposHandler(availSvc, guildConfigSvc, refresher),
-		handlers.NewHelpConfigHandler(guildConfigSvc, availSvc, cfg.DiscordOwnerID),
+		handlers.NewHelpConfigHandler(guildConfigSvc, availSvc, cfg.DiscordOwnerID, cfg.SupportURL),
 	} {
 		if err := reg.RegisterHandler(h); err != nil {
 			return fmt.Errorf("register handler: %w", err)

@@ -22,14 +22,15 @@ const HelpConfigCustomIDPrefix = "help:config"
 
 // HelpConfigHandler handles the buttons, forms and timezone picker of the /help panel.
 type HelpConfigHandler struct {
-	svc      *appguildconfig.Service
-	availSvc *appavailability.Service
-	ownerID  string
+	svc        *appguildconfig.Service
+	availSvc   *appavailability.Service
+	ownerID    string
+	supportURL string // donation page linked from the panel, optional
 }
 
 // NewHelpConfigHandler creates a new help config handler. ownerID is optional.
-func NewHelpConfigHandler(svc *appguildconfig.Service, availSvc *appavailability.Service, ownerID string) *HelpConfigHandler {
-	return &HelpConfigHandler{svc: svc, availSvc: availSvc, ownerID: ownerID}
+func NewHelpConfigHandler(svc *appguildconfig.Service, availSvc *appavailability.Service, ownerID, supportURL string) *HelpConfigHandler {
+	return &HelpConfigHandler{svc: svc, availSvc: availSvc, ownerID: ownerID, supportURL: supportURL}
 }
 
 func (h *HelpConfigHandler) CustomID() string {
@@ -374,7 +375,7 @@ func (h *HelpConfigHandler) refreshPanel(ctx context.Context, s *discordgo.Sessi
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
 			Flags:      discordgo.MessageFlagsIsComponentsV2,
-			Components: discord.BuildHelpPanel(cfg, description),
+			Components: discord.BuildHelpPanel(cfg, description, h.supportURL),
 		},
 	})
 }

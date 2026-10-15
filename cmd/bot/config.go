@@ -15,6 +15,7 @@ type Config struct {
 	DatabaseURL      string
 	RunWeeklyOnStart bool
 	HealthPort       string
+	SupportURL       string // Optional: donation page, linked from the /help panel.
 }
 
 // LoadConfig reads configuration from environment variables.
@@ -33,6 +34,7 @@ func LoadConfig() (*Config, error) {
 		DatabaseURL:      os.Getenv("DATABASE_URL"),
 		RunWeeklyOnStart: os.Getenv("RUN_WEEKLY_ON_START") == "1",
 		HealthPort:       healthPort,
+		SupportURL:       os.Getenv("SUPPORT_URL"),
 	}
 
 	if cfg.DiscordToken == "" {

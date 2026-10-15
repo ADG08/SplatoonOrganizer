@@ -14,13 +14,14 @@ const CommandNameHelp = "help"
 
 // HelpCommand handles the /help slash command for admin configuration.
 type HelpCommand struct {
-	svc     *appguildconfig.Service
-	ownerID string
+	svc        *appguildconfig.Service
+	ownerID    string
+	supportURL string
 }
 
-// NewHelpCommand creates a new help command. ownerID is optional.
-func NewHelpCommand(svc *appguildconfig.Service, ownerID string) *HelpCommand {
-	return &HelpCommand{svc: svc, ownerID: ownerID}
+// NewHelpCommand creates a new help command. ownerID and supportURL are optional.
+func NewHelpCommand(svc *appguildconfig.Service, ownerID, supportURL string) *HelpCommand {
+	return &HelpCommand{svc: svc, ownerID: ownerID, supportURL: supportURL}
 }
 
 func (c *HelpCommand) Name() string {
@@ -56,7 +57,7 @@ func (c *HelpCommand) Execute(ctx context.Context, s *discordgo.Session, i *disc
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Flags:      discordgo.MessageFlagsEphemeral | discordgo.MessageFlagsIsComponentsV2,
-			Components: discord.BuildHelpPanel(cfg, ""),
+			Components: discord.BuildHelpPanel(cfg, "", c.supportURL),
 		},
 	})
 }
