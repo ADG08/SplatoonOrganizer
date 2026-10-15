@@ -14,8 +14,9 @@ func TestRenderConcurrently(t *testing.T) {
 		Rows:    []string{"Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"},
 		Peak:    12,
 	}
-	for range view.Rows {
+	for row := range view.Rows {
 		view.Counts = append(view.Counts, []int{0, 3, 12, 7, 10})
+		view.Closed = append(view.Closed, []bool{row == 0, row == 0, false, false, false})
 	}
 
 	var wg sync.WaitGroup

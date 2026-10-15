@@ -153,6 +153,8 @@ Le panneau (un message Components V2) liste la configuration par section, chacun
 
 Les clics comptent pour la semaine du dernier message publié : avec une publication le dimanche à 18h, les dispos cochées à partir de 18h vont dans la semaine suivante.
 
+En mode **Par heure**, les créneaux qui commencent avant la publication sont **fermés** : avec une publication le lundi à 10h, ceux du lundi avant 10h. Ils n'apparaissent pas dans **✏️ Mes dispos** (le menu d'un jour entièrement fermé est grisé), sont refusés s'ils sont envoyés quand même, et sont barrés dans la grille (hachurés dans l'image, `×` dans le tableau texte), avec une mention dans la légende. Avec une publication le dimanche, aucun créneau n'est fermé.
+
 Le bot vérifie tous les quarts d'heure quels serveurs ont atteint leur heure de publication (dans leur fuseau), ainsi qu'au démarrage : une publication manquée pendant un redémarrage est rattrapée dès que le bot revient.
 
 ## Fuseaux horaires

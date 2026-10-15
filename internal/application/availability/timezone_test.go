@@ -84,17 +84,17 @@ func TestBuildWeeklyViewIn(t *testing.T) {
 	layout, _ := availability.HourlyLayout(13, 24)
 	week := availability.WeekKey("2026-W42")
 
-	tokyo := svc.BuildWeeklyViewIn(fr, layout, paris, week, nil, mustLoad(t, "Asia/Tokyo"))
+	tokyo := svc.BuildWeeklyViewIn(fr, layout, paris, availability.DefaultSchedule(), week, nil, mustLoad(t, "Asia/Tokyo"))
 	if tokyo.Columns[0] != "20h" || tokyo.Columns[10] != "6h" || tokyo.Rows[0] != "Lun" {
 		t.Errorf("Tokyo: columns %v, rows %v", tokyo.Columns, tokyo.Rows)
 	}
 	// 13h in Paris is already Tuesday midnight in New Zealand.
-	auckland := svc.BuildWeeklyViewIn(fr, layout, paris, week, nil, mustLoad(t, "Pacific/Auckland"))
+	auckland := svc.BuildWeeklyViewIn(fr, layout, paris, availability.DefaultSchedule(), week, nil, mustLoad(t, "Pacific/Auckland"))
 	if auckland.Columns[0] != "0h" || auckland.Rows[0] != "Mar" || auckland.Rows[6] != "Lun" {
 		t.Errorf("Auckland: columns %v, rows %v", auckland.Columns, auckland.Rows)
 	}
 	// The shared Paris view must not be affected by a member's view.
-	if paris := svc.BuildWeeklyView(fr, layout, paris, week, nil); paris.Rows[0] != "Lun" || paris.Columns[0] != "13h" {
+	if paris := svc.BuildWeeklyView(fr, layout, paris, availability.DefaultSchedule(), week, nil); paris.Rows[0] != "Lun" || paris.Columns[0] != "13h" {
 		t.Errorf("Paris view changed: columns %v, rows %v", paris.Columns, paris.Rows)
 	}
 }

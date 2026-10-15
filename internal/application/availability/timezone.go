@@ -70,8 +70,8 @@ func (s *Service) SlotLabelIn(m *i18n.Messages, layout availability.Layout, ref 
 
 // BuildWeeklyViewIn is BuildWeeklyView with the hours and days of the grid converted to
 // the member's timezone, for the private "À mon heure" view.
-func (s *Service) BuildWeeklyViewIn(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, counts []availability.SlotCount, loc *time.Location) WeeklyView {
-	view := s.BuildWeeklyView(m, layout, ref, week, counts)
+func (s *Service) BuildWeeklyViewIn(m *i18n.Messages, layout availability.Layout, ref *time.Location, schedule availability.Schedule, week availability.WeekKey, counts []availability.SlotCount, loc *time.Location) WeeklyView {
+	view := s.BuildWeeklyView(m, layout, ref, schedule, week, counts)
 	if !layout.IsHourly() || loc == nil {
 		return view
 	}
@@ -99,7 +99,8 @@ func (s *Service) BuildWeeklyViewIn(m *i18n.Messages, layout availability.Layout
 	if minutes != 0 {
 		view.Legend += fmt.Sprintf(m.ShiftedColumns, minutes)
 	}
-	view.Table = hourlyTable(hours, view.Rows, view.Counts)
+	view.Legend += view.closedLegend(m)
+	view.Table = hourlyTable(hours, view.Rows, view.Counts, view.Closed)
 	return view
 }
 

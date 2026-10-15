@@ -53,3 +53,32 @@ func (s Schedule) publishTime(monday time.Time) time.Time {
 	// time.Date normalizes the day underflow and applies the DST offset of that exact day.
 	return time.Date(monday.Year(), monday.Month(), day, s.Hour, 0, 0, 0, monday.Location())
 }
+
+// Opens returns when the message of the week is published, in loc.
+func (s Schedule) Opens(week WeekKey, loc *time.Location) (time.Time, error) {
+	monday, err := week.Monday(loc)
+	if err != nil {
+		return time.Time{}, err
+	}
+	return s.publishTime(monday), nil
+}
+
+// ClosedSlots reports, for each day and slot of the week, whether the slot starts before
+// the week's message is published: Monday's first hours for a Monday 10h publication.
+// Half-day slots have no hours, they are never closed.
+func ClosedSlots(layout Layout, schedule Schedule, week WeekKey, loc *time.Location) [][]bool {
+	closed := make([][]bool, DaysPerWeek)
+	opens, err := schedule.Opens(week, loc)
+	for day := range closed {
+		closed[day] = make([]bool, layout.Len())
+		if err != nil || !layout.IsHourly() {
+			continue
+		}
+		for slot := range closed[day] {
+			if start, err := layout.SlotStart(week, day, slot, loc); err == nil && start.Before(opens) {
+				closed[day][slot] = true
+			}
+		}
+	}
+	return closed
+}

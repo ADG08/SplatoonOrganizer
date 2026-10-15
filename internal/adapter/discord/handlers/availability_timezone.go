@@ -157,7 +157,7 @@ func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.Inter
 		slog.ErrorContext(ctx, "get availability summary", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
 	}
-	view := svc.BuildWeeklyViewIn(m, cfg.SlotLayout, cfg.Location, week, counts, loc)
+	view := svc.BuildWeeklyViewIn(m, cfg.SlotLayout, cfg.Location, cfg.Schedule, week, counts, loc)
 	title := fmt.Sprintf(m.GridInYourTime, view.Title)
 
 	params := &discordgo.WebhookParams{Flags: discordgo.MessageFlagsEphemeral}

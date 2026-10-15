@@ -1,6 +1,7 @@
 package availability
 
 import (
+	"fmt"
 	"testing"
 	"time"
 )
@@ -52,6 +53,37 @@ func TestNewScheduleValidation(t *testing.T) {
 	}{{time.Tuesday, 10}, {time.Saturday, 10}, {time.Monday, -1}, {time.Sunday, 24}} {
 		if _, err := NewSchedule(c.day, c.hour); err == nil {
 			t.Errorf("NewSchedule(%s, %d): expected error", c.day, c.hour)
+		}
+	}
+}
+
+func TestClosedSlots(t *testing.T) {
+	paris, err := time.LoadLocation("Europe/Paris")
+	if err != nil {
+		t.Skipf("tzdata unavailable: %v", err)
+	}
+	hourly, _ := HourlyLayout(8, 12) // 8h, 9h, 10h, 11h
+	monday10 := DefaultSchedule()
+	sunday18, _ := NewSchedule(time.Sunday, 18)
+	const week = WeekKey("2026-W42")
+
+	closed := ClosedSlots(hourly, monday10, week, paris)
+	if want := []bool{true, true, false, false}; fmt.Sprint(closed[0]) != fmt.Sprint(want) {
+		t.Errorf("Monday with a 10h publication: %v, want %v", closed[0], want)
+	}
+	if fmt.Sprint(closed[1]) != fmt.Sprint([]bool{false, false, false, false}) {
+		t.Errorf("Tuesday is open: %v", closed[1])
+	}
+	for day, slots := range ClosedSlots(hourly, sunday18, week, paris) {
+		for slot, c := range slots {
+			if c {
+				t.Errorf("published on Sunday, day %d slot %d is closed", day, slot)
+			}
+		}
+	}
+	for _, c := range ClosedSlots(HalfDayLayout(), monday10, week, paris)[0] {
+		if c {
+			t.Error("half-day slots have no hours: never closed")
 		}
 	}
 }

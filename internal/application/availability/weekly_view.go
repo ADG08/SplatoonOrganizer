@@ -21,6 +21,7 @@ type WeeklyView struct {
 	Table  string // code block table (the classic display)
 
 	Counts  [][]int  // Counts[day][slot]
+	Closed  [][]bool // Closed[day][slot]: starts before the week's publication, can't be picked
 	Columns []string // slot headers, e.g. "13h" or "Après-midi"
 	Rows    []string // day headers, e.g. "Lun"
 	Peak    int      // highest headcount of the week
@@ -29,7 +30,7 @@ type WeeklyView struct {
 // BuildWeeklyView renders availability counts for the weekly message.
 // Discord timestamps don't render inside code blocks or images, so the grid uses the
 // reference timezone and only the legend is in each member's timezone.
-func (s *Service) BuildWeeklyView(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, counts []availability.SlotCount) WeeklyView {
+func (s *Service) BuildWeeklyView(m *i18n.Messages, layout availability.Layout, ref *time.Location, schedule availability.Schedule, week availability.WeekKey, counts []availability.SlotCount) WeeklyView {
 	grid := make([][]int, availability.DaysPerWeek)
 	for i := range grid {
 		grid[i] = make([]int, layout.Len())
@@ -44,6 +45,7 @@ func (s *Service) BuildWeeklyView(m *i18n.Messages, layout availability.Layout, 
 		Title:  m.ClassicTitle,
 		Hourly: layout.IsHourly(),
 		Counts: grid,
+		Closed: availability.ClosedSlots(layout, schedule, week, ref),
 		Rows:   append([]string(nil), m.ShortDays[:]...),
 	}
 	if monday, err := week.Monday(ref); err == nil {
@@ -59,16 +61,28 @@ func (s *Service) BuildWeeklyView(m *i18n.Messages, layout availability.Layout, 
 	}
 
 	if layout.IsHourly() {
-		view.Legend = fmt.Sprintf(m.ServerTimeLegend, m.TimezoneName(ref), m.HourLabel(layout.StartHour), s.slotTime(m, layout, ref, week, 0, 0))
+		view.Legend = fmt.Sprintf(m.ServerTimeLegend, m.TimezoneName(ref), m.HourLabel(layout.StartHour), s.slotTime(m, layout, ref, week, 0, 0)) + view.closedLegend(m)
 		hours := make([]int, layout.Len())
 		for slot := range hours {
 			hours[slot] = layout.StartHour + slot
 		}
-		view.Table = hourlyTable(hours, view.Rows, grid)
+		view.Table = hourlyTable(hours, view.Rows, grid, view.Closed)
 	} else {
 		view.Table = halfDayTable(m, view.Rows, grid)
 	}
 	return view
+}
+
+// closedLegend explains the crossed-out cells, when the week has some.
+func (v WeeklyView) closedLegend(m *i18n.Messages) string {
+	for _, slots := range v.Closed {
+		for _, closed := range slots {
+			if closed {
+				return " · " + m.ClosedLegend
+			}
+		}
+	}
+	return ""
 }
 
 func columnLabel(m *i18n.Messages, layout availability.Layout, slot int) string {
@@ -78,8 +92,9 @@ func columnLabel(m *i18n.Messages, layout availability.Layout, slot int) string 
 	return m.HalfDay[slot]
 }
 
-// hourlyTable renders one column per hour, labelled with the hour of the day.
-func hourlyTable(hours []int, rows []string, grid [][]int) string {
+// hourlyTable renders one column per hour, labelled with the hour of the day. Closed
+// slots are crossed out.
+func hourlyTable(hours []int, rows []string, grid [][]int, closed [][]bool) string {
 	var b strings.Builder
 	b.WriteString("```\n")
 	for from := 0; from < len(hours); from += gridMaxColumns {
@@ -96,7 +111,10 @@ func hourlyTable(hours []int, rows []string, grid [][]int) string {
 			b.WriteString(rows[day])
 			for slot := from; slot < to; slot++ {
 				count := "·"
-				if grid[day][slot] > 0 {
+				switch {
+				case closed[day][slot]:
+					count = "×"
+				case grid[day][slot] > 0:
 					count = fmt.Sprint(grid[day][slot])
 				}
 				fmt.Fprintf(&b, " %2s", count)

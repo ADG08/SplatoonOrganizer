@@ -9,6 +9,7 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -47,18 +48,20 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 		return respondWithError(s, i, m.ErrInvalid)
 	}
 
-	// Values are 1-based slot indexes of the layout ("1" = first slot)
+	// Values are 1-based slot indexes of the layout ("1" = first slot). Closed slots aren't
+	// offered, and are refused if sent anyway.
+	week := h.svc.Week(cfg.Schedule, cfg.Location)
+	closed := availability.ClosedSlots(layout, cfg.Schedule, week, cfg.Location)
 	slots := make([]bool, layout.Len())
 	for _, v := range i.MessageComponentData().Values {
 		n, err := strconv.Atoi(v)
-		if err != nil || !layout.Valid(n-1) {
+		if err != nil || !layout.Valid(n-1) || closed[dayIndex][n-1] {
 			slog.WarnContext(ctx, "ignoring invalid slot value", "guild", i.GuildID, "value", v)
 			continue
 		}
 		slots[n-1] = true
 	}
 
-	week := h.svc.Week(cfg.Schedule, cfg.Location)
 	if err := h.svc.SetDayAvailability(ctx, i.GuildID, week, userID, dayIndex, slots); err != nil {
 		slog.ErrorContext(ctx, "set day availability", "guild", i.GuildID, "err", err)
 		return respondWithError(s, i, m.ErrGeneric)
@@ -79,9 +82,9 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 	// days, the latter followed by the "change my timezone" button for hourly slots).
 	var components []discordgo.MessageComponent
 	if dayIndex < 5 {
-		components = buildUserDisposSelectMenus(m, layout, userSlots, 0, 5, label)
+		components = buildUserDisposSelectMenus(m, layout, userSlots, closed, 0, 5, label)
 	} else {
-		components = buildUserDisposSelectMenus(m, layout, userSlots, 5, 2, label)
+		components = buildUserDisposSelectMenus(m, layout, userSlots, closed, 5, 2, label)
 		if layout.IsHourly() {
 			components = append(components, editTimezoneButton(m, tzNextDispos))
 		}

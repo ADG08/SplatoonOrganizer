@@ -19,6 +19,7 @@ type Messages struct {
 	TableDayHeader   string // first column of the half-day table, 10 characters at most
 	ServerTimeLegend string // %s server timezone, %s an hour there, %s same hour for the member
 	ImageLegend      string
+	ClosedLegend     string
 	BtnMyDispos      string
 	BtnViewDispos    string
 	BtnUnavailable   string
@@ -35,6 +36,7 @@ type Messages struct {
 	DisposIntro     string
 	DisposMore      string
 	DisposUpdated   string
+	DayClosed       string // %s day
 	AvailableAgain  string
 	UnavailableNow  string
 	TimezoneInMenus string // %s timezone name
@@ -146,6 +148,7 @@ var fr = Messages{
 	TableDayHeader:   "Jour",
 	ServerTimeLegend: "Heure du serveur (%s) · %s = %s chez toi",
 	ImageLegend:      "🟩 beaucoup · 🟨 moyen · ⬛ peu",
+	ClosedLegend:     "cases barrées : avant la publication",
 	BtnMyDispos:      "✏️ Mes dispos",
 	BtnViewDispos:    "📋 Voir les dispos",
 	BtnUnavailable:   "🚫 Pas dispo cette semaine",
@@ -161,6 +164,7 @@ var fr = Messages{
 	DisposIntro:     "Configure tes disponibilités de la semaine :",
 	DisposMore:      "Suite :",
 	DisposUpdated:   "Tes disponibilités ont été mises à jour.",
+	DayClosed:       "%s · avant la publication",
 	AvailableAgain:  "✅ Tu es de nouveau disponible cette semaine. Configure tes créneaux avec **✏️ Mes dispos**.",
 	UnavailableNow:  "🚫 Tu es marqué **indisponible** pour toute la semaine. Tes créneaux ont été effacés. Reclique sur le bouton (ou coche un créneau) pour revenir disponible.",
 	TimezoneInMenus: "-# 🌍 Heures affichées à ton heure (%s)",
@@ -266,6 +270,7 @@ var en = Messages{
 	TableDayHeader:   "Day",
 	ServerTimeLegend: "Server time (%s) · %s = %s for you",
 	ImageLegend:      "🟩 many · 🟨 some · ⬛ few",
+	ClosedLegend:     "crossed-out cells: before posting",
 	BtnMyDispos:      "✏️ My availability",
 	BtnViewDispos:    "📋 See availability",
 	BtnUnavailable:   "🚫 Not available this week",
@@ -281,6 +286,7 @@ var en = Messages{
 	DisposIntro:     "Set your availability for the week:",
 	DisposMore:      "More:",
 	DisposUpdated:   "Your availability has been updated.",
+	DayClosed:       "%s · before posting",
 	AvailableAgain:  "✅ You're available again this week. Pick your slots with **✏️ My availability**.",
 	UnavailableNow:  "🚫 You're marked **unavailable** for the whole week. Your slots were cleared. Click the button again (or pick a slot) to be available again.",
 	TimezoneInMenus: "-# 🌍 Hours shown in your time (%s)",

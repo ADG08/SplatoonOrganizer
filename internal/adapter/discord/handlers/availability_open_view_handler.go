@@ -9,6 +9,7 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
 	"github.com/bwmarrin/discordgo"
 )
@@ -74,11 +75,12 @@ func sendDisposMenus(ctx context.Context, s *discordgo.Session, i *discordgo.Int
 		return respondWithError(s, i, m.ErrGeneric)
 	}
 	label := func(day, slot int) string { return svc.SlotLabelIn(m, layout, cfg.Location, week, day, slot, loc) }
+	closed := availability.ClosedSlots(layout, cfg.Schedule, week, cfg.Location)
 
 	first := &discordgo.WebhookParams{
 		Content:    withLegend(m.DisposIntro, timezoneLegend(m, layout, loc)),
 		Flags:      discordgo.MessageFlagsEphemeral,
-		Components: buildUserDisposSelectMenus(m, layout, userSlots, 0, 5, label),
+		Components: buildUserDisposSelectMenus(m, layout, userSlots, closed, 0, 5, label),
 	}
 	if followup {
 		if _, err := s.FollowupMessageCreate(i.Interaction, true, first); err != nil {
@@ -90,7 +92,7 @@ func sendDisposMenus(ctx context.Context, s *discordgo.Session, i *discordgo.Int
 	}); err != nil {
 		return err
 	}
-	second := buildUserDisposSelectMenus(m, layout, userSlots, 5, 2, label)
+	second := buildUserDisposSelectMenus(m, layout, userSlots, closed, 5, 2, label)
 	if layout.IsHourly() {
 		second = append(second, editTimezoneButton(m, tzNextDispos))
 	}

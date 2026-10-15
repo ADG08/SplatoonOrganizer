@@ -44,6 +44,18 @@ var (
 	colorLow   = color.RGBA{0x4e, 0x50, 0x58, 0xff}
 	colorMid   = color.RGBA{0xb0, 0x7a, 0x12, 0xff}
 	colorHigh  = color.RGBA{0x24, 0x80, 0x46, 0xff}
+	// Closed cells (before the week's publication) are hatched: faint stripes over a
+	// fainter background, unlike the plain empty cells.
+	colorClosed = color.RGBA{0x80, 0x84, 0x8e, 0xff}
+)
+
+// Opacity of a closed cell's stripes and of the space between them, and the stripes'
+// period and thickness (1x pixels).
+const (
+	closedStripeAlpha = 0.35
+	closedGapAlpha    = 0.06
+	closedPeriod      = 7
+	closedThickness   = 2
 )
 
 // parseFonts parses the fonts once; they can be shared, unlike the faces drawn with them.
@@ -119,7 +131,11 @@ func drawGrid(view appavailability.WeeklyView) (*image.RGBA, error) {
 			count := view.Counts[row][col]
 			x := padding + rowLabelW + col*(cellW+gap)
 			cell := image.Rect(x*scale, y*scale, (x+cellW)*scale, (y+cellH)*scale)
-			fillRoundRect(img, cell, radius*scale, cellColor(count, view.Peak))
+			if row < len(view.Closed) && col < len(view.Closed[row]) && view.Closed[row][col] {
+				fillRoundRect(img, cell, radius*scale, colorClosed, hatched)
+				continue
+			}
+			fillRoundRect(img, cell, radius*scale, cellColor(count, view.Peak), nil)
 			if count > 0 {
 				drawText(img, fs.count, fmt.Sprint(count), colorText, (x+cellW/2)*scale, (y+cellH/2)*scale)
 			}
@@ -144,9 +160,18 @@ func cellColor(count, peak int) color.RGBA {
 	}
 }
 
+// hatched is the opacity pattern of closed cells: diagonal stripes.
+func hatched(x, y int) float64 {
+	if (x+y)%(closedPeriod*scale) < closedThickness*scale {
+		return closedStripeAlpha
+	}
+	return closedGapAlpha
+}
+
 // fillRoundRect paints r with rounded corners of the given radius, blending over dst.
 // Corner pixels are anti-aliased: their opacity is the part of the pixel inside the arc.
-func fillRoundRect(dst *image.RGBA, r image.Rectangle, rad int, c color.RGBA) {
+// pattern, when not nil, scales the opacity of each pixel of r (from its top-left corner).
+func fillRoundRect(dst *image.RGBA, r image.Rectangle, rad int, c color.RGBA, pattern func(x, y int) float64) {
 	w, h := r.Dx(), r.Dy()
 	mask := image.NewAlpha(image.Rect(0, 0, w, h))
 	radius := float64(rad)
@@ -156,6 +181,9 @@ func fillRoundRect(dst *image.RGBA, r image.Rectangle, rad int, c color.RGBA) {
 			dx := max(radius-(float64(x)+0.5), (float64(x)+0.5)-float64(w-rad), 0)
 			dy := max(radius-(float64(y)+0.5), (float64(y)+0.5)-float64(h-rad), 0)
 			coverage := min(max(radius-math.Hypot(dx, dy)+0.5, 0), 1)
+			if pattern != nil {
+				coverage *= pattern(x, y)
+			}
 			mask.SetAlpha(x, y, color.Alpha{A: uint8(coverage * 0xff)})
 		}
 	}

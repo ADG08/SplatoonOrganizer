@@ -16,7 +16,7 @@ func view(t *testing.T) appavailability.WeeklyView {
 	t.Helper()
 	svc := appavailability.NewService(nil)
 	counts := []availability.SlotCount{{DayIndex: 0, SlotIndex: 1, Count: 3}}
-	return svc.BuildWeeklyView(i18n.For(i18n.FR), availability.HalfDayLayout(), availability.DefaultLocation(), "2026-W42", counts)
+	return svc.BuildWeeklyView(i18n.For(i18n.FR), availability.HalfDayLayout(), availability.DefaultLocation(), availability.DefaultSchedule(), "2026-W42", counts)
 }
 
 func TestClassicPayload(t *testing.T) {
