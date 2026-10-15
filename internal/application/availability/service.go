@@ -1,9 +1,10 @@
 package availability
 
 import (
+	"cmp"
 	"context"
 	"fmt"
-	"sort"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -20,6 +21,8 @@ type Service struct {
 	// timezones caches members' timezones (nil = never picked): read on most clicks of an
 	// hourly guild, written only when a member picks one.
 	timezones sync.Map // userID -> *time.Location
+	// timezoneWrites serializes the timezone changes, so the cache keeps the last one saved.
+	timezoneWrites sync.Mutex
 }
 
 // NewService creates a new availability service.
@@ -212,12 +215,8 @@ func (s *Service) dayUserLines(m *i18n.Messages, layout availability.Layout, ref
 	for id := range byUser {
 		ids = append(ids, id)
 	}
-	sort.Slice(ids, func(i, j int) bool {
-		fi, fj := firstSlot(byUser[ids[i]]), firstSlot(byUser[ids[j]])
-		if fi != fj {
-			return fi < fj
-		}
-		return ids[i] < ids[j]
+	slices.SortFunc(ids, func(a, b string) int {
+		return cmp.Or(cmp.Compare(firstSlot(byUser[a]), firstSlot(byUser[b])), cmp.Compare(a, b))
 	})
 
 	lines := make([]string, 0, len(ids))

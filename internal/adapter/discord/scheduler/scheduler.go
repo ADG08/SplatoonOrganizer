@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"sync"
 	"time"
@@ -11,7 +10,6 @@ import (
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/bwmarrin/discordgo"
-	"github.com/robfig/cron/v3"
 )
 
 // Scheduler publishes the weekly availability messages.
@@ -38,29 +36,30 @@ func NewScheduler(
 // message (possibly an image) and calls Discord.
 const publishConcurrency = 4
 
-// checkSchedule runs every quarter of an hour: each guild publishes on the hour of its own
-// timezone, and some timezones are a half or a quarter of an hour off UTC (India, Nepal).
-const checkSchedule = "*/15 * * * *"
+// checkEvery is how often the guilds are checked, on the quarter of an hour: each guild
+// publishes on the hour of its own timezone, and some timezones are a half or a quarter
+// of an hour off UTC (India, Nepal).
+const checkEvery = 15 * time.Minute
 
-// Start checks every quarter of an hour which guilds reached their publication time (each
-// guild picks its own in /help). It checks once right away too, to catch up on the
-// publications missed while the bot was down; with force, that first run publishes in
-// every guild instead (for tests).
-func (s *Scheduler) Start(ctx context.Context, force bool) error {
-	c := cron.New(cron.WithLocation(time.UTC))
-	if _, err := c.AddFunc(checkSchedule, func() { s.run(ctx, false) }); err != nil {
-		return fmt.Errorf("adding cron job: %w", err)
-	}
-	c.Start()
-	go s.run(ctx, force)
-
+// Start checks right away which guilds reached their publication time (each picks its own
+// in /help), to catch up on the publications missed while the bot was down, then every
+// quarter of an hour until ctx is done. With force, that first check publishes in every
+// guild instead (for tests). Checks never overlap.
+func (s *Scheduler) Start(ctx context.Context, force bool) {
 	go func() {
-		<-ctx.Done()
-		slog.Info("stopping availability scheduler")
-		c.Stop()
+		s.run(ctx, force)
+		for {
+			// Truncate rounds absolute time: the next quarter of an hour of every timezone.
+			next := time.Now().Truncate(checkEvery).Add(checkEvery)
+			select {
+			case <-ctx.Done():
+				slog.Info("stopping availability scheduler")
+				return
+			case <-time.After(time.Until(next)):
+				s.run(ctx, false)
+			}
+		}
 	}()
-
-	return nil
 }
 
 // run publishes the weekly message of the active guilds that configured a channel and
@@ -75,15 +74,16 @@ func (s *Scheduler) run(ctx context.Context, force bool) {
 	var wg sync.WaitGroup
 	sem := make(chan struct{}, publishConcurrency)
 	for _, cfg := range cfgs {
-		wg.Add(1)
 		sem <- struct{}{}
-		go func() {
-			defer func() { <-sem; wg.Done() }()
+		wg.Go(func() {
+			defer func() { <-sem }()
 			ctx, cancel := context.WithTimeout(ctx, weekly.Timeout)
 			defer cancel()
-			due, err := weekly.Due(ctx, s.availSvc, cfg)
-			if err == nil && (due || force) {
+			var err error
+			if force {
 				err = weekly.Publish(ctx, s.session, s.availSvc, cfg)
+			} else {
+				_, err = weekly.PublishDue(ctx, s.session, s.availSvc, cfg)
 			}
 			switch {
 			case weekly.LostAccess(err):
@@ -95,7 +95,7 @@ func (s *Scheduler) run(ctx context.Context, force bool) {
 			case err != nil:
 				slog.ErrorContext(ctx, "publish weekly message", "guild", cfg.GuildID, "err", err)
 			}
-		}()
+		})
 	}
 	wg.Wait()
 }

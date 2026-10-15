@@ -22,11 +22,39 @@ const Timeout = 30 * time.Second
 // ErrNoChannel is returned when publishing for a guild that has no channel configured.
 var ErrNoChannel = errors.New("no channel configured")
 
+// guildLocks serializes what is done to each guild's weekly message: the scheduler, /help
+// and the refreshes after clicks run concurrently, and two publications at once would
+// post the message twice, or an edit would hit a message being replaced.
+var guildLocks sync.Map // guildID -> *sync.Mutex
+
+// lockGuild locks the guild's weekly message and returns the function unlocking it.
+func lockGuild(guildID string) (unlock func()) {
+	mu, _ := guildLocks.LoadOrStore(guildID, new(sync.Mutex))
+	mu.(*sync.Mutex).Lock()
+	return mu.(*sync.Mutex).Unlock
+}
+
 // Publish replaces the guild's weekly message: it deletes the previous one,
 // then posts a fresh one in the configured channel with the guild's layout and display.
 // Used by the weekly job and when /help changes how the message looks (an embed can't
 // always be edited into a Components V2 message, so it is posted again instead).
 func Publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, cfg *guildconfig.GuildConfig) error {
+	defer lockGuild(cfg.GuildID)()
+	return publish(ctx, s, svc, cfg)
+}
+
+// PublishDue publishes the guild's weekly message when Due, and reports whether it did.
+// Checking and publishing under the same lock keeps two checks from both publishing.
+func PublishDue(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, cfg *guildconfig.GuildConfig) (bool, error) {
+	defer lockGuild(cfg.GuildID)()
+	if due, err := Due(ctx, svc, cfg); err != nil || !due {
+		return false, err
+	}
+	return true, publish(ctx, s, svc, cfg)
+}
+
+// publish is Publish, the guild being locked.
+func publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, cfg *guildconfig.GuildConfig) error {
 	if cfg.ChannelID == "" {
 		return ErrNoChannel
 	}
@@ -152,6 +180,7 @@ func (r *Refresher) refresh(ctx context.Context, s *discordgo.Session, guildID s
 			slog.ErrorContext(ctx, "panic while refreshing weekly message", "guild", guildID, "panic", rec)
 		}
 	}()
+	defer lockGuild(guildID)()
 
 	cfg, err := r.guildCfg.Get(ctx, guildID)
 	if err != nil {

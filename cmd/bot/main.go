@@ -117,10 +117,7 @@ func run() error {
 	defer b.Close()
 
 	// Scheduler for weekly posting
-	weeklyPoster := scheduler.NewScheduler(availSvc, guildConfigSvc, b.Session())
-	if err := weeklyPoster.Start(ctx, cfg.RunWeeklyOnStart); err != nil {
-		return fmt.Errorf("start weekly scheduler: %w", err)
-	}
+	scheduler.NewScheduler(availSvc, guildConfigSvc, b.Session()).Start(ctx, cfg.RunWeeklyOnStart)
 
 	if err := b.RegisterSlashCommands(cfg.DiscordClientID, cfg.DiscordGuildID); err != nil {
 		return fmt.Errorf("register slash commands: %w", err)

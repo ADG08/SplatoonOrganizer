@@ -28,13 +28,17 @@ func (s *Service) UserTimezone(ctx context.Context, userID string) (*time.Locati
 			loc = nil
 		}
 	}
-	s.timezones.Store(userID, loc)
-	return loc, nil
+	// A timezone picked while this one was read was cached: keep that one.
+	cached, _ := s.timezones.LoadOrStore(userID, loc)
+	return cached.(*time.Location), nil
 }
 
 // SetUserTimezone remembers the timezone a member picked.
 func (s *Service) SetUserTimezone(ctx context.Context, userID string, loc *time.Location) error {
+	s.timezoneWrites.Lock()
+	defer s.timezoneWrites.Unlock()
 	if err := s.repo.SetUserTimezone(ctx, userID, loc.String()); err != nil {
+		s.timezones.Delete(userID)
 		return err
 	}
 	s.timezones.Store(userID, loc)

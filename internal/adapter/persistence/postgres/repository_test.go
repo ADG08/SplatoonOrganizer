@@ -6,7 +6,6 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
-	"sort"
 	"testing"
 	"time"
 
@@ -54,11 +53,10 @@ func testPool(t *testing.T) *pgxpool.Pool {
 	}
 	t.Cleanup(pool.Close)
 
-	ups, err := filepath.Glob("../../../../migrations/*.up.sql")
+	ups, err := filepath.Glob("../../../../migrations/*.up.sql") // sorted, so in version order
 	if err != nil || len(ups) == 0 {
 		t.Fatalf("migrations not found: %v", err)
 	}
-	sort.Strings(ups)
 	for _, up := range ups {
 		sql, err := os.ReadFile(up)
 		if err != nil {
