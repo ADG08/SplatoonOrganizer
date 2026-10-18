@@ -154,14 +154,17 @@ func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Message
 		{Label: m.LayoutSummary(availability.HalfDayLayout()), Value: string(availability.ModeHalfDay), Default: !current.IsHourly()},
 		{Label: m.ModeHourly, Value: string(availability.ModeHourly), Default: current.IsHourly()},
 	}
-	// Discord allows 25 options per select menu: 0h..23h for the start, 1h..minuit for the end.
+	// Discord allows 25 options per select menu: 0h..23h for the start, and for the end
+	// 5h..minuit then 1h..5h the next day (an evening going on after midnight).
 	var startOptions, endOptions []discordgo.SelectMenuOption
 	for h := range 24 {
 		startOptions = append(startOptions, discordgo.SelectMenuOption{
 			Label: m.HourLabel(h), Value: strconv.Itoa(h), Default: h == start,
 		})
+	}
+	for h := availability.MaxEndHour - 24; h <= availability.MaxEndHour; h++ {
 		endOptions = append(endOptions, discordgo.SelectMenuOption{
-			Label: m.HourLabel(h + 1), Value: strconv.Itoa(h + 1), Default: h+1 == end,
+			Label: m.UntilLabel(h), Value: strconv.Itoa(h), Default: h == end,
 		})
 	}
 	memberTime := []discordgo.SelectMenuOption{

@@ -62,7 +62,7 @@ func (s *Service) BuildWeeklyView(m *i18n.Messages, layout availability.Layout, 
 		view.Legend = fmt.Sprintf(m.ServerTimeLegend, m.TimezoneName(ref), m.HourLabel(layout.StartHour), s.slotTime(m, layout, ref, week, 0, 0)) + view.closedLegend(m)
 		hours := make([]int, layout.Len())
 		for slot := range hours {
-			hours[slot] = layout.StartHour + slot
+			hours[slot] = (layout.StartHour + slot) % 24 // the hours after midnight are 0, 1...
 		}
 		view.Table = hourlyTable(hours, view.Rows, grid, view.Closed)
 	} else {
@@ -85,7 +85,7 @@ func (v WeeklyView) closedLegend(m *i18n.Messages) string {
 
 func columnLabel(m *i18n.Messages, layout availability.Layout, slot int) string {
 	if layout.IsHourly() {
-		return m.HourLabel(layout.StartHour + slot)
+		return m.HourLabel((layout.StartHour + slot) % 24)
 	}
 	return m.HalfDay[slot]
 }

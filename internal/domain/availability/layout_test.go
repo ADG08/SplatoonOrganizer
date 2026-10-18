@@ -61,13 +61,32 @@ func TestHourlySlotStart(t *testing.T) {
 }
 
 func TestHourlyLayoutValidation(t *testing.T) {
-	for _, r := range [][2]int{{13, 13}, {-1, 10}, {10, 25}, {20, 18}} {
+	for _, r := range [][2]int{{13, 13}, {-1, 10}, {20, 30}, {20, 18}, {24, 26}, {0, 26}} {
 		if _, err := HourlyLayout(r[0], r[1]); err == nil {
 			t.Errorf("HourlyLayout(%d, %d): expected error", r[0], r[1])
 		}
 	}
-	if _, err := HourlyLayout(0, 24); err != nil {
-		t.Errorf("HourlyLayout(0, 24): %v", err)
+	for _, r := range [][2]int{{0, 24}, {15, 26}, {20, 29}, {0, 25}} {
+		if _, err := HourlyLayout(r[0], r[1]); err != nil {
+			t.Errorf("HourlyLayout(%d, %d): %v", r[0], r[1], err)
+		}
+	}
+}
+
+// An evening running past midnight: its last slots are the next day's hours.
+func TestOvernightSlotStart(t *testing.T) {
+	paris, err := time.LoadLocation("Europe/Paris")
+	if err != nil {
+		t.Skipf("tzdata unavailable: %v", err)
+	}
+	layout, _ := HourlyLayout(15, 26) // 15h -> 2h
+	if layout.Len() != 11 {
+		t.Fatalf("len %d, want 11", layout.Len())
+	}
+	// Sunday's last slot (1h-2h) is early Monday, the day after the switch to winter time.
+	got, _ := layout.SlotStart("2026-W43", 6, 10, paris)
+	if want := "2026-10-26 01:00 CET"; got.Format("2006-01-02 15:04 MST") != want {
+		t.Errorf("Sunday 1h: got %s, want %s", got.Format("2006-01-02 15:04 MST"), want)
 	}
 }
 
