@@ -43,18 +43,18 @@ func (h *WhoDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *
 	}
 	m := cfg.Messages()
 	if len(values) == 0 {
-		return respondWithError(s, i, m.ErrInvalid)
+		return discord.RespondError(s, i, m.ErrInvalid)
 	}
 	day, err := strconv.Atoi(values[0])
 	if err != nil || day < 0 || day >= availability.DaysPerWeek {
-		return respondWithError(s, i, m.ErrInvalid)
+		return discord.RespondError(s, i, m.ErrInvalid)
 	}
 
 	week := h.svc.Week(cfg.Schedule, cfg.Location)
 	users, err := h.svc.AvailabilityUsers(ctx, i.GuildID, week)
 	if err != nil {
 		slog.ErrorContext(ctx, "get availability users from select", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 
 	accent := weekly.AccentColor

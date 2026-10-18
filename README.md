@@ -52,8 +52,6 @@ Renseigner ensuite les valeurs dans `.env` (environnement local `dev`) :
 | `DISCORD_CLIENT_ID` | Oui | ID de l'application Discord |
 | `DATABASE_URL` | Oui | URL de connexion PostgreSQL (local Docker : `...@db-dev:5432/...`) |
 | `DISCORD_OWNER_ID` | Non | ID Discord du créateur du bot : il peut utiliser `/help` et `/annonce` sans être admin du serveur |
-| `DISCORD_GUILD_ID` | Non | Ancien serveur unique : ses commandes « de serveur » sont retirées au démarrage (les commandes sont désormais globales) |
-| `DISCORD_CHANNEL_ID` | Non | Salon de ce serveur, repris dans sa configuration s'il n'en a pas encore |
 | `RUN_WEEKLY_ON_START` | Non | Mettre `1` pour republier dans tous les serveurs au démarrage (tests) |
 | `HEALTH_PORT` | Non | Port du healthcheck `/health` (défaut : `8080`) |
 | `SUPPORT_URL` | Non | Page de dons : ajoute un bouton « 💸 Soutenir le bot » en bas de `/help` |

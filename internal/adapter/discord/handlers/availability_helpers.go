@@ -8,6 +8,7 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
@@ -61,7 +62,7 @@ func loadGuildConfig(ctx context.Context, s *discordgo.Session, i *discordgo.Int
 	cfg, err := guildCfg.Get(ctx, i.GuildID)
 	if err != nil {
 		slog.ErrorContext(ctx, "get guild config", "guild", i.GuildID, "err", err)
-		if err := respondWithError(s, i, i18n.For(i18n.FR).ErrGeneric); err != nil {
+		if err := discord.RespondError(s, i, i18n.For(i18n.FR).ErrGeneric); err != nil {
 			slog.ErrorContext(ctx, "respond", "guild", i.GuildID, "err", err)
 		}
 		return nil
@@ -69,20 +70,7 @@ func loadGuildConfig(ctx context.Context, s *discordgo.Session, i *discordgo.Int
 	return cfg
 }
 
-func respondWithError(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) error {
-	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-		Type: discordgo.InteractionResponseChannelMessageWithSource,
-		Data: &discordgo.InteractionResponseData{
-			Content: msg,
-			Flags:   discordgo.MessageFlagsEphemeral,
-		},
-	})
-}
-
 func getUserID(i *discordgo.InteractionCreate) string {
-	if i == nil {
-		return ""
-	}
 	if i.Member != nil && i.Member.User != nil {
 		return i.Member.User.ID
 	}

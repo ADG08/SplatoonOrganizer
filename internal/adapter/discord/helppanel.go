@@ -12,14 +12,14 @@ import (
 // (channel, role, day and hour), slots, timezone (through its own picker) and message
 // (display and language).
 const (
-	HelpPanelOpenPublishID  = "help:config_open_publish"
-	HelpPanelOpenSlotsID    = "help:config_open_slots"
-	HelpPanelOpenTimezoneID = "help:config_open_timezone"
-	HelpPanelOpenMessageID  = "help:config_open_message"
-	HelpPanelModalPublishID = "help:config_modal_publish"
-	HelpPanelModalSlotsID   = "help:config_modal_slots"
-	HelpPanelModalMessageID = "help:config_modal_message"
-	HelpPanelTimezoneID     = "help:config_timezone" // the timezone picker's selects: <id>:<step>
+	HelpPanelOpenPublishID  = "help:config:open_publish"
+	HelpPanelOpenSlotsID    = "help:config:open_slots"
+	HelpPanelOpenTimezoneID = "help:config:open_timezone"
+	HelpPanelOpenMessageID  = "help:config:open_message"
+	HelpPanelModalPublishID = "help:config:modal_publish"
+	HelpPanelModalSlotsID   = "help:config:modal_slots"
+	HelpPanelModalMessageID = "help:config:modal_message"
+	HelpPanelTimezoneID     = "help:config:timezone" // the timezone picker's selects: <id>:<step>
 
 	HelpPanelColorDefault = 0x5865F2
 )

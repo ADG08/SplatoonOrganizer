@@ -54,19 +54,19 @@ func (c *AnnonceCommand) Execute(ctx context.Context, s *discordgo.Session, i *d
 	cfg, err := c.svc.Get(ctx, i.GuildID)
 	if err != nil {
 		slog.ErrorContext(ctx, "annonce: get guild config", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, i18n.For(i18n.FR).ErrGeneric)
+		return discord.RespondError(s, i, i18n.For(i18n.FR).ErrGeneric)
 	}
 	m := cfg.Messages()
-	if !isAdminOrOwner(i, c.ownerID) {
-		return respondWithError(s, i, m.ErrAdminOnly)
+	if !discord.IsAdminOrOwner(i, c.ownerID) {
+		return discord.RespondError(s, i, m.ErrAdminOnly)
 	}
 	if i.GuildID == "" {
-		return respondWithError(s, i, m.ErrGuildOnly)
+		return discord.RespondError(s, i, m.ErrGuildOnly)
 	}
 
 	channelID := cfg.ChannelID
 	if channelID == "" {
-		return respondWithError(s, i, m.NoChannel)
+		return discord.RespondError(s, i, m.NoChannel)
 	}
 
 	opts := newOptionMap(i.ApplicationCommandData().Options)
@@ -75,7 +75,7 @@ func (c *AnnonceCommand) Execute(ctx context.Context, s *discordgo.Session, i *d
 	roleID := opts.roleID("role")
 
 	if titre == "" || strings.TrimSpace(message) == "" {
-		return respondWithError(s, i, m.AnnounceEmpty)
+		return discord.RespondError(s, i, m.AnnounceEmpty)
 	}
 
 	// Allow line breaks via the literal "\n" typed in the slash command option.
@@ -104,7 +104,7 @@ func (c *AnnonceCommand) Execute(ctx context.Context, s *discordgo.Session, i *d
 
 	if _, err := s.ChannelMessageSendComplex(channelID, send); err != nil {
 		slog.ErrorContext(ctx, "annonce: send message", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
