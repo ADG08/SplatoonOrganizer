@@ -46,8 +46,9 @@ func (s *Service) SetUserTimezone(ctx context.Context, userID string, loc *time.
 }
 
 // SlotLabelIn labels a slot of the guild (timezone ref) in the member's timezone loc, e.g.
-// "14h – 15h", prefixed with the local day when it differs from the guild's day ("Mar 3h – 4h"
-// for Lundi 20h Paris seen from Tokyo). Half-day layouts and unknown timezones keep the
+// "14h – 15h", for the menu of the slot's day. A slot falling on the next local day is
+// marked so ("3h – 4h (lendemain)" for Lundi 20h Paris seen from Tokyo), on any other day
+// prefixed with it ("Dim 21h – 22h"). Half-day layouts and unknown timezones keep the
 // guild's labels.
 func (s *Service) SlotLabelIn(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, dayIndex, slot int, loc *time.Location) string {
 	if !layout.IsHourly() || loc == nil {
@@ -58,7 +59,8 @@ func (s *Service) SlotLabelIn(m *i18n.Messages, layout availability.Layout, ref 
 		return m.SlotLabel(layout, slot)
 	}
 	end, _ := layout.SlotStart(week, dayIndex, slot+1, ref)
-	guildDay := start.Format("2006-01-02")
+	monday, _ := week.Monday(ref)
+	day := time.Date(monday.Year(), monday.Month(), monday.Day()+dayIndex, 0, 0, 0, 0, time.UTC)
 	start, end = start.In(loc), end.In(loc)
 
 	endLabel := m.Clock(end)
@@ -66,7 +68,11 @@ func (s *Service) SlotLabelIn(m *i18n.Messages, layout availability.Layout, ref 
 		endLabel = m.Midnight
 	}
 	label := m.Clock(start) + " – " + endLabel
-	if start.Format("2006-01-02") != guildDay {
+	switch local := time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, time.UTC); {
+	case local.Equal(day):
+	case local.Equal(day.AddDate(0, 0, 1)):
+		label += m.NextDay
+	default:
 		label = m.ShortDays[weekdayIndex(start)] + " " + label
 	}
 	return label

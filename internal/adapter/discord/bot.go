@@ -21,13 +21,6 @@ type Bot struct {
 
 // NewBot creates a new Discord bot.
 func NewBot(token string, registry *Registry) (*Bot, error) {
-	if token == "" {
-		return nil, fmt.Errorf("DISCORD_TOKEN is empty")
-	}
-	if registry == nil {
-		return nil, fmt.Errorf("registry is nil")
-	}
-
 	s, err := discordgo.New("Bot " + token)
 	if err != nil {
 		return nil, fmt.Errorf("creating discord session: %w", err)
@@ -58,13 +51,12 @@ func (b *Bot) Open() error {
 }
 
 // Close closes the Discord connection.
-func (b *Bot) Close() error {
-	if b.session == nil {
-		return nil
+func (b *Bot) Close() {
+	if err := b.session.Close(); err != nil {
+		slog.Error("close Discord session", "err", err)
+		return
 	}
-	b.session.Close()
 	slog.Info("Discord session closed")
-	return nil
 }
 
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
@@ -112,36 +104,15 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 	}
 }
 
-// RegisterSlashCommands syncs slash commands with Discord using a bulk overwrite,
-// which removes any previously registered commands that are no longer in the registry.
-// Commands are global, so every guild that adds the bot gets them. legacyGuildID, when
-// set, is a guild that had them registered as guild commands (single-guild versions of
-// the bot): they are removed there, else members would see each command twice.
-func (b *Bot) RegisterSlashCommands(appID, legacyGuildID string) error {
-	if appID == "" {
-		return fmt.Errorf("application ID is empty")
-	}
-
-	var acs []*discordgo.ApplicationCommand
+// RegisterSlashCommands syncs the global slash commands with Discord using a bulk
+// overwrite, which also removes the commands no longer in the registry.
+func (b *Bot) RegisterSlashCommands(appID string) error {
+	acs := make([]*discordgo.ApplicationCommand, 0, len(b.registry.commands))
 	for _, c := range b.registry.commands {
-		ac := c.ApplicationCommand()
-		if ac == nil {
-			ac = &discordgo.ApplicationCommand{
-				Name:        c.Name(),
-				Description: "Splatoon organizer command",
-			}
-		}
-		acs = append(acs, ac)
+		acs = append(acs, c.ApplicationCommand())
 	}
-
 	if _, err := b.session.ApplicationCommandBulkOverwrite(appID, "", acs); err != nil {
 		return fmt.Errorf("bulk overwriting slash commands: %w", err)
 	}
-	if legacyGuildID != "" {
-		if _, err := b.session.ApplicationCommandBulkOverwrite(appID, legacyGuildID, nil); err != nil {
-			return fmt.Errorf("removing guild slash commands: %w", err)
-		}
-	}
-
 	return nil
 }

@@ -61,13 +61,27 @@ func (m *Messages) Clock(t time.Time) string {
 	return fmt.Sprintf("%dh%02d", t.Hour(), t.Minute())
 }
 
-// SlotLabel returns the label of a slot in the guild's time: "Soir" or "20h – 21h".
+// SlotLabel returns the label of a slot in the guild's time: "Soir", "20h – 21h", or
+// "0h – 1h (lendemain)" for the hours after midnight of an evening going on.
 func (m *Messages) SlotLabel(l availability.Layout, slot int) string {
 	if !l.IsHourly() {
 		return m.HalfDay[slot]
 	}
 	start := l.StartHour + slot
-	return m.HourLabel(start) + " – " + m.HourLabel(start+1)
+	label := m.HourLabel(start%24) + " – " + m.HourLabel(start+1)
+	if start >= 24 {
+		label += m.NextDay
+	}
+	return label
+}
+
+// UntilLabel labels the end of the last slot, marking the next day's hours:
+// "minuit", "2h (lendemain)".
+func (m *Messages) UntilLabel(hour int) string {
+	if hour > 24 {
+		return m.HourLabel(hour) + m.NextDay
+	}
+	return m.HourLabel(hour)
 }
 
 // LayoutSummary describes a layout for the admin panel: "Par heure · 20h → minuit".
@@ -75,7 +89,7 @@ func (m *Messages) LayoutSummary(l availability.Layout) string {
 	if !l.IsHourly() {
 		return m.HalfDay[0] + " / " + m.HalfDay[1]
 	}
-	return fmt.Sprintf(m.HourlySummary, m.HourLabel(l.StartHour), m.HourLabel(l.EndHour))
+	return fmt.Sprintf(m.HourlySummary, m.HourLabel(l.StartHour), m.UntilLabel(l.EndHour))
 }
 
 // ScheduleSummary describes a publication schedule for the admin panel: "Lundi · 10h".

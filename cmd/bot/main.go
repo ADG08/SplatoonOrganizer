@@ -61,20 +61,6 @@ func run() error {
 	availSvc := appavailability.NewService(availRepo)
 	guildConfigSvc := appguildconfig.NewService(guildConfigRepo)
 
-	// Single-guild versions took the weekly channel from the environment: keep it as that
-	// guild's configured channel, the only source of channels now.
-	if cfg.DiscordGuildID != "" && cfg.DiscordChannelID != "" {
-		gc, err := guildConfigSvc.Get(ctx, cfg.DiscordGuildID)
-		if err != nil {
-			return fmt.Errorf("get guild config: %w", err)
-		}
-		if gc.ChannelID == "" {
-			if err := guildConfigSvc.SetChannel(ctx, cfg.DiscordGuildID, cfg.DiscordChannelID); err != nil {
-				return fmt.Errorf("set guild channel from env: %w", err)
-			}
-		}
-	}
-
 	// Adapters (primary / driving): Discord
 	reg := discord.NewRegistry()
 	refresher := weekly.NewRefresher(availSvc, guildConfigSvc)
@@ -117,7 +103,7 @@ func run() error {
 	// Scheduler for weekly posting
 	scheduler.NewScheduler(availSvc, guildConfigSvc, b.Session()).Start(ctx, cfg.RunWeeklyOnStart)
 
-	if err := b.RegisterSlashCommands(cfg.DiscordClientID, cfg.DiscordGuildID); err != nil {
+	if err := b.RegisterSlashCommands(cfg.DiscordClientID); err != nil {
 		return fmt.Errorf("register slash commands: %w", err)
 	}
 

@@ -46,11 +46,11 @@ func (h *HelpConfigHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 		return nil
 	}
 	m := cfg.Messages()
-	if !isAdminOrOwnerInteraction(i, h.ownerID) {
-		return respondWithError(s, i, m.ErrAdminOnly)
+	if !discord.IsAdminOrOwner(i, h.ownerID) {
+		return discord.RespondError(s, i, m.ErrAdminOnly)
 	}
 	if i.GuildID == "" {
-		return respondWithError(s, i, m.ErrGuildOnly)
+		return discord.RespondError(s, i, m.ErrGuildOnly)
 	}
 
 	if i.Type == discordgo.InteractionModalSubmit {
@@ -63,7 +63,7 @@ func (h *HelpConfigHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 		case discord.HelpPanelModalMessageID:
 			return h.handleMessageSubmit(ctx, s, i, cfg, data)
 		}
-		return respondWithError(s, i, m.ErrInvalid)
+		return discord.RespondError(s, i, m.ErrInvalid)
 	}
 
 	customID := i.MessageComponentData().CustomID
@@ -90,7 +90,7 @@ func (h *HelpConfigHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 			Data: pickerStep(true, fmt.Sprintf(m.GuildPickerContent, m.TimezoneName(cfg.Location)), buildTimezonePicker(m, discord.HelpPanelTimezoneID)),
 		})
 	}
-	return respondWithError(s, i, m.ErrInvalid)
+	return discord.RespondError(s, i, m.ErrInvalid)
 }
 
 // buildPublishModalComponents builds the publication form, prefilled with the current
@@ -154,14 +154,17 @@ func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Message
 		{Label: m.LayoutSummary(availability.HalfDayLayout()), Value: string(availability.ModeHalfDay), Default: !current.IsHourly()},
 		{Label: m.ModeHourly, Value: string(availability.ModeHourly), Default: current.IsHourly()},
 	}
-	// Discord allows 25 options per select menu: 0h..23h for the start, 1h..minuit for the end.
+	// Discord allows 25 options per select menu: 0h..23h for the start, and for the end
+	// 5h..minuit then 1h..5h the next day (an evening going on after midnight).
 	var startOptions, endOptions []discordgo.SelectMenuOption
 	for h := range 24 {
 		startOptions = append(startOptions, discordgo.SelectMenuOption{
 			Label: m.HourLabel(h), Value: strconv.Itoa(h), Default: h == start,
 		})
+	}
+	for h := availability.MaxEndHour - 24; h <= availability.MaxEndHour; h++ {
 		endOptions = append(endOptions, discordgo.SelectMenuOption{
-			Label: m.HourLabel(h + 1), Value: strconv.Itoa(h + 1), Default: h+1 == end,
+			Label: m.UntilLabel(h), Value: strconv.Itoa(h), Default: h == end,
 		})
 	}
 	memberTime := []discordgo.SelectMenuOption{
@@ -230,7 +233,7 @@ func (h *HelpConfigHandler) handlePublishSubmit(ctx context.Context, s *discordg
 	hour, errHour := strconv.Atoi(modalSelectValue(data.Components, "publish_hour"))
 	schedule, err := availability.NewSchedule(time.Weekday(weekday), hour)
 	if channelID == "" || errDay != nil || errHour != nil || err != nil {
-		return respondWithError(s, i, m.ErrInvalid)
+		return discord.RespondError(s, i, m.ErrInvalid)
 	}
 
 	channelChanged := channelID != previous.ChannelID || !previous.Active
@@ -240,19 +243,19 @@ func (h *HelpConfigHandler) handlePublishSubmit(ctx context.Context, s *discordg
 	if channelChanged {
 		if err := h.svc.SetChannel(ctx, previous.GuildID, channelID); err != nil {
 			slog.ErrorContext(ctx, "help config: set channel", "guild", i.GuildID, "err", err)
-			return respondWithError(s, i, m.ErrGeneric)
+			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 	}
 	if roleID != previous.RoleID {
 		if err := h.svc.SetRole(ctx, previous.GuildID, roleID); err != nil {
 			slog.ErrorContext(ctx, "help config: set role", "guild", i.GuildID, "err", err)
-			return respondWithError(s, i, m.ErrGeneric)
+			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 	}
 	if schedule != previous.Schedule {
 		if err := h.svc.SetSchedule(ctx, previous.GuildID, schedule); err != nil {
 			slog.ErrorContext(ctx, "help config: set schedule", "guild", i.GuildID, "err", err)
-			return respondWithError(s, i, m.ErrGeneric)
+			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 	}
 
@@ -283,7 +286,7 @@ func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.
 		}
 		var err error
 		if layout, err = availability.HourlyLayout(start, end); err != nil {
-			return respondWithError(s, i, m.HourOrder)
+			return discord.RespondError(s, i, m.HourOrder)
 		}
 	}
 	memberTimezones := modalSelectValue(data.Components, "member_time") == memberTimeOwn
@@ -296,18 +299,18 @@ func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.
 	if layoutChanged {
 		if err := h.svc.SetMessageSettings(ctx, previous.GuildID, layout, previous.Display, previous.Language); err != nil {
 			slog.ErrorContext(ctx, "help config: set slots", "guild", i.GuildID, "err", err)
-			return respondWithError(s, i, m.ErrGeneric)
+			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 		if err := h.availSvc.ResetWeek(ctx, previous.GuildID, h.availSvc.Week(previous.Schedule, previous.Location)); err != nil {
 			slog.ErrorContext(ctx, "help config: reset week", "guild", i.GuildID, "err", err)
-			return respondWithError(s, i, m.ErrGeneric)
+			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 		message += m.SlotsReset
 	}
 	if memberTimezones != previous.MemberTimezones {
 		if err := h.svc.SetMemberTimezones(ctx, previous.GuildID, memberTimezones); err != nil {
 			slog.ErrorContext(ctx, "help config: set member timezones", "guild", i.GuildID, "err", err)
-			return respondWithError(s, i, m.ErrGeneric)
+			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 	}
 
@@ -330,7 +333,7 @@ func (h *HelpConfigHandler) handleMessageSubmit(ctx context.Context, s *discordg
 	}
 	fullAt, err := strconv.Atoi(modalSelectValue(data.Components, "full_at"))
 	if err != nil || fullAt < 0 || fullAt > availability.MaxFullAt {
-		return respondWithError(s, i, m.ErrInvalid)
+		return discord.RespondError(s, i, m.ErrInvalid)
 	}
 	republish := display != previous.Display || lang != previous.Language
 	if !republish && fullAt == previous.FullAt {
@@ -340,13 +343,13 @@ func (h *HelpConfigHandler) handleMessageSubmit(ctx context.Context, s *discordg
 	if republish {
 		if err := h.svc.SetMessageSettings(ctx, previous.GuildID, previous.SlotLayout, display, lang); err != nil {
 			slog.ErrorContext(ctx, "help config: set message settings", "guild", i.GuildID, "err", err)
-			return respondWithError(s, i, m.ErrGeneric)
+			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 	}
 	if fullAt != previous.FullAt {
 		if err := h.svc.SetFullAt(ctx, previous.GuildID, fullAt); err != nil {
 			slog.ErrorContext(ctx, "help config: set full at", "guild", i.GuildID, "err", err)
-			return respondWithError(s, i, m.ErrGeneric)
+			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 		if !republish {
 			// Only the colors change: redraw the message, without a new one pinging the role.
@@ -372,7 +375,7 @@ func (h *HelpConfigHandler) handleTimezonePick(ctx context.Context, s *discordgo
 	}
 	if err := h.svc.SetTimezone(ctx, previous.GuildID, loc); err != nil {
 		slog.ErrorContext(ctx, "help config: set timezone", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 
 	message := fmt.Sprintf(m.GuildTimezoneSaved, m.TimezoneName(loc), m.Clock(time.Now().In(loc)))
@@ -380,7 +383,7 @@ func (h *HelpConfigHandler) handleTimezonePick(ctx context.Context, s *discordgo
 	if republish {
 		if err := h.availSvc.ResetWeek(ctx, previous.GuildID, h.availSvc.Week(previous.Schedule, previous.Location)); err != nil {
 			slog.ErrorContext(ctx, "help config: reset week", "guild", i.GuildID, "err", err)
-			return respondWithError(s, i, m.ErrGeneric)
+			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 		message += m.SlotsReset
 	}
@@ -485,17 +488,4 @@ func findModalSelectMenu(components []discordgo.MessageComponent, customID strin
 		}
 	}
 	return nil
-}
-
-func isAdminOrOwnerInteraction(i *discordgo.InteractionCreate, ownerID string) bool {
-	if i.Member == nil {
-		return false
-	}
-	if i.Member.Permissions&discordgo.PermissionAdministrator != 0 {
-		return true
-	}
-	if ownerID != "" && i.Member.User != nil && i.Member.User.ID == ownerID {
-		return true
-	}
-	return false
 }

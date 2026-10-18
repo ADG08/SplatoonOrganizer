@@ -38,13 +38,13 @@ func (h *UnavailableDisposHandler) Handle(ctx context.Context, s *discordgo.Sess
 	userID := getUserID(i)
 	if userID == "" {
 		slog.WarnContext(ctx, "could not determine user ID", "guild", i.GuildID)
-		return respondWithError(s, i, m.ErrUnknownUser)
+		return discord.RespondError(s, i, m.ErrUnknownUser)
 	}
 
 	nowUnavailable, err := h.svc.ToggleWeekUnavailable(ctx, i.GuildID, h.svc.Week(cfg.Schedule, cfg.Location), userID)
 	if err != nil {
 		slog.ErrorContext(ctx, "toggle week unavailability", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 
 	content := m.AvailableAgain

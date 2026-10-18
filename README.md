@@ -52,8 +52,6 @@ Renseigner ensuite les valeurs dans `.env` (environnement local `dev`) :
 | `DISCORD_CLIENT_ID` | Oui | ID de l'application Discord |
 | `DATABASE_URL` | Oui | URL de connexion PostgreSQL (local Docker : `...@db-dev:5432/...`) |
 | `DISCORD_OWNER_ID` | Non | ID Discord du créateur du bot : il peut utiliser `/help` et `/annonce` sans être admin du serveur |
-| `DISCORD_GUILD_ID` | Non | Ancien serveur unique : ses commandes « de serveur » sont retirées au démarrage (les commandes sont désormais globales) |
-| `DISCORD_CHANNEL_ID` | Non | Salon de ce serveur, repris dans sa configuration s'il n'en a pas encore |
 | `RUN_WEEKLY_ON_START` | Non | Mettre `1` pour republier dans tous les serveurs au démarrage (tests) |
 | `HEALTH_PORT` | Non | Port du healthcheck `/health` (défaut : `8080`) |
 | `SUPPORT_URL` | Non | Page de dons : ajoute un bouton « 💸 Soutenir le bot » en bas de `/help` |
@@ -147,7 +145,7 @@ Le panneau (un message Components V2) liste la configuration par section, chacun
   - le **salon** où le message de la semaine est publié ; en choisir un nouveau y publie le message tout de suite ;
   - le **rôle** mentionné à chaque publication, optionnel : le retirer arrête les mentions ;
   - le **jour** et l'**heure** de publication (heure du serveur, voir [Publication automatique](#publication-automatique)).
-- **🕒 Créneaux** : le **découpage**, **Après-midi / Soir** (par défaut) ou **Par heure**, un créneau par heure entre une première heure et une heure de fin (heure du serveur, 20h → minuit par défaut ; ces deux champs sont ignorés en « Après-midi / Soir »). Changer le découpage réinitialise les dispos de la semaine en cours.
+- **🕒 Créneaux** : le **découpage**, **Après-midi / Soir** (par défaut) ou **Par heure**, un créneau par heure entre une première heure et une heure de fin (heure du serveur, 20h → minuit par défaut ; ces deux champs sont ignorés en « Après-midi / Soir »). La fin peut aller **jusqu'à 5h le lendemain** (ex. 15h → 2h) : les heures après minuit restent dans la ligne du jour où la soirée a commencé (« Lundi 1h » = la nuit de lundi à mardi), et les listes « Voir les dispos » affichent leur vraie date. Changer le découpage réinitialise les dispos de la semaine en cours.
 
   En mode **Par heure**, le champ **Heures des membres** choisit entre **🏠 Tout le monde à l'heure du serveur** (par défaut : un serveur dont les joueurs sont dans le même pays) et **🌍 International** (chacun indique son fuseau et voit les créneaux à son heure, voir [Le fuseau des membres](#le-fuseau-des-membres)).
 - **🌍 Fuseau horaire** : le fuseau du serveur, **Europe/Paris par défaut**. Le panneau se change en sélecteur (décalage UTC actuel, puis pays), puis revient avec le fuseau enregistré. En mode **Par heure**, changer de fuseau déplace les créneaux : les dispos de la semaine sont réinitialisées et le message republié.
@@ -192,7 +190,7 @@ Discord ne transmet pas le fuseau d'un membre. Au premier clic sur **✏️ Mes 
 
 Ensuite :
 
-- les menus **✏️ Mes dispos** affichent les créneaux à l'heure du membre (ex. pour un serveur à Paris, « 14h – 15h » à Montréal pour 20h, « Mar 3h – 4h » à Tokyo) ;
+- les menus **✏️ Mes dispos** affichent les créneaux à l'heure du membre (ex. pour un serveur à Paris, « 14h – 15h » à Montréal pour 20h, « 3h – 4h (lendemain) » à Tokyo ; les heures de la nuit suivante sont marquées « (lendemain) ») ;
 - **🌍 Mon fuseau** renvoie la grille de la semaine recalculée à son heure ;
 - **⚙️ Modifier mon fuseau** permet d'en changer (en cas de déménagement ou de voyage, par exemple).
 
@@ -297,7 +295,7 @@ CREATE TABLE guild_config (
     role_id         TEXT,      -- Rôle à mentionner
     slot_mode       TEXT,      -- NULL/'halfday' = Après-midi/Soir, 'hourly' = par heure
     slot_start_hour SMALLINT,  -- mode hourly : première heure (0-23)
-    slot_end_hour   SMALLINT,  -- mode hourly : fin du dernier créneau (1-24, 24 = minuit)
+    slot_end_hour   SMALLINT,  -- mode hourly : fin du dernier créneau (24 = minuit, 25-29 = 1h-5h le lendemain)
     display_style   TEXT,      -- NULL/'classic' = embed texte, 'image' = grille en image
     language        TEXT,      -- NULL/'fr' = français, 'en' = anglais
     publish_weekday SMALLINT,  -- NULL = lundi · 0 = dimanche (semaine qui suit), 1 = lundi

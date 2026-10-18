@@ -9,8 +9,6 @@ const defaultHealthPort = "8080"
 type Config struct {
 	DiscordToken     string
 	DiscordClientID  string
-	DiscordGuildID   string // Optional: the guild of single-guild versions, migrated on startup (see main).
-	DiscordChannelID string // Optional: that guild's channel, used when /help never set one.
 	DiscordOwnerID   string // Optional: Discord user ID of the bot creator (can use admin commands without being server admin).
 	DatabaseURL      string
 	RunWeeklyOnStart bool
@@ -28,8 +26,6 @@ func LoadConfig() (*Config, error) {
 	cfg := &Config{
 		DiscordToken:     os.Getenv("DISCORD_TOKEN"),
 		DiscordClientID:  os.Getenv("DISCORD_CLIENT_ID"),
-		DiscordGuildID:   os.Getenv("DISCORD_GUILD_ID"),
-		DiscordChannelID: os.Getenv("DISCORD_CHANNEL_ID"),
 		DiscordOwnerID:   os.Getenv("DISCORD_OWNER_ID"),
 		DatabaseURL:      os.Getenv("DATABASE_URL"),
 		RunWeeklyOnStart: os.Getenv("RUN_WEEKLY_ON_START") == "1",

@@ -40,13 +40,13 @@ func (h *OpenDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 	userID := getUserID(i)
 	if userID == "" {
 		slog.WarnContext(ctx, "could not determine user ID", "guild", i.GuildID)
-		return respondWithError(s, i, m.ErrUnknownUser)
+		return discord.RespondError(s, i, m.ErrUnknownUser)
 	}
 
 	// Opening "Mes dispos" means the user is available again: clear any week-unavailable status.
 	if err := h.svc.ClearWeekUnavailable(ctx, i.GuildID, h.svc.Week(cfg.Schedule, cfg.Location), userID); err != nil {
 		slog.ErrorContext(ctx, "clear week unavailability on open", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 
 	// In an international guild, hourly slots are shown in the member's timezone: ask for
@@ -56,7 +56,7 @@ func (h *OpenDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 		var err error
 		if loc, err = h.svc.UserTimezone(ctx, userID); err != nil {
 			slog.ErrorContext(ctx, "get user timezone", "guild", i.GuildID, "err", err)
-			return respondWithError(s, i, m.ErrGeneric)
+			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 		if loc == nil {
 			return respondTimezonePicker(s, i, m, tzNextDispos)
@@ -77,7 +77,7 @@ func sendDisposMenus(ctx context.Context, s *discordgo.Session, i *discordgo.Int
 	userSlots, err := svc.UserAvailability(ctx, i.GuildID, week, userID)
 	if err != nil {
 		slog.ErrorContext(ctx, "get user availability", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 	label := func(day, slot int) string { return svc.SlotLabelIn(m, layout, cfg.Location, week, day, slot, loc) }
 	closed := availability.ClosedSlots(layout, cfg.Schedule, week, cfg.Location)
@@ -137,13 +137,13 @@ func (h *ViewDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 	users, err := h.svc.AvailabilityUsers(ctx, i.GuildID, week)
 	if err != nil {
 		slog.ErrorContext(ctx, "get availability users from button", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 
 	unavailableUsers, err := h.svc.WeekUnavailableUsers(ctx, i.GuildID, week)
 	if err != nil {
 		slog.ErrorContext(ctx, "get week unavailable users from button", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 
 	description := h.svc.FormatUsersBySlot(m, cfg.SlotLayout, cfg.Location, week, users)

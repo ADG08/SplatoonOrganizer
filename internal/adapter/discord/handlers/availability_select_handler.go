@@ -41,12 +41,12 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 	userID := getUserID(i)
 	if userID == "" {
 		slog.WarnContext(ctx, "could not determine user ID", "guild", i.GuildID)
-		return respondWithError(s, i, m.ErrUnknownUser)
+		return discord.RespondError(s, i, m.ErrUnknownUser)
 	}
 	dayIndex, err := parseSelectDisposCustomID(i.MessageComponentData().CustomID)
 	if err != nil {
 		slog.WarnContext(ctx, "invalid select custom id", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrInvalid)
+		return discord.RespondError(s, i, m.ErrInvalid)
 	}
 
 	// Values are 1-based slot indexes of the layout ("1" = first slot). Closed slots aren't
@@ -65,13 +65,13 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 
 	if err := h.svc.SetDayAvailability(ctx, i.GuildID, week, userID, dayIndex, slots); err != nil {
 		slog.ErrorContext(ctx, "set day availability", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 
 	userSlots, err := h.svc.UserAvailability(ctx, i.GuildID, week, userID)
 	if err != nil {
 		slog.ErrorContext(ctx, "get user availability after select", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 	var loc *time.Location // the guild's time, unless members see their own
 	if cfg.MemberTime() {

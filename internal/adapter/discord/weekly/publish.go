@@ -19,8 +19,8 @@ import (
 // Timeout bounds one publication or refresh: rendering the image, then a few Discord calls.
 const Timeout = 30 * time.Second
 
-// ErrNoChannel is returned when publishing for a guild that has no channel configured.
-var ErrNoChannel = errors.New("no channel configured")
+// errNoChannel is returned when publishing for a guild that has no channel configured.
+var errNoChannel = errors.New("no channel configured")
 
 // guildLocks serializes what is done to each guild's weekly message: the scheduler, /help
 // and the refreshes after clicks run concurrently, and two publications at once would
@@ -56,7 +56,7 @@ func PublishDue(ctx context.Context, s *discordgo.Session, svc *appavailability.
 // publish is Publish, the guild being locked.
 func publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, cfg *guildconfig.GuildConfig) error {
 	if cfg.ChannelID == "" {
-		return ErrNoChannel
+		return errNoChannel
 	}
 	week := svc.Week(cfg.Schedule, cfg.Location)
 	counts, err := svc.AvailabilitySummary(ctx, cfg.GuildID, week)

@@ -104,6 +104,7 @@ type Messages struct {
 	StartHourHint    string
 	EndHourLabel     string
 	EndHourHint      string
+	NextDay          string // after an hour of the next morning
 	HourOrder        string
 	MemberTimeLabel  string
 	MemberTimeHint   string
@@ -244,7 +245,8 @@ var fr = Messages{
 	StartHourLabel:   "Première heure (mode par heure)",
 	StartHourHint:    "Heure du serveur. Ignorée en Après-midi / Soir.",
 	EndHourLabel:     "Fin du dernier créneau (mode par heure)",
-	EndHourHint:      "Ignorée en Après-midi / Soir.",
+	EndHourHint:      "Jusqu'à 5h le lendemain. Ignorée en Après-midi / Soir.",
+	NextDay:          " (lendemain)",
 	HourOrder:        "La première heure doit être avant la fin du dernier créneau.",
 	MemberTimeLabel:  "Heures des membres (mode par heure)",
 	MemberTimeHint:   "International : chacun indique son fuseau et voit les créneaux à son heure.",
@@ -381,7 +383,8 @@ var en = Messages{
 	StartHourLabel:   "First hour (hourly slots)",
 	StartHourHint:    "Server time. Ignored for Afternoon / Evening.",
 	EndHourLabel:     "End of the last slot (hourly slots)",
-	EndHourHint:      "Ignored for Afternoon / Evening.",
+	EndHourHint:      "Up to 5 AM the next day. Ignored for Afternoon / Evening.",
+	NextDay:          " (next day)",
 	HourOrder:        "The first hour must be before the end of the last slot.",
 	MemberTimeLabel:  "Members' hours (hourly slots)",
 	MemberTimeHint:   "International: everyone sets their timezone and sees the slots in their own time.",

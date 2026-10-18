@@ -26,11 +26,11 @@ func TestRegistryHandler(t *testing.T) {
 	}
 
 	for customID, want := range map[string]string{
-		"availability:tz":                "availability:tz",
-		"availability:tz:dispos:w":       "availability:tz",
-		"availability:tzedit:grid":       "availability:tzedit", // not taken by "availability:tz"
-		"help:config_open_publish_modal": "help:config",
-		"help:config_timezone:c":         "help:config",
+		"availability:tz":          "availability:tz",
+		"availability:tz:dispos:w": "availability:tz",
+		"availability:tzedit:grid": "availability:tzedit", // not taken by "availability:tz"
+		"help:config:open_publish": "help:config",
+		"help:config:timezone:c":   "help:config",
 	} {
 		if h, ok := r.Handler(customID); !ok || h.CustomID() != want {
 			t.Errorf("%s: got %v, want %s", customID, h, want)

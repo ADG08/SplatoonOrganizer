@@ -37,9 +37,6 @@ func NewRegistry() *Registry {
 
 // RegisterCommand registers a slash command.
 func (r *Registry) RegisterCommand(cmd Command) error {
-	if cmd == nil {
-		return fmt.Errorf("command is nil")
-	}
 	name := cmd.Name()
 	if name == "" {
 		return fmt.Errorf("command name is empty")
@@ -59,9 +56,6 @@ func (r *Registry) Command(name string) (Command, bool) {
 
 // RegisterHandler registers an interaction handler.
 func (r *Registry) RegisterHandler(h InteractionHandler) error {
-	if h == nil {
-		return fmt.Errorf("handler is nil")
-	}
 	id := h.CustomID()
 	if id == "" {
 		return fmt.Errorf("handler CustomID is empty")
@@ -73,16 +67,14 @@ func (r *Registry) RegisterHandler(h InteractionHandler) error {
 	return nil
 }
 
-// Handler returns a handler by custom ID (supports prefix matching).
+// Handler returns the handler of a custom ID: the one registered with that ID, or with
+// its prefix before a ":" ("availability:select" handles "availability:select:3").
 func (r *Registry) Handler(customID string) (InteractionHandler, bool) {
 	if h, ok := r.handlers[customID]; ok {
 		return h, true
 	}
 	for id, h := range r.handlers {
 		if strings.HasPrefix(customID, id+":") {
-			return h, true
-		}
-		if strings.HasPrefix(customID, id+"_") {
 			return h, true
 		}
 	}

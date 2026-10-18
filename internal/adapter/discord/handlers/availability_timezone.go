@@ -155,7 +155,7 @@ func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.Inter
 	counts, err := svc.AvailabilitySummary(ctx, cfg.GuildID, week)
 	if err != nil {
 		slog.ErrorContext(ctx, "get availability summary", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 	view := svc.BuildWeeklyViewIn(m, cfg.SlotLayout, cfg.Location, cfg.Schedule, week, counts, loc)
 	title := fmt.Sprintf(m.GridInYourTime, view.Title)
@@ -165,7 +165,7 @@ func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.Inter
 		img, err := gridimage.Render(view, cfg.FullAt)
 		if err != nil {
 			slog.ErrorContext(ctx, "render local grid", "guild", i.GuildID, "err", err)
-			return respondWithError(s, i, m.ErrGeneric)
+			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 		accent := weekly.AccentColor
 		params.Flags |= discordgo.MessageFlagsIsComponentsV2
@@ -226,7 +226,7 @@ func (h *TimezoneSelectHandler) Handle(ctx context.Context, s *discordgo.Session
 	m := cfg.Messages()
 	userID := getUserID(i)
 	if userID == "" {
-		return respondWithError(s, i, m.ErrUnknownUser)
+		return discord.RespondError(s, i, m.ErrUnknownUser)
 	}
 	// Custom ID: availability:tz:<next>:<step>
 	next, step, _ := strings.Cut(strings.TrimPrefix(i.MessageComponentData().CustomID, TimezoneCustomIDPrefix+":"), ":")
@@ -236,7 +236,7 @@ func (h *TimezoneSelectHandler) Handle(ctx context.Context, s *discordgo.Session
 	}
 	if err := h.svc.SetUserTimezone(ctx, userID, loc); err != nil {
 		slog.ErrorContext(ctx, "set user timezone", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 	if err := updateEphemeral(s, i, fmt.Sprintf(m.TimezoneSaved, m.TimezoneName(loc), m.Clock(time.Now().In(loc)))); err != nil {
 		return err
@@ -258,12 +258,12 @@ func (h *TimezoneSelectHandler) Handle(ctx context.Context, s *discordgo.Session
 func readTimezonePick(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, m *i18n.Messages, idBase, step, countryPrompt string, v2 bool) (*time.Location, error) {
 	values := i.MessageComponentData().Values
 	if len(values) == 0 {
-		return nil, respondWithError(s, i, m.ErrInvalid)
+		return nil, discord.RespondError(s, i, m.ErrInvalid)
 	}
 	loc, err := availability.ParseTimezone(values[0])
 	if err != nil {
 		slog.WarnContext(ctx, "invalid timezone from picker", "value", values[0], "err", err)
-		return nil, respondWithError(s, i, m.ErrInvalid)
+		return nil, discord.RespondError(s, i, m.ErrInvalid)
 	}
 	if step == tzStepCountry {
 		return loc, nil
@@ -324,19 +324,19 @@ func (h *MyTimeHandler) Handle(ctx context.Context, s *discordgo.Session, i *dis
 	m := cfg.Messages()
 	userID := getUserID(i)
 	if userID == "" {
-		return respondWithError(s, i, m.ErrUnknownUser)
+		return discord.RespondError(s, i, m.ErrUnknownUser)
 	}
 	// Messages posted before the guild turned member timezones off still show the button.
 	if !cfg.SlotLayout.IsHourly() {
-		return respondWithError(s, i, m.NoHoursToConvert)
+		return discord.RespondError(s, i, m.NoHoursToConvert)
 	}
 	if !cfg.MemberTime() {
-		return respondWithError(s, i, m.MemberTimeOff)
+		return discord.RespondError(s, i, m.MemberTimeOff)
 	}
 	loc, err := h.svc.UserTimezone(ctx, userID)
 	if err != nil {
 		slog.ErrorContext(ctx, "get user timezone", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, m.ErrGeneric)
+		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 	if loc == nil {
 		return respondTimezonePicker(s, i, m, tzNextGrid)

@@ -21,13 +21,17 @@ const (
 	// 20h to minuit, in the guild's timezone.
 	DefaultStartHour = 20
 	DefaultEndHour   = 24
+
+	// MaxEndHour lets an evening go on after midnight, up to 5h the next morning: a
+	// gamer's Monday often ends at 2h on Tuesday, and those hours belong to Monday.
+	MaxEndHour = 24 + 5
 )
 
 // Layout describes the slots of a day. Slot indexes go from 0 to Len()-1.
 type Layout struct {
 	Mode      SlotMode
-	StartHour int // hourly only: first slot starts at StartHour:00
-	EndHour   int // hourly only: last slot ends at EndHour:00 (24 = minuit)
+	StartHour int // hourly only: first slot starts at StartHour:00 (0-23)
+	EndHour   int // hourly only: last slot ends at EndHour:00 (24 = minuit, 25-29 = 1h-5h the next day)
 }
 
 // HalfDayLayout returns the "Après-midi / Soir" layout.
@@ -35,10 +39,12 @@ func HalfDayLayout() Layout {
 	return Layout{Mode: ModeHalfDay}
 }
 
-// HourlyLayout returns a layout with one slot per hour in [startHour, endHour).
+// HourlyLayout returns a layout with one slot per hour in [startHour, endHour). The
+// hours after midnight (endHour above 24) are the next day's, still counted in the day
+// the evening started.
 func HourlyLayout(startHour, endHour int) (Layout, error) {
-	if startHour < 0 || endHour > 24 || startHour >= endHour {
-		return Layout{}, fmt.Errorf("invalid hourly range %dh-%dh: expected 0 <= start < end <= 24", startHour, endHour)
+	if startHour < 0 || startHour > 23 || endHour > MaxEndHour || startHour >= endHour {
+		return Layout{}, fmt.Errorf("invalid hourly range %dh-%dh: expected 0 <= start <= 23, start < end <= %d", startHour, endHour, MaxEndHour)
 	}
 	if endHour-startHour > MaxSlotsPerDay {
 		return Layout{}, fmt.Errorf("invalid hourly range %dh-%dh: at most %d slots per day", startHour, endHour, MaxSlotsPerDay)
@@ -70,6 +76,7 @@ func (l Layout) SlotStart(week WeekKey, dayIndex, slot int, loc *time.Location) 
 	if err != nil {
 		return time.Time{}, err
 	}
-	// time.Date normalizes the day overflow and applies the DST offset of that exact day.
+	// time.Date normalizes the day and hour overflows (a slot after midnight is the next
+	// day's) and applies the DST offset of that exact day.
 	return time.Date(monday.Year(), monday.Month(), monday.Day()+dayIndex, l.StartHour+slot, 0, 0, 0, loc), nil
 }

@@ -43,14 +43,14 @@ func (c *HelpCommand) Execute(ctx context.Context, s *discordgo.Session, i *disc
 	cfg, err := c.svc.Get(ctx, i.GuildID)
 	if err != nil {
 		slog.ErrorContext(ctx, "help: get guild config", "guild", i.GuildID, "err", err)
-		return respondWithError(s, i, i18n.For(i18n.FR).ErrGeneric)
+		return discord.RespondError(s, i, i18n.For(i18n.FR).ErrGeneric)
 	}
 	m := cfg.Messages()
-	if !isAdminOrOwner(i, c.ownerID) {
-		return respondWithError(s, i, m.ErrAdminOnly)
+	if !discord.IsAdminOrOwner(i, c.ownerID) {
+		return discord.RespondError(s, i, m.ErrAdminOnly)
 	}
 	if i.GuildID == "" {
-		return respondWithError(s, i, m.ErrGuildOnly)
+		return discord.RespondError(s, i, m.ErrGuildOnly)
 	}
 
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
