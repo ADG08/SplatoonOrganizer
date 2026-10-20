@@ -259,6 +259,22 @@ func (h *HelpConfigHandler) handlePublishSubmit(ctx context.Context, s *discordg
 		}
 	}
 
+	var changes []any
+	if channelChanged {
+		changes = append(changes, "channel", channelName(s, channelID))
+	}
+	if roleID != previous.RoleID {
+		changes = append(changes, "role", roleName(s, i.GuildID, roleID))
+	}
+	if schedule != previous.Schedule {
+		changes = append(changes, "schedule", m.ScheduleSummary(schedule))
+	}
+	event := "settings changed"
+	if previous.ChannelID == "" {
+		event = "guild set up"
+	}
+	logSettings(ctx, i, event, changes...)
+
 	cfg := *previous
 	cfg.ChannelID, cfg.RoleID, cfg.Schedule, cfg.Active = channelID, roleID, schedule, true
 	republish := channelChanged
@@ -314,6 +330,15 @@ func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.
 		}
 	}
 
+	var changes []any
+	if layoutChanged {
+		changes = append(changes, "slots", m.LayoutSummary(layout))
+	}
+	if memberTimezones != previous.MemberTimezones {
+		changes = append(changes, "member_timezones", memberTimezones)
+	}
+	logSettings(ctx, i, "settings changed", changes...)
+
 	cfg := *previous
 	cfg.SlotLayout, cfg.MemberTimezones = layout, memberTimezones
 	// The message changes with the layout, or with the "Mon fuseau" button of hourly slots.
@@ -357,6 +382,18 @@ func (h *HelpConfigHandler) handleMessageSubmit(ctx context.Context, s *discordg
 		}
 	}
 
+	var changes []any
+	if display != previous.Display {
+		changes = append(changes, "display", display)
+	}
+	if lang != previous.Language {
+		changes = append(changes, "language", lang)
+	}
+	if fullAt != previous.FullAt {
+		changes = append(changes, "full_at", fullAt)
+	}
+	logSettings(ctx, i, "settings changed", changes...)
+
 	cfg := *previous
 	cfg.Display, cfg.Language, cfg.FullAt = display, lang, fullAt
 	return h.saved(ctx, s, i, &cfg, m.ConfigSaved, republish)
@@ -377,6 +414,8 @@ func (h *HelpConfigHandler) handleTimezonePick(ctx context.Context, s *discordgo
 		slog.ErrorContext(ctx, "help config: set timezone", "guild", i.GuildID, "err", err)
 		return discord.RespondError(s, i, m.ErrGeneric)
 	}
+
+	logSettings(ctx, i, "settings changed", "timezone", loc.String())
 
 	message := fmt.Sprintf(m.GuildTimezoneSaved, m.TimezoneName(loc), m.Clock(time.Now().In(loc)))
 	republish := previous.SlotLayout.IsHourly()
@@ -407,6 +446,30 @@ func (h *HelpConfigHandler) saved(ctx context.Context, s *discordgo.Session, i *
 		weekly.PublishInBackground(ctx, s, h.availSvc, cfg)
 	}
 	return h.refreshPanel(ctx, s, i, message)
+}
+
+// logSettings logs a change of the guild's settings, with who made it.
+func logSettings(ctx context.Context, i *discordgo.InteractionCreate, event string, changes ...any) {
+	slog.InfoContext(ctx, event, append([]any{"guild", i.GuildID, "by", discord.UserName(i)}, changes...)...)
+}
+
+// channelName returns "#name" of a channel the bot knows, else its ID.
+func channelName(s *discordgo.Session, channelID string) string {
+	if c, err := s.State.Channel(channelID); err == nil {
+		return "#" + c.Name
+	}
+	return channelID
+}
+
+// roleName returns "@name" of a guild role the bot knows, else its ID ("none" for no role).
+func roleName(s *discordgo.Session, guildID, roleID string) string {
+	if roleID == "" {
+		return "none"
+	}
+	if r, err := s.State.Role(guildID, roleID); err == nil {
+		return "@" + r.Name
+	}
+	return roleID
 }
 
 // modalSelectValue returns the first selected value of a modal select menu, or "".

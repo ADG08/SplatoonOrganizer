@@ -13,6 +13,18 @@ func RespondError(s *discordgo.Session, i *discordgo.InteractionCreate, msg stri
 	})
 }
 
+// UserName returns the name of the member or user behind an interaction, for the logs.
+func UserName(i *discordgo.InteractionCreate) string {
+	user := i.User
+	if i.Member != nil && i.Member.User != nil {
+		user = i.Member.User
+	}
+	if user == nil {
+		return ""
+	}
+	return user.Username
+}
+
 // IsAdminOrOwner reports whether the member may configure the bot: a server administrator,
 // or the bot's creator (ownerID, optional).
 func IsAdminOrOwner(i *discordgo.InteractionCreate, ownerID string) bool {

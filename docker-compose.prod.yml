@@ -32,6 +32,7 @@ services:
       DATABASE_URL: postgres://splatoon:splatoon@db-prod:5432/splatoon?sslmode=disable
       HEALTH_PORT: ${HEALTH_PORT:-8080}
       SUPPORT_URL: ${SUPPORT_URL:-https://revolut.me/adg01}
+      LOG_WEBHOOK_URL: ${LOG_WEBHOOK_URL:-}
     healthcheck:
       test: ["CMD", "/bot", "healthcheck"]
       interval: 30s

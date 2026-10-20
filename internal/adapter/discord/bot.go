@@ -46,7 +46,7 @@ func (b *Bot) Open() error {
 	if err := b.session.Open(); err != nil {
 		return fmt.Errorf("opening discord session: %w", err)
 	}
-	slog.Info("Discord session opened")
+	slog.Debug("Discord session opened")
 	return nil
 }
 
@@ -56,7 +56,7 @@ func (b *Bot) Close() {
 		slog.Error("close Discord session", "err", err)
 		return
 	}
-	slog.Info("Discord session closed")
+	slog.Debug("Discord session closed")
 }
 
 func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.InteractionCreate) {
