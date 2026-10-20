@@ -53,7 +53,7 @@ func (s *Scheduler) Start(ctx context.Context, force bool) {
 			next := time.Now().Truncate(checkEvery).Add(checkEvery)
 			select {
 			case <-ctx.Done():
-				slog.Info("stopping availability scheduler")
+				slog.Debug("stopping availability scheduler")
 				return
 			case <-time.After(time.Until(next)):
 				s.run(ctx, false)

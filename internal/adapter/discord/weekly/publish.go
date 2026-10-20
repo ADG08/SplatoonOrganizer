@@ -94,6 +94,7 @@ func publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Ser
 			slog.ErrorContext(ctx, "delete previous weekly message", "guild", cfg.GuildID, "err", err)
 		}
 	}
+	slog.InfoContext(ctx, "weekly message published", "guild", cfg.GuildID, "week", week)
 	return nil
 }
 

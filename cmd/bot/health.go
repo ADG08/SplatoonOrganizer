@@ -27,7 +27,7 @@ func serveHealth(ctx context.Context, port string) error {
 		_ = srv.Shutdown(shutdownCtx)
 	}()
 
-	slog.Info("health server listening", "addr", srv.Addr)
+	slog.Debug("health server listening", "addr", srv.Addr)
 	if err := srv.ListenAndServe(); !errors.Is(err, http.ErrServerClosed) {
 		return err
 	}
