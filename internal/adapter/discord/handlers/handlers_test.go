@@ -50,7 +50,7 @@ func TestParseSelectDisposCustomID(t *testing.T) {
 func TestUserDisposSelectMenus(t *testing.T) {
 	layout, _ := availability.HourlyLayout(20, 24)
 	label := func(day, slot int) string { return fr.SlotLabel(layout, slot) }
-	rows := buildUserDisposSelectMenus(fr, layout, map[int]map[int]bool{5: {1: true}}, nil, 5, 2, label)
+	rows := buildUserDisposSelectMenus(fr, layout, map[int]map[int]bool{5: {1: true}}, nil, nil, 5, 2, label)
 	if len(rows) != 2 {
 		t.Fatalf("got %d rows, want Saturday and Sunday", len(rows))
 	}
@@ -68,14 +68,14 @@ func TestClosedSlotsLeftOut(t *testing.T) {
 	layout, _ := availability.HourlyLayout(8, 12) // 8h-12h, Monday 10h publication: 8h and 9h closed
 	closed := availability.ClosedSlots(layout, availability.DefaultSchedule(), "2026-W42", availability.DefaultLocation())
 	label := func(day, slot int) string { return fr.SlotLabel(layout, slot) }
-	menu := buildUserDisposSelectMenus(fr, layout, nil, closed, 0, 1, label)[0].(discordgo.ActionsRow).Components[0].(discordgo.SelectMenu)
+	menu := buildUserDisposSelectMenus(fr, layout, nil, closed, nil, 0, 1, label)[0].(discordgo.ActionsRow).Components[0].(discordgo.SelectMenu)
 	if len(menu.Options) != 2 || menu.Options[0].Value != "3" || menu.MaxValues != 2 {
 		t.Errorf("Monday should offer 10h and 11h only, as values 3 and 4: %+v", menu.Options)
 	}
 
 	early, _ := availability.HourlyLayout(6, 9) // every Monday slot is before 10h
 	closed = availability.ClosedSlots(early, availability.DefaultSchedule(), "2026-W42", availability.DefaultLocation())
-	menu = buildUserDisposSelectMenus(fr, early, nil, closed, 0, 1, label)[0].(discordgo.ActionsRow).Components[0].(discordgo.SelectMenu)
+	menu = buildUserDisposSelectMenus(fr, early, nil, closed, nil, 0, 1, label)[0].(discordgo.ActionsRow).Components[0].(discordgo.SelectMenu)
 	if !menu.Disabled || len(menu.Options) != 1 {
 		t.Errorf("a day without open slot gets a disabled menu: %+v", menu)
 	}

@@ -37,6 +37,7 @@ type Messages struct {
 	DisposMore      string
 	DisposUpdated   string
 	DayClosed       string // %s day
+	DayPast         string // %s day
 	AvailableAgain  string
 	UnavailableNow  string
 	TimezoneInMenus string // %s timezone name
@@ -181,6 +182,7 @@ var fr = Messages{
 	DisposMore:      "Suite :",
 	DisposUpdated:   "Tes disponibilités ont été mises à jour.",
 	DayClosed:       "%s · avant la publication",
+	DayPast:         "%s · passé",
 	AvailableAgain:  "✅ Tu es de nouveau disponible cette semaine. Configure tes créneaux avec **✏️ Mes dispos**.",
 	UnavailableNow:  "🚫 Tu es marqué **indisponible** pour toute la semaine. Tes créneaux ont été effacés. Reclique sur le bouton (ou coche un créneau) pour revenir disponible.",
 	TimezoneInMenus: "-# 🌍 Heures affichées à ton heure (%s)",
@@ -319,6 +321,7 @@ var en = Messages{
 	DisposMore:      "More:",
 	DisposUpdated:   "Your availability has been updated.",
 	DayClosed:       "%s · before posting",
+	DayPast:         "%s · over",
 	AvailableAgain:  "✅ You're available again this week. Pick your slots with **✏️ My availability**.",
 	UnavailableNow:  "🚫 You're marked **unavailable** for the whole week. Your slots were cleared. Click the button again (or pick a slot) to be available again.",
 	TimezoneInMenus: "-# 🌍 Hours shown in your time (%s)",

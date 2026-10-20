@@ -57,6 +57,39 @@ func TestNewScheduleValidation(t *testing.T) {
 	}
 }
 
+func TestPastSlots(t *testing.T) {
+	paris, err := time.LoadLocation("Europe/Paris")
+	if err != nil {
+		t.Skipf("tzdata unavailable: %v", err)
+	}
+	const week = WeekKey("2026-W42")   // Monday 12 October 2026
+	evening, _ := HourlyLayout(20, 26) // 20h to 2h the next day
+	wednesday2230 := time.Date(2026, 10, 14, 22, 30, 0, 0, paris)
+
+	past := PastSlots(evening, week, paris, wednesday2230)
+	for day := range 2 {
+		for slot, p := range past[day] {
+			if !p {
+				t.Errorf("day %d slot %d is over on Wednesday evening", day, slot)
+			}
+		}
+	}
+	// Wednesday: 20h and 21h are over, 22h is going on, 23h to 1h are to come.
+	if want := []bool{true, true, false, false, false, false}; fmt.Sprint(past[2]) != fmt.Sprint(want) {
+		t.Errorf("Wednesday at 22h30: %v, want %v", past[2], want)
+	}
+	// Tuesday's 1h slot is on Wednesday at 1h: over.
+	tuesdayNight := time.Date(2026, 10, 14, 1, 30, 0, 0, paris)
+	if want := []bool{true, true, true, true, true, false}; fmt.Sprint(PastSlots(evening, week, paris, tuesdayNight)[1]) != fmt.Sprint(want) {
+		t.Errorf("Tuesday's slots at Wednesday 1h30: %v, want %v", PastSlots(evening, week, paris, tuesdayNight)[1], want)
+	}
+
+	halfDay := PastSlots(HalfDayLayout(), week, paris, wednesday2230)
+	if fmt.Sprint(halfDay[1]) != "[true true]" || fmt.Sprint(halfDay[2]) != "[false false]" {
+		t.Errorf("half-day slots are over with their day: Tuesday %v, Wednesday %v", halfDay[1], halfDay[2])
+	}
+}
+
 func TestClosedSlots(t *testing.T) {
 	paris, err := time.LoadLocation("Europe/Paris")
 	if err != nil {

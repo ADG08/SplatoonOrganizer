@@ -12,8 +12,8 @@ import (
 // buildUserDisposSelectMenus builds one select menu per day for days [dayStart, dayStart+dayCount).
 // Option values are 1-based slot indexes ("1" = first slot of the layout); label gives the
 // option text of a slot, in the member's timezone. Closed slots (before the week's
-// publication) are left out; a day without any open slot gets a disabled menu.
-func buildUserDisposSelectMenus(m *i18n.Messages, layout availability.Layout, userSlots map[int]map[int]bool, closed [][]bool, dayStart, dayCount int, label func(day, slot int) string) []discordgo.MessageComponent {
+// publication) and past ones are left out; a day without any slot left gets a disabled menu.
+func buildUserDisposSelectMenus(m *i18n.Messages, layout availability.Layout, userSlots map[int]map[int]bool, closed, past [][]bool, dayStart, dayCount int, label func(day, slot int) string) []discordgo.MessageComponent {
 	minVals := 0
 
 	var rows []discordgo.MessageComponent
@@ -21,7 +21,7 @@ func buildUserDisposSelectMenus(m *i18n.Messages, layout availability.Layout, us
 		daySlots := userSlots[day]
 		options := make([]discordgo.SelectMenuOption, 0, layout.Len())
 		for slot := range layout.Len() {
-			if isClosed(closed, day, slot) {
+			if marked(closed, day, slot) || marked(past, day, slot) {
 				continue
 			}
 			options = append(options, discordgo.SelectMenuOption{
@@ -41,6 +41,9 @@ func buildUserDisposSelectMenus(m *i18n.Messages, layout availability.Layout, us
 			// Discord wants an option even in a disabled menu.
 			menu.Disabled = true
 			menu.Placeholder = fmt.Sprintf(m.DayClosed, m.Days[day])
+			if marked(past, day, 0) {
+				menu.Placeholder = fmt.Sprintf(m.DayPast, m.Days[day])
+			}
 			menu.Options = []discordgo.SelectMenuOption{{Label: "—", Value: "0"}}
 			menu.MaxValues = 1
 		}
@@ -51,7 +54,7 @@ func buildUserDisposSelectMenus(m *i18n.Messages, layout availability.Layout, us
 	return rows
 }
 
-// isClosed reports whether a slot is closed; a nil closed means none is.
-func isClosed(closed [][]bool, day, slot int) bool {
-	return day < len(closed) && slot < len(closed[day]) && closed[day][slot]
+// marked reports whether a slot is marked in a grid of slots; a nil grid marks none.
+func marked(grid [][]bool, day, slot int) bool {
+	return day < len(grid) && slot < len(grid[day]) && grid[day][slot]
 }

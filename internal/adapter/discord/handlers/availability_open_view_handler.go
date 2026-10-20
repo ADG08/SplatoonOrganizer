@@ -81,11 +81,12 @@ func sendDisposMenus(ctx context.Context, s *discordgo.Session, i *discordgo.Int
 	}
 	label := func(day, slot int) string { return svc.SlotLabelIn(m, layout, cfg.Location, week, day, slot, loc) }
 	closed := availability.ClosedSlots(layout, cfg.Schedule, week, cfg.Location)
+	past := availability.PastSlots(layout, week, cfg.Location, time.Now())
 
 	first := &discordgo.WebhookParams{
 		Content:    withLegend(m.DisposIntro, timezoneLegend(m, layout, loc)),
 		Flags:      discordgo.MessageFlagsEphemeral,
-		Components: buildUserDisposSelectMenus(m, layout, userSlots, closed, 0, 5, label),
+		Components: buildUserDisposSelectMenus(m, layout, userSlots, closed, past, 0, 5, label),
 	}
 	if followup {
 		if _, err := s.FollowupMessageCreate(i.Interaction, true, first); err != nil {
@@ -97,7 +98,7 @@ func sendDisposMenus(ctx context.Context, s *discordgo.Session, i *discordgo.Int
 	}); err != nil {
 		return err
 	}
-	second := buildUserDisposSelectMenus(m, layout, userSlots, closed, 5, 2, label)
+	second := buildUserDisposSelectMenus(m, layout, userSlots, closed, past, 5, 2, label)
 	if cfg.MemberTime() {
 		second = append(second, editTimezoneButton(m, tzNextDispos))
 	}
