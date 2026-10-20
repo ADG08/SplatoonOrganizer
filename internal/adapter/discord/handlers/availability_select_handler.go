@@ -49,14 +49,25 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 		return discord.RespondError(s, i, m.ErrInvalid)
 	}
 
-	// Values are 1-based slot indexes of the layout ("1" = first slot). Closed slots aren't
-	// offered, and are refused if sent anyway.
 	week := h.svc.Week(cfg.Schedule, cfg.Location)
+	userSlots, err := h.svc.UserAvailability(ctx, i.GuildID, week, userID)
+	if err != nil {
+		slog.ErrorContext(ctx, "get user availability", "guild", i.GuildID, "err", err)
+		return discord.RespondError(s, i, m.ErrGeneric)
+	}
+
+	// Values are 1-based slot indexes of the layout ("1" = first slot). Closed and past
+	// slots aren't offered, and are refused if sent anyway (from menus opened earlier).
+	// The past ones keep what the member had picked: the day is saved as a whole.
 	closed := availability.ClosedSlots(layout, cfg.Schedule, week, cfg.Location)
+	past := availability.PastSlots(layout, week, cfg.Location, time.Now())
 	slots := make([]bool, layout.Len())
+	for slot := range slots {
+		slots[slot] = past[dayIndex][slot] && userSlots[dayIndex][slot]
+	}
 	for _, v := range i.MessageComponentData().Values {
 		n, err := strconv.Atoi(v)
-		if err != nil || !layout.Valid(n-1) || closed[dayIndex][n-1] {
+		if err != nil || !layout.Valid(n-1) || closed[dayIndex][n-1] || past[dayIndex][n-1] {
 			slog.WarnContext(ctx, "ignoring invalid slot value", "guild", i.GuildID, "value", v)
 			continue
 		}
@@ -67,11 +78,11 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 		slog.ErrorContext(ctx, "set day availability", "guild", i.GuildID, "err", err)
 		return discord.RespondError(s, i, m.ErrGeneric)
 	}
-
-	userSlots, err := h.svc.UserAvailability(ctx, i.GuildID, week, userID)
-	if err != nil {
-		slog.ErrorContext(ctx, "get user availability after select", "guild", i.GuildID, "err", err)
-		return discord.RespondError(s, i, m.ErrGeneric)
+	if userSlots[dayIndex] == nil {
+		userSlots[dayIndex] = make(map[int]bool)
+	}
+	for slot, picked := range slots {
+		userSlots[dayIndex][slot] = picked
 	}
 	var loc *time.Location // the guild's time, unless members see their own
 	if cfg.MemberTime() {
@@ -85,9 +96,9 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 	// days, the latter followed by the "change my timezone" button for hourly slots).
 	var components []discordgo.MessageComponent
 	if dayIndex < 5 {
-		components = buildUserDisposSelectMenus(m, layout, userSlots, closed, 0, 5, label)
+		components = buildUserDisposSelectMenus(m, layout, userSlots, closed, past, 0, 5, label)
 	} else {
-		components = buildUserDisposSelectMenus(m, layout, userSlots, closed, 5, 2, label)
+		components = buildUserDisposSelectMenus(m, layout, userSlots, closed, past, 5, 2, label)
 		if cfg.MemberTime() {
 			components = append(components, editTimezoneButton(m, tzNextDispos))
 		}

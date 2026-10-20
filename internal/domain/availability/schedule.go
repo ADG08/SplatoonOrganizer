@@ -82,3 +82,25 @@ func ClosedSlots(layout Layout, schedule Schedule, week WeekKey, loc *time.Locat
 	}
 	return closed
 }
+
+// PastSlots reports, for each day and slot of the week, whether the slot is over at now:
+// an hourly slot once its hour ended, a half-day slot (it has no hours) once its day ended.
+func PastSlots(layout Layout, week WeekKey, loc *time.Location, now time.Time) [][]bool {
+	past := make([][]bool, DaysPerWeek)
+	monday, err := week.Monday(loc)
+	for day := range past {
+		past[day] = make([]bool, layout.Len())
+		if err != nil {
+			continue
+		}
+		for slot := range past[day] {
+			// time.Date normalizes the overflows: the next day, or a slot after midnight.
+			end := time.Date(monday.Year(), monday.Month(), monday.Day()+day+1, 0, 0, 0, 0, loc)
+			if layout.IsHourly() {
+				end = time.Date(monday.Year(), monday.Month(), monday.Day()+day, layout.StartHour+slot+1, 0, 0, 0, loc)
+			}
+			past[day][slot] = !now.Before(end)
+		}
+	}
+	return past
+}
