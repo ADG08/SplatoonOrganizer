@@ -106,6 +106,7 @@ func (c *AnnonceCommand) Execute(ctx context.Context, s *discordgo.Session, i *d
 		slog.ErrorContext(ctx, "annonce: send message", "guild", i.GuildID, "err", err)
 		return discord.RespondError(s, i, m.ErrGeneric)
 	}
+	slog.InfoContext(ctx, "announcement sent", "guild", i.GuildID, "by", discord.UserName(i), "title", titre)
 
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,

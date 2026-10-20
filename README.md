@@ -55,6 +55,7 @@ Renseigner ensuite les valeurs dans `.env` (environnement local `dev`) :
 | `RUN_WEEKLY_ON_START` | Non | Mettre `1` pour republier dans tous les serveurs au démarrage (tests) |
 | `HEALTH_PORT` | Non | Port du healthcheck `/health` (défaut : `8080`) |
 | `SUPPORT_URL` | Non | Page de dons : ajoute un bouton « 💸 Soutenir le bot » en bas de `/help` |
+| `LOG_WEBHOOK_URL` | Non | Webhook d'un salon privé (Paramètres du salon → Intégrations → Webhooks) : les logs y sont aussi postés, en `[LOG]` (bot ajouté ou retiré d'un serveur, configuration, paramètres modifiés, message publié), `[WARNING]` et `[ERROR]` |
 
 ### 2. Lancer le projet en local (dev)
 

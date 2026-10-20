@@ -7,10 +7,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/commands"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/handlers"
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/logwebhook"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/scheduler"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/persistence/postgres"
@@ -26,10 +28,27 @@ func main() {
 	}
 
 	// key=value lines: Coolify's logs can be searched by guild, user or error.
-	slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, nil)))
+	var handler slog.Handler = slog.NewTextHandler(os.Stderr, nil)
+	// LOG_WEBHOOK_URL, optional: the logs are also posted in a channel of the owner's server.
+	var logs *logwebhook.Handler
+	if webhookURL := os.Getenv("LOG_WEBHOOK_URL"); webhookURL != "" {
+		var err error
+		if logs, err = logwebhook.New(webhookURL, handler); err != nil {
+			slog.New(handler).Warn("LOG_WEBHOOK_URL ignored", "err", err)
+		} else {
+			handler = logs
+		}
+	}
+	slog.SetDefault(slog.New(handler))
 
-	if err := run(); err != nil {
+	err := run(logs)
+	if err != nil {
 		slog.Error("bot stopped", "err", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	logs.Close(ctx)
+	cancel()
+	if err != nil {
 		os.Exit(1)
 	}
 }
@@ -37,7 +56,8 @@ func main() {
 // run starts the bot and blocks until SIGINT or SIGTERM. Returning instead of exiting
 // lets the deferred cleanups run (Discord session, database pool). The configuration
 // comes from the environment (Docker Compose reads .env, Coolify its own variables).
-func run() error {
+// logs, when set, gets the guild names once the Discord session exists.
+func run(logs *logwebhook.Handler) error {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
@@ -92,6 +112,12 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("create Discord bot: %w", err)
 	}
+	logs.SetGuildNames(func(guildID string) string {
+		if g, err := b.Session().State.Guild(guildID); err == nil {
+			return g.Name
+		}
+		return ""
+	})
 	membership := handlers.NewGuildMembership(guildConfigSvc)
 	b.Session().AddHandler(membership.OnGuildCreate)
 	b.Session().AddHandler(membership.OnGuildDelete)
@@ -113,8 +139,8 @@ func run() error {
 		}
 	}()
 
-	slog.Info("SplatoonOrganizer bot is running. Press CTRL-C to exit.")
+	slog.Info("bot started")
 	<-ctx.Done()
-	slog.Info("shutting down...")
+	slog.Info("bot shutting down")
 	return nil
 }
