@@ -46,7 +46,7 @@ func BuildWelcome(m *i18n.Messages, teams []*team.Team, bot *discordgo.User) (*d
 		lines = append(lines, m.WelcomeStart)
 	}
 
-	name := "SplatoonOrganizer"
+	name := "Squad Planner"
 	if bot != nil && bot.Username != "" {
 		name = bot.Username
 	}

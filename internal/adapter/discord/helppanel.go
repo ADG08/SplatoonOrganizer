@@ -242,7 +242,7 @@ func BuildHelpPanel(t *team.Team, status string) []discordgo.MessageComponent {
 		fullAt = m.Players(t.FullAt)
 	}
 
-	header := "## 🦑 " + t.Name + "\n"
+	header := "## 🎮 " + t.Name + "\n"
 	accent := HelpPanelColorDefault
 	switch {
 	case t.IsComplete():

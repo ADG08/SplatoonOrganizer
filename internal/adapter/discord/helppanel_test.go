@@ -229,9 +229,9 @@ func TestGuildLang(t *testing.T) {
 }
 
 func TestWelcome(t *testing.T) {
-	bot := &discordgo.User{ID: "42", Username: "Inkbot"}
+	bot := &discordgo.User{ID: "42", Username: "Judd"}
 	embed, components := BuildWelcome(fr, nil, bot)
-	if embed.Title != "👋 Heeey, moi c'est Inkbot !" || embed.Thumbnail == nil || !strings.Contains(embed.Description, "▱▱  0/2") {
+	if embed.Title != "👋 Heeey, moi c'est Judd !" || embed.Thumbnail == nil || !strings.Contains(embed.Description, "▱▱  0/2") {
 		t.Errorf("no team: %+v", embed)
 	}
 	buttons := components[0].(discordgo.ActionsRow).Components
@@ -245,10 +245,10 @@ func TestWelcome(t *testing.T) {
 	en := i18n.For(i18n.EN)
 	embed, components = BuildWelcome(en, nil, bot)
 	toFrench := components[0].(discordgo.ActionsRow).Components[2].(discordgo.Button)
-	if embed.Title != "👋 Heeey, I'm Inkbot!" || toFrench.Label != "🇫🇷 FR" || toFrench.CustomID != WelcomeLanguageCustomID+"fr" {
+	if embed.Title != "👋 Heeey, I'm Judd!" || toFrench.Label != "🇫🇷 FR" || toFrench.CustomID != WelcomeLanguageCustomID+"fr" {
 		t.Errorf("in English: %q, %+v", embed.Title, toFrench)
 	}
-	if embed, _ := BuildWelcome(fr, nil, nil); !strings.Contains(embed.Title, "SplatoonOrganizer") {
+	if embed, _ := BuildWelcome(fr, nil, nil); !strings.Contains(embed.Title, "Squad Planner") {
 		t.Errorf("without the bot's user: %q", embed.Title)
 	}
 

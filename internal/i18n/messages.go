@@ -276,7 +276,7 @@ var fr = Messages{
 	AnnonceTeamDesc:    "Équipe concernée (facultatif s'il n'y en a qu'une)",
 	AnnonceRoleDesc:    "Rôle à mentionner (par défaut : celui de l'équipe)",
 
-	TeamsTitle:       "🦑 Mes équipes",
+	TeamsTitle:       "👥 Mes équipes",
 	TeamsHint:        "Clique sur une équipe pour la configurer.",
 	TeamsFooter:      "%d/%d équipes · 🔒 Réservé aux administrateurs",
 	TeamPaused:       "en pause",
@@ -303,7 +303,7 @@ var fr = Messages{
 	RenameTitle:      "✏️ Renommer l'équipe",
 	TeamNameLabel:    "Nom de l'équipe",
 	TeamNameHint:     "%d caractères maximum.",
-	TeamNameSample:   "Ex : Team Inkling",
+	TeamNameSample:   "Ex : Team Phoenix",
 	TeamCreated:      "✨ Équipe **%s** créée !",
 	TeamRenamed:      "✏️ Équipe renommée en **%s**.",
 	TeamDeleted:      "🗑️ Équipe **%s** supprimée.",
@@ -316,7 +316,7 @@ var fr = Messages{
 	PublishFailed:    "Impossible de publier dans %s : vérifie que j'ai accès au salon.",
 
 	WelcomeTitle:   "👋 Heeey, moi c'est %s !",
-	WelcomeIntro:   "Je suis là pour que ta team ne rate plus jamais une session 🦑\nChaque semaine, je poste les dispos, je ping tes joueurs, et en deux clics tout le monde sait **qui joue quand**. Plusieurs équipes ? Aucun souci, chacune a les siennes ! 🎨",
+	WelcomeIntro:   "Je suis là pour que ta team ne rate plus jamais une session 🎮\nChaque semaine, je poste les dispos, je ping tes joueurs, et en deux clics tout le monde sait **qui joue quand**. Plusieurs équipes ? Aucun souci, chacune a les siennes ! 🎨",
 	WelcomeStart:   "👉 Un admin clique sur **🚀 Lancer le setup** (ou tape `/help`) et c'est parti !",
 	WelcomeDone:    "🏆 **Setup terminé, bien joué !** Les dispos partent toutes seules chaque semaine.",
 	WelcomeFooter:  "🔒 Le setup est réservé aux administrateurs",
@@ -483,7 +483,7 @@ var en = Messages{
 	AnnonceTeamDesc:    "Team concerned (optional when there is only one)",
 	AnnonceRoleDesc:    "Role to mention (by default: the team's)",
 
-	TeamsTitle:       "🦑 My teams",
+	TeamsTitle:       "👥 My teams",
 	TeamsHint:        "Click a team to set it up.",
 	TeamsFooter:      "%d/%d teams · 🔒 Admins only",
 	TeamPaused:       "paused",
@@ -510,7 +510,7 @@ var en = Messages{
 	RenameTitle:      "✏️ Rename the team",
 	TeamNameLabel:    "Team name",
 	TeamNameHint:     "%d characters at most.",
-	TeamNameSample:   "E.g. Team Inkling",
+	TeamNameSample:   "E.g. Team Phoenix",
 	TeamCreated:      "✨ Team **%s** created!",
 	TeamRenamed:      "✏️ Team renamed to **%s**.",
 	TeamDeleted:      "🗑️ Team **%s** deleted.",
@@ -523,7 +523,7 @@ var en = Messages{
 	PublishFailed:    "Couldn't post in %s: check that I can access the channel.",
 
 	WelcomeTitle:   "👋 Heeey, I'm %s!",
-	WelcomeIntro:   "I'm here so your team never misses a session again 🦑\nEvery week, I post the availability, ping your players, and in two clicks everyone knows **who plays when**. Several teams? No problem, each gets its own! 🎨",
+	WelcomeIntro:   "I'm here so your team never misses a session again 🎮\nEvery week, I post the availability, ping your players, and in two clicks everyone knows **who plays when**. Several teams? No problem, each gets its own! 🎨",
 	WelcomeStart:   "👉 An admin clicks **🚀 Start the setup** (or types `/help`) and off we go!",
 	WelcomeDone:    "🏆 **Setup done, nice one!** The availability goes out by itself every week.",
 	WelcomeFooter:  "🔒 The setup is for admins only",

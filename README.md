@@ -1,8 +1,10 @@
-# SplatoonOrganizer
+# Squad Planner
 
 [![Soutenir le bot](https://img.shields.io/badge/Soutenir_le_bot-Revolut-0075EB?logo=revolut&logoColor=white)](https://revolut.me/adg01)
 
-Un bot Discord conçu pour coordonner les sessions de jeu Splatoon en collectant et affichant les disponibilités hebdomadaires des membres d'un serveur. Une seule instance du bot peut servir plusieurs serveurs, et chaque serveur peut avoir plusieurs **équipes** : chacune a ses réglages, ses dispos et son message de la semaine.
+Un bot Discord de gestion d'équipes, pour tous les jeux : il collecte et affiche les disponibilités hebdomadaires des joueurs pour trouver quand jouer ensemble. Une seule instance du bot peut servir plusieurs serveurs, et chaque serveur peut avoir plusieurs **équipes** : chacune a ses réglages, ses dispos et son message de la semaine.
+
+Né pour des équipes Splatoon, le projet garde son ancien nom technique : le dépôt et le module Go s'appellent toujours `SplatoonOrganizer`.
 
 ## Fonctionnement
 
@@ -141,7 +143,7 @@ Les réponses privées indiquent l'équipe concernée : un membre peut être dan
 
 ## Configuration avec `/help`
 
-`/help` ouvre **🦑 Mes équipes** : une ligne par équipe avec son état (✅ prête dès qu'elle a un salon, 🛠️ `▰▱ 1/2` en cours, ⏸️ en pause) et un bouton pour l'ouvrir, vert une fois l'équipe prête, plus **➕ Créer une équipe** (20 équipes au maximum par serveur). Sans équipe, le panneau affiche le setup guidé, **🚀 Créer ma première équipe** et le bouton de langue du serveur (**🇬🇧 EN** / **🇫🇷 FR**).
+`/help` ouvre **👥 Mes équipes** : une ligne par équipe avec son état (✅ prête dès qu'elle a un salon, 🛠️ `▰▱ 1/2` en cours, ⏸️ en pause) et un bouton pour l'ouvrir, vert une fois l'équipe prête, plus **➕ Créer une équipe** (20 équipes au maximum par serveur). Sans équipe, le panneau affiche le setup guidé, **🚀 Créer ma première équipe** et le bouton de langue du serveur (**🇬🇧 EN** / **🇫🇷 FR**).
 
 Le panneau d'une équipe montre où en est son setup (équipe créée, salon ; le rôle est suggéré, pas obligatoire) et ses réglages par section, chacune avec son bouton **✏️ Modifier** à droite. Tout est propre à l'équipe. En bas : **⬅️ Mes équipes**, **✏️ Renommer**, **📤 Publier maintenant** et **🗑️ Supprimer** (après confirmation ; ses dispos et son message partent avec elle, le salon et le rôle Discord restent).
 
