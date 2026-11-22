@@ -10,95 +10,111 @@ import (
 	"time"
 
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
-	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	appteam "github.com/ADG08/SplatoonOrganizer/internal/application/team"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
-	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/team"
 	"github.com/bwmarrin/discordgo"
 )
 
 // Timeout bounds one publication or refresh: rendering the image, then a few Discord calls.
 const Timeout = 30 * time.Second
 
-// errNoChannel is returned when publishing for a guild that has no channel configured.
+// errNoChannel is returned when publishing for a team that has no channel configured.
 var errNoChannel = errors.New("no channel configured")
 
-// guildLocks serializes what is done to each guild's weekly message: the scheduler, /help
+// teamLocks serializes what is done to each team's weekly message: the scheduler, /help
 // and the refreshes after clicks run concurrently, and two publications at once would
 // post the message twice, or an edit would hit a message being replaced.
-var guildLocks sync.Map // guildID -> *sync.Mutex
+var teamLocks sync.Map // team ID -> *sync.Mutex
 
-// lockGuild locks the guild's weekly message and returns the function unlocking it.
-func lockGuild(guildID string) (unlock func()) {
-	mu, _ := guildLocks.LoadOrStore(guildID, new(sync.Mutex))
+// lockTeam locks the team's weekly message and returns the function unlocking it.
+func lockTeam(teamID int64) (unlock func()) {
+	mu, _ := teamLocks.LoadOrStore(teamID, new(sync.Mutex))
 	mu.(*sync.Mutex).Lock()
 	return mu.(*sync.Mutex).Unlock
 }
 
-// Publish replaces the guild's weekly message: it posts a fresh one in the configured
-// channel with the guild's layout and display, then deletes the previous one.
+// Publish replaces the team's weekly message: it posts a fresh one in the configured
+// channel with the team's layout and display, then deletes the previous one.
 // Used by the weekly job and when /help changes how the message looks (an embed can't
 // always be edited into a Components V2 message, so it is posted again instead).
-func Publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, cfg *guildconfig.GuildConfig) error {
-	defer lockGuild(cfg.GuildID)()
-	return publish(ctx, s, svc, cfg)
+func Publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, t *team.Team) error {
+	defer lockTeam(t.ID)()
+	return publish(ctx, s, svc, t)
 }
 
-// PublishDue publishes the guild's weekly message when Due, and reports whether it did.
+// PublishDue publishes the team's weekly message when Due, and reports whether it did.
 // Checking and publishing under the same lock keeps two checks from both publishing.
-func PublishDue(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, cfg *guildconfig.GuildConfig) (bool, error) {
-	defer lockGuild(cfg.GuildID)()
-	if due, err := Due(ctx, svc, cfg); err != nil || !due {
+func PublishDue(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, t *team.Team) (bool, error) {
+	defer lockTeam(t.ID)()
+	if due, err := Due(ctx, svc, t); err != nil || !due {
 		return false, err
 	}
-	return true, publish(ctx, s, svc, cfg)
+	return true, publish(ctx, s, svc, t)
 }
 
-// publish is Publish, the guild being locked.
-func publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, cfg *guildconfig.GuildConfig) error {
-	if cfg.ChannelID == "" {
+// publish is Publish, the team being locked.
+func publish(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, t *team.Team) error {
+	if t.ChannelID == "" {
 		return errNoChannel
 	}
-	week := svc.Week(cfg.Schedule, cfg.Location)
-	counts, err := svc.AvailabilitySummary(ctx, cfg.GuildID, week)
+	week := svc.Week(t.Schedule, t.Location)
+	counts, err := svc.AvailabilitySummary(ctx, t.ID, week)
 	if err != nil {
 		return fmt.Errorf("get availability summary: %w", err)
 	}
-	m := cfg.Messages()
-	payload, err := BuildPayload(cfg, svc.BuildWeeklyView(m, cfg.SlotLayout, cfg.Location, cfg.Schedule, week, counts))
+	m := t.Messages()
+	payload, err := BuildPayload(t, svc.BuildWeeklyView(m, t.SlotLayout, t.Location, t.Schedule, week, counts))
 	if err != nil {
 		return err
 	}
 
 	// Unknown, the previous message couldn't be deleted: don't post a second one.
-	previous, err := svc.WeeklyMessage(ctx, cfg.GuildID)
+	previous, err := svc.WeeklyMessage(ctx, t.ID)
 	if err != nil {
 		return fmt.Errorf("get weekly message: %w", err)
 	}
 
 	// The new message is posted first: if that fails (a permission missing, such as
 	// attaching the image), the previous one stays in place.
-	msg, err := s.ChannelMessageSendComplex(cfg.ChannelID, payload.MessageSend(), discordgo.WithContext(ctx))
+	msg, err := s.ChannelMessageSendComplex(t.ChannelID, payload.MessageSend(), discordgo.WithContext(ctx))
 	if err != nil {
 		return fmt.Errorf("send weekly message: %w", err)
 	}
-	if err := svc.SetWeeklyMessage(ctx, cfg.GuildID, availability.WeeklyMessage{Week: week, ChannelID: cfg.ChannelID, MessageID: msg.ID}); err != nil {
+	if err := svc.SetWeeklyMessage(ctx, t.ID, availability.WeeklyMessage{Week: week, ChannelID: t.ChannelID, MessageID: msg.ID}); err != nil {
 		// Keep the message the database knows of, and remove the one just posted.
-		if err := s.ChannelMessageDelete(cfg.ChannelID, msg.ID, discordgo.WithContext(ctx)); err != nil {
-			slog.ErrorContext(ctx, "delete unsaved weekly message", "guild", cfg.GuildID, "err", err)
+		if err := s.ChannelMessageDelete(t.ChannelID, msg.ID, discordgo.WithContext(ctx)); err != nil {
+			slog.ErrorContext(ctx, "delete unsaved weekly message", "guild", t.GuildID, "team", t.Name, "err", err)
 		}
 		return fmt.Errorf("save weekly message: %w", err)
 	}
 
 	if previous != nil {
-		if err := s.ChannelMessageDelete(cmp.Or(previous.ChannelID, cfg.ChannelID), previous.MessageID, discordgo.WithContext(ctx)); err != nil {
-			slog.ErrorContext(ctx, "delete previous weekly message", "guild", cfg.GuildID, "err", err)
+		if err := s.ChannelMessageDelete(cmp.Or(previous.ChannelID, t.ChannelID), previous.MessageID, discordgo.WithContext(ctx)); err != nil {
+			slog.ErrorContext(ctx, "delete previous weekly message", "guild", t.GuildID, "team", t.Name, "err", err)
 		}
 	}
-	slog.InfoContext(ctx, "weekly message published", "guild", cfg.GuildID, "week", week)
+	slog.InfoContext(ctx, "weekly message published", "guild", t.GuildID, "team", t.Name, "week", week)
 	return nil
 }
 
-// LostAccess reports whether err means the bot can no longer post in the guild's
+// Remove deletes the team's weekly message from Discord (best-effort): the team is going away.
+func Remove(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, t *team.Team) {
+	defer lockTeam(t.ID)()
+	msg, err := svc.WeeklyMessage(ctx, t.ID)
+	if err != nil {
+		slog.ErrorContext(ctx, "get weekly message", "guild", t.GuildID, "team", t.Name, "err", err)
+		return
+	}
+	if msg == nil {
+		return
+	}
+	if err := s.ChannelMessageDelete(cmp.Or(msg.ChannelID, t.ChannelID), msg.MessageID, discordgo.WithContext(ctx)); err != nil {
+		slog.ErrorContext(ctx, "delete weekly message", "guild", t.GuildID, "team", t.Name, "err", err)
+	}
+}
+
+// LostAccess reports whether err means the bot can no longer post in the team's
 // channel: the channel or the guild is gone, or the bot lost its permissions there.
 func LostAccess(err error) bool {
 	var rest *discordgo.RESTError
@@ -115,111 +131,114 @@ func LostAccess(err error) bool {
 
 // PublishInBackground publishes for an interaction that is answered meanwhile: the
 // publication keeps ctx's values but not its cancellation, which comes with the answer.
-func PublishInBackground(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, cfg *guildconfig.GuildConfig) {
+func PublishInBackground(ctx context.Context, s *discordgo.Session, svc *appavailability.Service, t *team.Team) {
 	go func() {
 		ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), Timeout)
 		defer cancel()
-		if err := Publish(ctx, s, svc, cfg); err != nil {
-			slog.ErrorContext(ctx, "publish weekly message", "guild", cfg.GuildID, "err", err)
+		if err := Publish(ctx, s, svc, t); err != nil {
+			slog.ErrorContext(ctx, "publish weekly message", "guild", t.GuildID, "team", t.Name, "err", err)
 		}
 	}()
 }
 
-// Due reports whether the guild's current week has no weekly message yet:
+// Due reports whether the team's current week has no weekly message yet:
 // its publication time passed, possibly while the bot was down.
-func Due(ctx context.Context, svc *appavailability.Service, cfg *guildconfig.GuildConfig) (bool, error) {
-	msg, err := svc.WeeklyMessage(ctx, cfg.GuildID)
+func Due(ctx context.Context, svc *appavailability.Service, t *team.Team) (bool, error) {
+	msg, err := svc.WeeklyMessage(ctx, t.ID)
 	if err != nil {
 		return false, fmt.Errorf("get weekly message: %w", err)
 	}
-	return msg == nil || msg.Week != svc.Week(cfg.Schedule, cfg.Location), nil
+	return msg == nil || msg.Week != svc.Week(t.Schedule, t.Location), nil
 }
 
-// refreshCooldown bounds how often a guild's weekly message is edited: a burst of clicks
+// refreshCooldown bounds how often a team's weekly message is edited: a burst of clicks
 // is merged into one edit per cooldown (rendering the image costs CPU, and Discord rate
 // limits message edits per channel).
 const refreshCooldown = time.Second
 
 // Refresher updates the weekly message after availabilities change. The first
-// request of a guild is applied right away; the ones arriving during the cooldown that
+// request of a team is applied right away; the ones arriving during the cooldown that
 // follows are merged into a single extra update.
 type Refresher struct {
-	svc      *appavailability.Service
-	guildCfg *appguildconfig.Service
+	svc   *appavailability.Service
+	teams *appteam.Service
 
 	mu    sync.Mutex
-	dirty map[string]bool // guilds being refreshed -> changed again since
+	dirty map[int64]bool // teams being refreshed -> changed again since
 }
 
 // NewRefresher creates a refresher of the weekly messages.
-func NewRefresher(svc *appavailability.Service, guildCfg *appguildconfig.Service) *Refresher {
-	return &Refresher{svc: svc, guildCfg: guildCfg, dirty: make(map[string]bool)}
+func NewRefresher(svc *appavailability.Service, teams *appteam.Service) *Refresher {
+	return &Refresher{svc: svc, teams: teams, dirty: make(map[int64]bool)}
 }
 
-// Request asks for the guild's weekly message to be updated.
-func (r *Refresher) Request(s *discordgo.Session, guildID string) {
+// Request asks for the team's weekly message to be updated.
+func (r *Refresher) Request(s *discordgo.Session, teamID int64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	if _, running := r.dirty[guildID]; running {
-		r.dirty[guildID] = true
+	if _, running := r.dirty[teamID]; running {
+		r.dirty[teamID] = true
 		return
 	}
-	r.dirty[guildID] = false
-	go r.run(s, guildID)
+	r.dirty[teamID] = false
+	go r.run(s, teamID)
 }
 
-func (r *Refresher) run(s *discordgo.Session, guildID string) {
+func (r *Refresher) run(s *discordgo.Session, teamID int64) {
 	for {
 		ctx, cancel := context.WithTimeout(context.Background(), Timeout)
-		r.refresh(ctx, s, guildID)
+		r.refresh(ctx, s, teamID)
 		cancel()
 		time.Sleep(refreshCooldown)
 
 		r.mu.Lock()
-		if !r.dirty[guildID] {
-			delete(r.dirty, guildID)
+		if !r.dirty[teamID] {
+			delete(r.dirty, teamID)
 			r.mu.Unlock()
 			return
 		}
-		r.dirty[guildID] = false
+		r.dirty[teamID] = false
 		r.mu.Unlock()
 	}
 }
 
-// refresh re-renders the guild's weekly message of the current week (best-effort).
-func (r *Refresher) refresh(ctx context.Context, s *discordgo.Session, guildID string) {
+// refresh re-renders the team's weekly message of the current week (best-effort).
+func (r *Refresher) refresh(ctx context.Context, s *discordgo.Session, teamID int64) {
 	defer func() {
 		if rec := recover(); rec != nil {
-			slog.ErrorContext(ctx, "panic while refreshing weekly message", "guild", guildID, "panic", rec)
+			slog.ErrorContext(ctx, "panic while refreshing weekly message", "team_id", teamID, "panic", rec)
 		}
 	}()
-	defer lockGuild(guildID)()
+	defer lockTeam(teamID)()
 
-	cfg, err := r.guildCfg.Get(ctx, guildID)
+	t, err := r.teams.Get(ctx, teamID)
+	if errors.Is(err, team.ErrNotFound) {
+		return // deleted meanwhile, with its message
+	}
 	if err != nil {
-		slog.ErrorContext(ctx, "get guild config", "guild", guildID, "err", err)
+		slog.ErrorContext(ctx, "get team", "team_id", teamID, "err", err)
 		return
 	}
-	week := r.svc.Week(cfg.Schedule, cfg.Location)
-	msg, err := r.svc.WeeklyMessage(ctx, guildID)
+	week := r.svc.Week(t.Schedule, t.Location)
+	msg, err := r.svc.WeeklyMessage(ctx, teamID)
 	if err != nil || msg == nil || msg.Week != week {
 		if err != nil {
-			slog.ErrorContext(ctx, "get weekly message", "guild", guildID, "err", err)
+			slog.ErrorContext(ctx, "get weekly message", "guild", t.GuildID, "team", t.Name, "err", err)
 		}
 		return
 	}
-	counts, err := r.svc.AvailabilitySummary(ctx, guildID, week)
+	counts, err := r.svc.AvailabilitySummary(ctx, teamID, week)
 	if err != nil {
-		slog.ErrorContext(ctx, "get availability summary", "guild", guildID, "err", err)
+		slog.ErrorContext(ctx, "get availability summary", "guild", t.GuildID, "team", t.Name, "err", err)
 		return
 	}
-	m := cfg.Messages()
-	payload, err := BuildPayload(cfg, r.svc.BuildWeeklyView(m, cfg.SlotLayout, cfg.Location, cfg.Schedule, week, counts))
+	m := t.Messages()
+	payload, err := BuildPayload(t, r.svc.BuildWeeklyView(m, t.SlotLayout, t.Location, t.Schedule, week, counts))
 	if err != nil {
-		slog.ErrorContext(ctx, "build weekly message", "guild", guildID, "err", err)
+		slog.ErrorContext(ctx, "build weekly message", "guild", t.GuildID, "team", t.Name, "err", err)
 		return
 	}
-	if _, err := s.ChannelMessageEditComplex(payload.MessageEdit(cmp.Or(msg.ChannelID, cfg.ChannelID), msg.MessageID), discordgo.WithContext(ctx)); err != nil {
-		slog.ErrorContext(ctx, "edit weekly message", "guild", guildID, "err", err)
+	if _, err := s.ChannelMessageEditComplex(payload.MessageEdit(cmp.Or(msg.ChannelID, t.ChannelID), msg.MessageID), discordgo.WithContext(ctx)); err != nil {
+		slog.ErrorContext(ctx, "edit weekly message", "guild", t.GuildID, "team", t.Name, "err", err)
 	}
 }

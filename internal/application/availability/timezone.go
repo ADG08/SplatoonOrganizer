@@ -45,11 +45,11 @@ func (s *Service) SetUserTimezone(ctx context.Context, userID string, loc *time.
 	return nil
 }
 
-// SlotLabelIn labels a slot of the guild (timezone ref) in the member's timezone loc, e.g.
+// SlotLabelIn labels a slot of the team (timezone ref) in the member's timezone loc, e.g.
 // "14h – 15h", for the menu of the slot's day. A slot falling on the next local day is
 // marked so ("3h – 4h (lendemain)" for Lundi 20h Paris seen from Tokyo), on any other day
 // prefixed with it ("Dim 21h – 22h"). Half-day layouts and unknown timezones keep the
-// guild's labels.
+// team's labels.
 func (s *Service) SlotLabelIn(m *i18n.Messages, layout availability.Layout, ref *time.Location, week availability.WeekKey, dayIndex, slot int, loc *time.Location) string {
 	if !layout.IsHourly() || loc == nil {
 		return m.SlotLabel(layout, slot)

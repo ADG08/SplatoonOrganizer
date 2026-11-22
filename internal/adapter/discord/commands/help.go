@@ -5,7 +5,9 @@ import (
 	"log/slog"
 
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
-	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/handlers"
+	appguild "github.com/ADG08/SplatoonOrganizer/internal/application/guild"
+	appteam "github.com/ADG08/SplatoonOrganizer/internal/application/team"
 	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
@@ -14,14 +16,15 @@ const CommandNameHelp = "help"
 
 // HelpCommand handles the /help slash command for admin configuration.
 type HelpCommand struct {
-	svc        *appguildconfig.Service
+	teams      *appteam.Service
+	guilds     *appguild.Service
 	ownerID    string
 	supportURL string
 }
 
 // NewHelpCommand creates a new help command. ownerID and supportURL are optional.
-func NewHelpCommand(svc *appguildconfig.Service, ownerID, supportURL string) *HelpCommand {
-	return &HelpCommand{svc: svc, ownerID: ownerID, supportURL: supportURL}
+func NewHelpCommand(teams *appteam.Service, guilds *appguild.Service, ownerID, supportURL string) *HelpCommand {
+	return &HelpCommand{teams: teams, guilds: guilds, ownerID: ownerID, supportURL: supportURL}
 }
 
 func (c *HelpCommand) Name() string {
@@ -40,12 +43,7 @@ func (c *HelpCommand) ApplicationCommand() *discordgo.ApplicationCommand {
 var _ discord.Command = (*HelpCommand)(nil)
 
 func (c *HelpCommand) Execute(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg, err := c.svc.Get(ctx, i.GuildID)
-	if err != nil {
-		slog.ErrorContext(ctx, "help: get guild config", "guild", i.GuildID, "err", err)
-		return discord.RespondError(s, i, i18n.For(i18n.FR).ErrGeneric)
-	}
-	m := cfg.Messages()
+	m := discord.LocaleMessages(i)
 	if !discord.IsAdminOrOwner(i, c.ownerID) {
 		return discord.RespondError(s, i, m.ErrAdminOnly)
 	}
@@ -53,11 +51,18 @@ func (c *HelpCommand) Execute(ctx context.Context, s *discordgo.Session, i *disc
 		return discord.RespondError(s, i, m.ErrGuildOnly)
 	}
 
+	teams, gm, err := handlers.GuildMessages(ctx, c.guilds, c.teams, i.GuildID, m.Lang())
+	if err != nil {
+		slog.ErrorContext(ctx, "help: guild texts", "guild", i.GuildID, "err", err)
+		return discord.RespondError(s, i, m.ErrGeneric)
+	}
+	m = gm
+
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Flags:      discordgo.MessageFlagsEphemeral | discordgo.MessageFlagsIsComponentsV2,
-			Components: discord.BuildHelpPanel(cfg, "", c.supportURL),
+			Components: discord.BuildTeamsPanel(m, teams, "", c.supportURL),
 		},
 	})
 }

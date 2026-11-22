@@ -1,6 +1,15 @@
 package discord
 
-import "github.com/bwmarrin/discordgo"
+import (
+	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
+	"github.com/bwmarrin/discordgo"
+)
+
+// LocaleMessages returns the texts in the language of the member's Discord app, for the
+// answers that don't belong to a team.
+func LocaleMessages(i *discordgo.InteractionCreate) *i18n.Messages {
+	return i18n.For(i18n.FromLocale(string(i.Locale)))
+}
 
 // RespondError answers an interaction with a private error message.
 func RespondError(s *discordgo.Session, i *discordgo.InteractionCreate, msg string) error {

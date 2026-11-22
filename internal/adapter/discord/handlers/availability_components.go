@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
@@ -13,7 +14,7 @@ import (
 // Option values are 1-based slot indexes ("1" = first slot of the layout); label gives the
 // option text of a slot, in the member's timezone. Closed slots (before the week's
 // publication) and past ones are left out; a day without any slot left gets a disabled menu.
-func buildUserDisposSelectMenus(m *i18n.Messages, layout availability.Layout, userSlots map[int]map[int]bool, closed, past [][]bool, dayStart, dayCount int, label func(day, slot int) string) []discordgo.MessageComponent {
+func buildUserDisposSelectMenus(m *i18n.Messages, teamID int64, layout availability.Layout, userSlots map[int]map[int]bool, closed, past [][]bool, dayStart, dayCount int, label func(day, slot int) string) []discordgo.MessageComponent {
 	minVals := 0
 
 	var rows []discordgo.MessageComponent
@@ -31,7 +32,7 @@ func buildUserDisposSelectMenus(m *i18n.Messages, layout availability.Layout, us
 			})
 		}
 		menu := discordgo.SelectMenu{
-			CustomID:    fmt.Sprintf("%s:%d", SelectDisposCustomIDPrefix, day),
+			CustomID:    weekly.CustomID(SelectDisposCustomIDPrefix, teamID, strconv.Itoa(day)),
 			Placeholder: m.Days[day],
 			MinValues:   &minVals,
 			MaxValues:   len(options),

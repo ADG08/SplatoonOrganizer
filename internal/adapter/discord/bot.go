@@ -79,6 +79,21 @@ func (b *Bot) onInteractionCreate(s *discordgo.Session, i *discordgo.Interaction
 		if err := cmd.Execute(ctx, s, i); err != nil {
 			slog.ErrorContext(ctx, "command failed", "command", data.Name, "guild", i.GuildID, "err", err)
 		}
+	case discordgo.InteractionApplicationCommandAutocomplete:
+		data := i.ApplicationCommandData()
+		cmd, ok := b.registry.Command(data.Name)
+		if !ok {
+			slog.WarnContext(ctx, "no command registered", "command", data.Name)
+			return
+		}
+		completer, ok := cmd.(Autocompleter)
+		if !ok {
+			slog.WarnContext(ctx, "no autocomplete for command", "command", data.Name)
+			return
+		}
+		if err := completer.Autocomplete(ctx, s, i); err != nil {
+			slog.ErrorContext(ctx, "autocomplete failed", "command", data.Name, "guild", i.GuildID, "err", err)
+		}
 	case discordgo.InteractionMessageComponent:
 		data := i.MessageComponentData()
 		handler, ok := b.registry.Handler(data.CustomID)

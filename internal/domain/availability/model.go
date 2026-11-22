@@ -11,10 +11,10 @@ const DaysPerWeek = 7
 // WeekKey is the ISO week identifier (e.g. "2025-W09").
 type WeekKey string
 
-// WeeklyMessage is the message a guild's availabilities are shown in, for one week.
+// WeeklyMessage is the message a team's availabilities are shown in, for one week.
 type WeeklyMessage struct {
 	Week      WeekKey
-	ChannelID string // empty for messages migrated from single-guild versions: use the guild's channel
+	ChannelID string // empty for messages migrated from single-guild versions: use the team's channel
 	MessageID string
 }
 

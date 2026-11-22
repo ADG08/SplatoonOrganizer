@@ -9,7 +9,7 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
-	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	appteam "github.com/ADG08/SplatoonOrganizer/internal/application/team"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/bwmarrin/discordgo"
 )
@@ -17,13 +17,13 @@ import (
 // SelectDisposHandler handles select menu interactions for day availability.
 type SelectDisposHandler struct {
 	svc       *appavailability.Service
-	guildCfg  *appguildconfig.Service
+	teams     *appteam.Service
 	refresher *weekly.Refresher
 }
 
 // NewSelectDisposHandler creates a new select dispos handler.
-func NewSelectDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service, refresher *weekly.Refresher) *SelectDisposHandler {
-	return &SelectDisposHandler{svc: svc, guildCfg: guildCfg, refresher: refresher}
+func NewSelectDisposHandler(svc *appavailability.Service, teams *appteam.Service, refresher *weekly.Refresher) *SelectDisposHandler {
+	return &SelectDisposHandler{svc: svc, teams: teams, refresher: refresher}
 }
 
 func (h *SelectDisposHandler) CustomID() string {
@@ -33,24 +33,24 @@ func (h *SelectDisposHandler) CustomID() string {
 var _ discord.InteractionHandler = (*SelectDisposHandler)(nil)
 
 func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
-	if cfg == nil {
+	t, day := loadTeam(ctx, s, i, h.teams, SelectDisposCustomIDPrefix)
+	if t == nil {
 		return nil
 	}
-	m, layout := cfg.Messages(), cfg.SlotLayout
+	m, layout := t.Messages(), t.SlotLayout
 	userID := getUserID(i)
 	if userID == "" {
 		slog.WarnContext(ctx, "could not determine user ID", "guild", i.GuildID)
 		return discord.RespondError(s, i, m.ErrUnknownUser)
 	}
-	dayIndex, err := parseSelectDisposCustomID(i.MessageComponentData().CustomID)
+	dayIndex, err := parseDayIndex(day)
 	if err != nil {
 		slog.WarnContext(ctx, "invalid select custom id", "guild", i.GuildID, "err", err)
 		return discord.RespondError(s, i, m.ErrInvalid)
 	}
 
-	week := h.svc.Week(cfg.Schedule, cfg.Location)
-	userSlots, err := h.svc.UserAvailability(ctx, i.GuildID, week, userID)
+	week := h.svc.Week(t.Schedule, t.Location)
+	userSlots, err := h.svc.UserAvailability(ctx, t.ID, week, userID)
 	if err != nil {
 		slog.ErrorContext(ctx, "get user availability", "guild", i.GuildID, "err", err)
 		return discord.RespondError(s, i, m.ErrGeneric)
@@ -59,8 +59,8 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 	// Values are 1-based slot indexes of the layout ("1" = first slot). Closed and past
 	// slots aren't offered, and are refused if sent anyway (from menus opened earlier).
 	// The past ones keep what the member had picked: the day is saved as a whole.
-	closed := availability.ClosedSlots(layout, cfg.Schedule, week, cfg.Location)
-	past := availability.PastSlots(layout, week, cfg.Location, time.Now())
+	closed := availability.ClosedSlots(layout, t.Schedule, week, t.Location)
+	past := availability.PastSlots(layout, week, t.Location, time.Now())
 	slots := make([]bool, layout.Len())
 	for slot := range slots {
 		slots[slot] = past[dayIndex][slot] && userSlots[dayIndex][slot]
@@ -74,7 +74,7 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 		slots[n-1] = true
 	}
 
-	if err := h.svc.SetDayAvailability(ctx, i.GuildID, week, userID, dayIndex, slots); err != nil {
+	if err := h.svc.SetDayAvailability(ctx, t.ID, week, userID, dayIndex, slots); err != nil {
 		slog.ErrorContext(ctx, "set day availability", "guild", i.GuildID, "err", err)
 		return discord.RespondError(s, i, m.ErrGeneric)
 	}
@@ -84,30 +84,30 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 	for slot, picked := range slots {
 		userSlots[dayIndex][slot] = picked
 	}
-	var loc *time.Location // the guild's time, unless members see their own
-	if cfg.MemberTime() {
+	var loc *time.Location // the team's time, unless members see their own
+	if t.MemberTime() {
 		if loc, err = h.svc.UserTimezone(ctx, userID); err != nil {
 			slog.ErrorContext(ctx, "get user timezone after select", "guild", i.GuildID, "err", err)
 		}
 	}
-	label := func(day, slot int) string { return h.svc.SlotLabelIn(m, layout, cfg.Location, week, day, slot, loc) }
+	label := func(day, slot int) string { return h.svc.SlotLabelIn(m, layout, t.Location, week, day, slot, loc) }
 
 	// Update the ephemeral message: same chunk as the interacted menu (5 first days or 2 last
 	// days, the latter followed by the "change my timezone" button for hourly slots).
 	var components []discordgo.MessageComponent
 	if dayIndex < 5 {
-		components = buildUserDisposSelectMenus(m, layout, userSlots, closed, past, 0, 5, label)
+		components = buildUserDisposSelectMenus(m, t.ID, layout, userSlots, closed, past, 0, 5, label)
 	} else {
-		components = buildUserDisposSelectMenus(m, layout, userSlots, closed, past, 5, 2, label)
-		if cfg.MemberTime() {
-			components = append(components, editTimezoneButton(m, tzNextDispos))
+		components = buildUserDisposSelectMenus(m, t.ID, layout, userSlots, closed, past, 5, 2, label)
+		if t.MemberTime() {
+			components = append(components, editTimezoneButton(m, t.ID, tzNextDispos))
 		}
 	}
 
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
 		Data: &discordgo.InteractionResponseData{
-			Content:    withLegend(m.DisposUpdated, timezoneLegend(m, layout, loc)),
+			Content:    withLegend(withTeam(t, m.DisposUpdated), timezoneLegend(m, layout, loc)),
 			Components: components,
 		},
 	}); err != nil {
@@ -115,7 +115,7 @@ func (h *SelectDisposHandler) Handle(ctx context.Context, s *discordgo.Session, 
 	}
 
 	// Refresh main weekly table (best-effort)
-	h.refresher.Request(s, i.GuildID)
+	h.refresher.Request(s, t.ID)
 
 	return nil
 }

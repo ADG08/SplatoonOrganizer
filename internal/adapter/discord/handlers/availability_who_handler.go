@@ -9,21 +9,21 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
-	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	appteam "github.com/ADG08/SplatoonOrganizer/internal/application/team"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 	"github.com/bwmarrin/discordgo"
 )
 
 // WhoDisposHandler handles the "Voir qui est dispo…" select of the weekly message.
 type WhoDisposHandler struct {
-	svc      *appavailability.Service
-	guildCfg *appguildconfig.Service
-	week     *ViewDisposHandler
+	svc   *appavailability.Service
+	teams *appteam.Service
+	week  *ViewDisposHandler
 }
 
 // NewWhoDisposHandler creates a new "who is available" handler.
-func NewWhoDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service) *WhoDisposHandler {
-	return &WhoDisposHandler{svc: svc, guildCfg: guildCfg, week: NewViewDisposHandler(svc, guildCfg)}
+func NewWhoDisposHandler(svc *appavailability.Service, teams *appteam.Service) *WhoDisposHandler {
+	return &WhoDisposHandler{svc: svc, teams: teams, week: NewViewDisposHandler(svc, teams)}
 }
 
 func (h *WhoDisposHandler) CustomID() string {
@@ -33,15 +33,15 @@ func (h *WhoDisposHandler) CustomID() string {
 var _ discord.InteractionHandler = (*WhoDisposHandler)(nil)
 
 func (h *WhoDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	values := i.MessageComponentData().Values
-	if len(values) > 0 && values[0] == weekly.WhoAllValue {
-		return h.week.Handle(ctx, s, i)
-	}
-	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
-	if cfg == nil {
+	t, _ := loadTeam(ctx, s, i, h.teams, weekly.WhoDisposCustomID)
+	if t == nil {
 		return nil
 	}
-	m := cfg.Messages()
+	values := i.MessageComponentData().Values
+	if len(values) > 0 && values[0] == weekly.WhoAllValue {
+		return h.week.show(ctx, s, i, t)
+	}
+	m := t.Messages()
 	if len(values) == 0 {
 		return discord.RespondError(s, i, m.ErrInvalid)
 	}
@@ -50,8 +50,8 @@ func (h *WhoDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *
 		return discord.RespondError(s, i, m.ErrInvalid)
 	}
 
-	week := h.svc.Week(cfg.Schedule, cfg.Location)
-	users, err := h.svc.AvailabilityUsers(ctx, i.GuildID, week)
+	week := h.svc.Week(t.Schedule, t.Location)
+	users, err := h.svc.AvailabilityUsers(ctx, t.ID, week)
 	if err != nil {
 		slog.ErrorContext(ctx, "get availability users from select", "guild", i.GuildID, "err", err)
 		return discord.RespondError(s, i, m.ErrGeneric)
@@ -67,8 +67,8 @@ func (h *WhoDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *
 				discordgo.Container{
 					AccentColor: &accent,
 					Components: []discordgo.MessageComponent{
-						discordgo.TextDisplay{Content: "### " + fmt.Sprintf(m.WhoTitle, m.Days[day])},
-						discordgo.TextDisplay{Content: h.svc.FormatDayUsers(m, cfg.SlotLayout, cfg.Location, week, users, day)},
+						discordgo.TextDisplay{Content: "### " + weekly.Title(t, fmt.Sprintf(m.WhoTitle, m.Days[day]))},
+						discordgo.TextDisplay{Content: h.svc.FormatDayUsers(m, t.SlotLayout, t.Location, week, users, day)},
 					},
 				},
 			},

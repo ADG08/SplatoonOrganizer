@@ -14,24 +14,34 @@ type Dispo struct {
 	SlotIndex int16              `json:"slot_index"`
 	Week      string             `json:"week"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	GuildID   string             `json:"guild_id"`
+	TeamID    int64              `json:"team_id"`
 }
 
-type GuildConfig struct {
-	GuildID         string      `json:"guild_id"`
-	ChannelID       pgtype.Text `json:"channel_id"`
-	RoleID          pgtype.Text `json:"role_id"`
-	SlotMode        pgtype.Text `json:"slot_mode"`
-	SlotStartHour   pgtype.Int2 `json:"slot_start_hour"`
-	SlotEndHour     pgtype.Int2 `json:"slot_end_hour"`
-	DisplayStyle    pgtype.Text `json:"display_style"`
-	Language        pgtype.Text `json:"language"`
-	PublishWeekday  pgtype.Int2 `json:"publish_weekday"`
-	PublishHour     pgtype.Int2 `json:"publish_hour"`
-	Active          bool        `json:"active"`
-	Timezone        pgtype.Text `json:"timezone"`
-	MemberTimezones bool        `json:"member_timezones"`
-	FullAt          pgtype.Int2 `json:"full_at"`
+type Guild struct {
+	GuildID          string      `json:"guild_id"`
+	Language         pgtype.Text `json:"language"`
+	WelcomeChannelID pgtype.Text `json:"welcome_channel_id"`
+	WelcomeMessageID pgtype.Text `json:"welcome_message_id"`
+}
+
+type Team struct {
+	ID              int64              `json:"id"`
+	GuildID         string             `json:"guild_id"`
+	Name            string             `json:"name"`
+	ChannelID       pgtype.Text        `json:"channel_id"`
+	RoleID          pgtype.Text        `json:"role_id"`
+	SlotMode        pgtype.Text        `json:"slot_mode"`
+	SlotStartHour   pgtype.Int2        `json:"slot_start_hour"`
+	SlotEndHour     pgtype.Int2        `json:"slot_end_hour"`
+	DisplayStyle    pgtype.Text        `json:"display_style"`
+	Language        pgtype.Text        `json:"language"`
+	PublishWeekday  pgtype.Int2        `json:"publish_weekday"`
+	PublishHour     pgtype.Int2        `json:"publish_hour"`
+	Active          bool               `json:"active"`
+	Timezone        pgtype.Text        `json:"timezone"`
+	MemberTimezones bool               `json:"member_timezones"`
+	FullAt          pgtype.Int2        `json:"full_at"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
 type UserTimezone struct {
@@ -44,12 +54,12 @@ type WeekUnavailable struct {
 	UserID    string             `json:"user_id"`
 	Week      string             `json:"week"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	GuildID   string             `json:"guild_id"`
+	TeamID    int64              `json:"team_id"`
 }
 
 type WeeklyMessage struct {
-	GuildID   string `json:"guild_id"`
 	Week      string `json:"week"`
 	ChannelID string `json:"channel_id"`
 	MessageID string `json:"message_id"`
+	TeamID    int64  `json:"team_id"`
 }

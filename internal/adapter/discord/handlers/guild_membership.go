@@ -5,29 +5,32 @@ import (
 	"log/slog"
 	"time"
 
-	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	appteam "github.com/ADG08/SplatoonOrganizer/internal/application/team"
 	"github.com/bwmarrin/discordgo"
 )
 
-// GuildMembership pauses the weekly message of the guilds the bot is removed from, and
-// resumes it when the bot is added back: their configuration is kept meanwhile.
+// GuildMembership pauses the weekly messages of the guilds the bot is removed from, and
+// resumes them when the bot is added back: their teams are kept meanwhile. It also has
+// the bot introduce itself in the guilds it joins.
 type GuildMembership struct {
-	guildCfg *appguildconfig.Service
+	teams   *appteam.Service
+	welcome *WelcomeHandler
 }
 
 // NewGuildMembership creates the guild join and leave handlers.
-func NewGuildMembership(guildCfg *appguildconfig.Service) *GuildMembership {
-	return &GuildMembership{guildCfg: guildCfg}
+func NewGuildMembership(teams *appteam.Service, welcome *WelcomeHandler) *GuildMembership {
+	return &GuildMembership{teams: teams, welcome: welcome}
 }
 
 // OnGuildCreate resumes a guild when the bot joins it, or finds it again on startup.
-func (g *GuildMembership) OnGuildCreate(_ *discordgo.Session, e *discordgo.GuildCreate) {
+func (g *GuildMembership) OnGuildCreate(s *discordgo.Session, e *discordgo.GuildCreate) {
 	if e.Guild == nil {
 		return
 	}
 	// On startup, Discord announces every guild again: only a recent one is a new join.
 	if time.Since(e.JoinedAt) < time.Minute {
 		slog.Info("bot added to a guild", "guild", e.ID, "members", e.MemberCount)
+		g.welcome.Welcome(s, e.Guild)
 	}
 	if g.setActive(e.ID, true) {
 		slog.Info("guild resumed", "guild", e.ID)
@@ -46,24 +49,16 @@ func (g *GuildMembership) OnGuildDelete(_ *discordgo.Session, e *discordgo.Guild
 	}
 	slog.Info("bot removed from a guild, guild paused", "guild", e.ID, "name", name)
 	g.setActive(e.ID, false)
+	g.welcome.Forget(e.ID)
 }
 
-// setActive saves whether the guild is active, and reports whether that changed.
+// setActive saves whether the guild's teams are active, and reports whether one changed.
 func (g *GuildMembership) setActive(guildID string, active bool) bool {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	// On startup, every guild is announced: only write the ones that change.
-	cfg, err := g.guildCfg.Get(ctx, guildID)
+	changed, err := g.teams.SetGuildActive(ctx, guildID, active)
 	if err != nil {
-		slog.ErrorContext(ctx, "get guild config", "guild", guildID, "err", err)
-		return false
-	}
-	if cfg.Active == active {
-		return false
-	}
-	if err := g.guildCfg.SetActive(ctx, guildID, active); err != nil {
 		slog.ErrorContext(ctx, "set guild active", "guild", guildID, "active", active, "err", err)
-		return false
 	}
-	return true
+	return changed
 }

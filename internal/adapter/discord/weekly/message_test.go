@@ -9,7 +9,7 @@ import (
 
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
-	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/team"
 	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
@@ -22,15 +22,14 @@ func view(t *testing.T) appavailability.WeeklyView {
 }
 
 func TestClassicPayload(t *testing.T) {
-	p, err := BuildPayload(&guildconfig.GuildConfig{RoleID: "r1", Display: guildconfig.DisplayClassic, Language: i18n.FR}, view(t))
+	p, err := BuildPayload(&team.Team{ID: 7, Name: "Team A", RoleID: "r1", Display: team.DisplayClassic, Language: i18n.FR}, view(t))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if p.Content != "<@&r1>" || len(p.AllowedMentions.Roles) != 1 || p.AllowedMentions.Roles[0] != "r1" {
 		t.Errorf("role ping: content %q, allowed %v", p.Content, p.AllowedMentions.Roles)
 	}
-	// The embed and buttons of messages posted before the image display must not change.
-	if len(p.Embeds) != 1 || p.Embeds[0].Title != "Disponibilités de la semaine" || p.Flags != 0 {
+	if len(p.Embeds) != 1 || p.Embeds[0].Title != "Disponibilités de la semaine · Team A" || p.Flags != 0 {
 		t.Errorf("classic embed: %+v, flags %v", p.Embeds, p.Flags)
 	}
 	buttons := p.Components[0].(discordgo.ActionsRow).Components
@@ -38,13 +37,14 @@ func TestClassicPayload(t *testing.T) {
 	for _, b := range buttons {
 		ids = append(ids, b.(discordgo.Button).CustomID)
 	}
-	if want := []string{OpenDisposCustomID, ViewDisposCustomID, UnavailableCustomID}; len(ids) != len(want) || ids[0] != want[0] || ids[1] != want[1] || ids[2] != want[2] {
+	want := []string{"availability:open:7", "availability:view:7", "availability:unavailable:7"}
+	if strings.Join(ids, ",") != strings.Join(want, ",") {
 		t.Errorf("buttons: %v, want %v", ids, want)
 	}
 }
 
 func TestImagePayload(t *testing.T) {
-	p, err := BuildPayload(&guildconfig.GuildConfig{Display: guildconfig.DisplayImage, Language: i18n.EN}, view(t))
+	p, err := BuildPayload(&team.Team{Name: "Team A", Display: team.DisplayImage, Language: i18n.EN}, view(t))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -54,14 +54,65 @@ func TestImagePayload(t *testing.T) {
 	if len(p.Files) != 1 || p.Files[0].Name != ImageName || len(p.AllowedMentions.Roles) != 0 {
 		t.Errorf("files %v, allowed roles %v", p.Files, p.AllowedMentions.Roles)
 	}
-	if _, ok := p.Components[0].(discordgo.Container); !ok || len(p.Components) != 1 {
-		t.Errorf("components: %T", p.Components)
+	container, ok := p.Components[0].(discordgo.Container)
+	if !ok || len(p.Components) != 1 {
+		t.Fatalf("components: %T", p.Components)
+	}
+	if title := container.Components[0].(discordgo.TextDisplay).Content; !strings.Contains(title, " · Team A") {
+		t.Errorf("the title doesn't name the team: %q", title)
 	}
 
 	// Editing replaces the previous image: only the new upload is kept, by index.
 	edit := p.MessageEdit("c1", "m1")
 	if edit.Attachments == nil || len(*edit.Attachments) != 1 || (*edit.Attachments)[0].ID != "0" {
 		t.Errorf("attachments: %v", edit.Attachments)
+	}
+}
+
+// Two teams of a guild can be set up differently: each message follows its own team.
+func TestPayloadsFollowEachTeam(t *testing.T) {
+	classicFR, err := BuildPayload(&team.Team{ID: 1, Name: "A", Language: i18n.FR}, view(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	imageEN, err := BuildPayload(&team.Team{ID: 2, Name: "B", Language: i18n.EN, Display: team.DisplayImage, FullAt: 4}, view(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(classicFR.Embeds) != 1 || len(imageEN.Embeds) != 0 {
+		t.Errorf("display: %d and %d embeds", len(classicFR.Embeds), len(imageEN.Embeds))
+	}
+	raw, _ := json.Marshal(imageEN.Components)
+	if !strings.Contains(string(raw), "🟩 4+") || !strings.Contains(string(raw), i18n.For(i18n.EN).BtnMyDispos) {
+		t.Errorf("the second team's threshold or language is missing: %s", raw)
+	}
+}
+
+func TestParseCustomID(t *testing.T) {
+	for _, c := range []struct {
+		customID, prefix string
+		teamID           int64
+		rest             string
+		wantErr          bool
+	}{
+		{CustomID(OpenDisposCustomID, 12), OpenDisposCustomID, 12, "", false},
+		{CustomID("availability:select", 3, "6"), "availability:select", 3, "6", false},
+		{CustomID("availability:tz", 3, "dispos", "w"), "availability:tz", 3, "dispos:w", false},
+		{OpenDisposCustomID, OpenDisposCustomID, 0, "", false}, // posted before teams existed
+		{OpenDisposCustomID + ":abc", OpenDisposCustomID, 0, "", true},
+		{OpenDisposCustomID + ":-1", OpenDisposCustomID, 0, "", true},
+		{OpenDisposCustomID + ":0", OpenDisposCustomID, 0, "", true},
+		{ViewDisposCustomID + ":1", OpenDisposCustomID, 0, "", true},
+		{"availability:tzedit:1", "availability:tz", 0, "", true},
+	} {
+		teamID, rest, err := ParseCustomID(c.customID, c.prefix)
+		if (err != nil) != c.wantErr {
+			t.Errorf("%q: error %v, want error %v", c.customID, err, c.wantErr)
+			continue
+		}
+		if teamID != c.teamID || rest != c.rest {
+			t.Errorf("%q: got %d, %q, want %d, %q", c.customID, teamID, rest, c.teamID, c.rest)
+		}
 	}
 }
 
@@ -87,7 +138,7 @@ func TestLostAccess(t *testing.T) {
 // "Mon fuseau" only shows when members see the slots in their own timezone.
 func TestMyTimeButton(t *testing.T) {
 	hourly, _ := availability.HourlyLayout(20, 24)
-	hasMyTime := func(cfg *guildconfig.GuildConfig) bool {
+	hasMyTime := func(cfg *team.Team) bool {
 		p, err := BuildPayload(cfg, view(t))
 		if err != nil {
 			t.Fatal(err)
@@ -96,13 +147,13 @@ func TestMyTimeButton(t *testing.T) {
 		return strings.Contains(string(raw), MyTimeCustomID)
 	}
 	for _, c := range []struct {
-		cfg  guildconfig.GuildConfig
+		cfg  team.Team
 		want bool
 	}{
-		{guildconfig.GuildConfig{SlotLayout: hourly, MemberTimezones: true}, true},
-		{guildconfig.GuildConfig{SlotLayout: hourly, MemberTimezones: true, Display: guildconfig.DisplayImage}, true},
-		{guildconfig.GuildConfig{SlotLayout: hourly}, false},                                              // everyone on the server's time
-		{guildconfig.GuildConfig{SlotLayout: availability.HalfDayLayout(), MemberTimezones: true}, false}, // no hours
+		{team.Team{SlotLayout: hourly, MemberTimezones: true}, true},
+		{team.Team{SlotLayout: hourly, MemberTimezones: true, Display: team.DisplayImage}, true},
+		{team.Team{SlotLayout: hourly}, false},                                              // everyone on the team's time
+		{team.Team{SlotLayout: availability.HalfDayLayout(), MemberTimezones: true}, false}, // no hours
 	} {
 		if got := hasMyTime(&c.cfg); got != c.want {
 			t.Errorf("%+v: Mon fuseau shown %v, want %v", c.cfg, got, c.want)

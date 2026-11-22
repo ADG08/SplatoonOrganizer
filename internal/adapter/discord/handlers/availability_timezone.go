@@ -12,9 +12,9 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/gridimage"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
-	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	appteam "github.com/ADG08/SplatoonOrganizer/internal/application/team"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
-	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/team"
 	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
@@ -119,23 +119,24 @@ func countriesDescription(m *i18n.Messages, places []availability.Timezone) stri
 }
 
 // respondTimezonePicker answers an interaction with the timezone picker.
-func respondTimezonePicker(s *discordgo.Session, i *discordgo.InteractionCreate, m *i18n.Messages, next string) error {
+func respondTimezonePicker(s *discordgo.Session, i *discordgo.InteractionCreate, t *team.Team, next string) error {
+	m := t.Messages()
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseChannelMessageWithSource,
 		Data: &discordgo.InteractionResponseData{
 			Content:    m.PickerContent,
 			Flags:      discordgo.MessageFlagsEphemeral,
-			Components: buildTimezonePicker(m, TimezoneCustomIDPrefix+":"+next),
+			Components: buildTimezonePicker(m, weekly.CustomID(TimezoneCustomIDPrefix, t.ID, next)),
 		},
 	})
 }
 
 // editTimezoneButton reopens the timezone picker; next is what to show afterwards.
-func editTimezoneButton(m *i18n.Messages, next string) discordgo.ActionsRow {
+func editTimezoneButton(m *i18n.Messages, teamID int64, next string) discordgo.ActionsRow {
 	return discordgo.ActionsRow{Components: []discordgo.MessageComponent{discordgo.Button{
 		Label:    m.BtnEditTimezone,
 		Style:    discordgo.SecondaryButton,
-		CustomID: TimezoneEditCustomIDPrefix + ":" + next,
+		CustomID: weekly.CustomID(TimezoneEditCustomIDPrefix, teamID, next),
 	}}}
 }
 
@@ -148,21 +149,21 @@ func timezoneLegend(m *i18n.Messages, layout availability.Layout, loc *time.Loca
 }
 
 // sendLocalGrid sends the week's grid converted to the member's timezone, as an image or a
-// text table depending on the guild's display.
-func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, cfg *guildconfig.GuildConfig, loc *time.Location, followup bool) error {
-	m := cfg.Messages()
-	week := svc.Week(cfg.Schedule, cfg.Location)
-	counts, err := svc.AvailabilitySummary(ctx, cfg.GuildID, week)
+// text table depending on the team's display.
+func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, svc *appavailability.Service, t *team.Team, loc *time.Location, followup bool) error {
+	m := t.Messages()
+	week := svc.Week(t.Schedule, t.Location)
+	counts, err := svc.AvailabilitySummary(ctx, t.ID, week)
 	if err != nil {
 		slog.ErrorContext(ctx, "get availability summary", "guild", i.GuildID, "err", err)
 		return discord.RespondError(s, i, m.ErrGeneric)
 	}
-	view := svc.BuildWeeklyViewIn(m, cfg.SlotLayout, cfg.Location, cfg.Schedule, week, counts, loc)
-	title := fmt.Sprintf(m.GridInYourTime, view.Title)
+	view := svc.BuildWeeklyViewIn(m, t.SlotLayout, t.Location, t.Schedule, week, counts, loc)
+	title := weekly.Title(t, fmt.Sprintf(m.GridInYourTime, view.Title))
 
 	params := &discordgo.WebhookParams{Flags: discordgo.MessageFlagsEphemeral}
-	if cfg.Display == guildconfig.DisplayImage {
-		img, err := gridimage.Render(view, cfg.FullAt)
+	if t.Display == team.DisplayImage {
+		img, err := gridimage.Render(view, t.FullAt)
 		if err != nil {
 			slog.ErrorContext(ctx, "render local grid", "guild", i.GuildID, "err", err)
 			return discord.RespondError(s, i, m.ErrGeneric)
@@ -173,9 +174,9 @@ func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.Inter
 		params.Components = []discordgo.MessageComponent{discordgo.Container{
 			AccentColor: &accent,
 			Components: []discordgo.MessageComponent{
-				discordgo.TextDisplay{Content: "### " + title + "\n-# " + view.Legend + " · " + m.ColorLegend(cfg.FullAt)},
+				discordgo.TextDisplay{Content: "### " + title + "\n-# " + view.Legend + " · " + m.ColorLegend(t.FullAt)},
 				discordgo.MediaGallery{Items: []discordgo.MediaGalleryItem{{Media: discordgo.UnfurledMediaItem{URL: "attachment://" + weekly.ImageName}}}},
-				editTimezoneButton(m, tzNextGrid),
+				editTimezoneButton(m, t.ID, tzNextGrid),
 			},
 		}}
 	} else {
@@ -184,7 +185,7 @@ func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.Inter
 			Description: "*" + view.Legend + "*\n" + view.Table,
 			Color:       weekly.AccentColor,
 		}}
-		params.Components = []discordgo.MessageComponent{editTimezoneButton(m, tzNextGrid)}
+		params.Components = []discordgo.MessageComponent{editTimezoneButton(m, t.ID, tzNextGrid)}
 	}
 
 	if followup {
@@ -203,13 +204,13 @@ func sendLocalGrid(ctx context.Context, s *discordgo.Session, i *discordgo.Inter
 // country at that offset, stores its timezone, then shows what the member was opening
 // (their dispos menus or the grid in their timezone).
 type TimezoneSelectHandler struct {
-	svc      *appavailability.Service
-	guildCfg *appguildconfig.Service
+	svc   *appavailability.Service
+	teams *appteam.Service
 }
 
 // NewTimezoneSelectHandler creates the timezone picker handler.
-func NewTimezoneSelectHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service) *TimezoneSelectHandler {
-	return &TimezoneSelectHandler{svc: svc, guildCfg: guildCfg}
+func NewTimezoneSelectHandler(svc *appavailability.Service, teams *appteam.Service) *TimezoneSelectHandler {
+	return &TimezoneSelectHandler{svc: svc, teams: teams}
 }
 
 func (h *TimezoneSelectHandler) CustomID() string {
@@ -219,18 +220,18 @@ func (h *TimezoneSelectHandler) CustomID() string {
 var _ discord.InteractionHandler = (*TimezoneSelectHandler)(nil)
 
 func (h *TimezoneSelectHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
-	if cfg == nil {
+	t, rest := loadTeam(ctx, s, i, h.teams, TimezoneCustomIDPrefix)
+	if t == nil {
 		return nil
 	}
-	m := cfg.Messages()
+	m := t.Messages()
 	userID := getUserID(i)
 	if userID == "" {
 		return discord.RespondError(s, i, m.ErrUnknownUser)
 	}
-	// Custom ID: availability:tz:<next>:<step>
-	next, step, _ := strings.Cut(strings.TrimPrefix(i.MessageComponentData().CustomID, TimezoneCustomIDPrefix+":"), ":")
-	loc, err := readTimezonePick(ctx, s, i, m, TimezoneCustomIDPrefix+":"+next, step, m.PickerCountry, false)
+	// Custom ID: availability:tz:<teamID>:<next>:<step>
+	next, step, _ := strings.Cut(rest, ":")
+	loc, err := readTimezonePick(ctx, s, i, m, weekly.CustomID(TimezoneCustomIDPrefix, t.ID, next), step, m.PickerCountry, false)
 	if loc == nil {
 		return err
 	}
@@ -244,9 +245,9 @@ func (h *TimezoneSelectHandler) Handle(ctx context.Context, s *discordgo.Session
 
 	switch next {
 	case tzNextDispos:
-		return sendDisposMenus(ctx, s, i, h.svc, cfg, userID, loc, true)
+		return sendDisposMenus(ctx, s, i, h.svc, t, userID, loc, true)
 	case tzNextGrid:
-		return sendLocalGrid(ctx, s, i, h.svc, cfg, loc, true)
+		return sendLocalGrid(ctx, s, i, h.svc, t, loc, true)
 	}
 	return nil
 }
@@ -301,13 +302,13 @@ func updateEphemeral(s *discordgo.Session, i *discordgo.InteractionCreate, conte
 
 // MyTimeHandler handles the "🌍 Mon fuseau" button: the week's grid in the member's timezone.
 type MyTimeHandler struct {
-	svc      *appavailability.Service
-	guildCfg *appguildconfig.Service
+	svc   *appavailability.Service
+	teams *appteam.Service
 }
 
 // NewMyTimeHandler creates the "Mon fuseau" handler.
-func NewMyTimeHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service) *MyTimeHandler {
-	return &MyTimeHandler{svc: svc, guildCfg: guildCfg}
+func NewMyTimeHandler(svc *appavailability.Service, teams *appteam.Service) *MyTimeHandler {
+	return &MyTimeHandler{svc: svc, teams: teams}
 }
 
 func (h *MyTimeHandler) CustomID() string {
@@ -317,20 +318,20 @@ func (h *MyTimeHandler) CustomID() string {
 var _ discord.InteractionHandler = (*MyTimeHandler)(nil)
 
 func (h *MyTimeHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
-	if cfg == nil {
+	t, _ := loadTeam(ctx, s, i, h.teams, weekly.MyTimeCustomID)
+	if t == nil {
 		return nil
 	}
-	m := cfg.Messages()
+	m := t.Messages()
 	userID := getUserID(i)
 	if userID == "" {
 		return discord.RespondError(s, i, m.ErrUnknownUser)
 	}
-	// Messages posted before the guild turned member timezones off still show the button.
-	if !cfg.SlotLayout.IsHourly() {
+	// Messages posted before the team turned member timezones off still show the button.
+	if !t.SlotLayout.IsHourly() {
 		return discord.RespondError(s, i, m.NoHoursToConvert)
 	}
-	if !cfg.MemberTime() {
+	if !t.MemberTime() {
 		return discord.RespondError(s, i, m.MemberTimeOff)
 	}
 	loc, err := h.svc.UserTimezone(ctx, userID)
@@ -339,19 +340,19 @@ func (h *MyTimeHandler) Handle(ctx context.Context, s *discordgo.Session, i *dis
 		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 	if loc == nil {
-		return respondTimezonePicker(s, i, m, tzNextGrid)
+		return respondTimezonePicker(s, i, t, tzNextGrid)
 	}
-	return sendLocalGrid(ctx, s, i, h.svc, cfg, loc, false)
+	return sendLocalGrid(ctx, s, i, h.svc, t, loc, false)
 }
 
 // TimezoneEditHandler handles "⚙️ Modifier mon fuseau": it shows the picker again.
 type TimezoneEditHandler struct {
-	guildCfg *appguildconfig.Service
+	teams *appteam.Service
 }
 
 // NewTimezoneEditHandler creates the "Modifier mon fuseau" handler.
-func NewTimezoneEditHandler(guildCfg *appguildconfig.Service) *TimezoneEditHandler {
-	return &TimezoneEditHandler{guildCfg: guildCfg}
+func NewTimezoneEditHandler(teams *appteam.Service) *TimezoneEditHandler {
+	return &TimezoneEditHandler{teams: teams}
 }
 
 func (h *TimezoneEditHandler) CustomID() string {
@@ -361,10 +362,9 @@ func (h *TimezoneEditHandler) CustomID() string {
 var _ discord.InteractionHandler = (*TimezoneEditHandler)(nil)
 
 func (h *TimezoneEditHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
-	if cfg == nil {
+	t, next := loadTeam(ctx, s, i, h.teams, TimezoneEditCustomIDPrefix)
+	if t == nil {
 		return nil
 	}
-	next := strings.TrimPrefix(i.MessageComponentData().CustomID, TimezoneEditCustomIDPrefix+":")
-	return respondTimezonePicker(s, i, cfg.Messages(), next)
+	return respondTimezonePicker(s, i, t, next)
 }

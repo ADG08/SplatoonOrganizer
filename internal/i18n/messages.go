@@ -60,36 +60,100 @@ type Messages struct {
 	AnnonceDescription string
 	AnnonceTitleDesc   string
 	AnnonceMessageDesc string
+	AnnonceTeamDesc    string
 	AnnonceRoleDesc    string
 
-	// /help panel: three sections, each with its button and form
-	PanelTitle       string
-	PanelDescription string
-	PanelFooter      string
-	SectionPublish   string
-	SectionSlots     string
-	SectionTimezone  string
-	SectionMessage   string
-	FieldChannel     string
-	FieldRole        string
-	FieldWhen        string
-	FieldDisplay     string
-	FieldLanguage    string
-	NotConfigured    string
-	NoRole           string
-	PausedTitle      string
-	PausedHint       string
-	BtnEdit          string
-	BtnSupport       string
-	ConfigSaved      string
-	NothingChanged   string
-	PublishedNow     string
+	// /help: the guild's teams, then setting one up
+	TeamsTitle       string
+	TeamsHint        string
+	TeamsFooter      string // %d teams, %d maximum
+	TeamPaused       string
+	BtnCreateTeam    string
+	BtnFirstTeam     string
+	SetupTitle       string
+	SetupIntro       string
+	StepTeam         string
+	StepChannel      string
+	StepRole         string
+	NextChannel      string
+	RoleTip          string
+	TeamReady        string // %s team
+	TeamSetUp        string // %s team
+	BtnBackToTeams   string
+	BtnRename        string
+	BtnPublishNow    string
+	BtnDelete        string
+	BtnConfirmDelete string
+	BtnCancel        string
+	DeleteTitle      string // %s team
+	DeleteWarning    string
+	CreateTitle      string
+	RenameTitle      string
+	TeamNameLabel    string
+	TeamNameHint     string // %d characters
+	TeamNameSample   string
+	TeamCreated      string // %s team
+	TeamRenamed      string // %s team
+	TeamDeleted      string // %s team
+	TeamGone         string
+	NameEmpty        string
+	NameTooLong      string // %d characters
+	NameTaken        string
+	TooManyTeams     string // %d teams
+	PublishedIn      string // %s channel mention
+	PublishFailed    string // %s channel mention
+
+	// Message posted when the bot joins a guild
+	WelcomeTitle   string // %s bot's name
+	WelcomeIntro   string
+	WelcomeStart   string
+	WelcomeDone    string
+	WelcomeFooter  string
+	BtnStartSetup  string
+	BtnManageTeams string
+	BtnHowTo       string
+	HowToTitle     string
+	HowToBody      string
+
+	// /help panel of a team: one section per setting, each with its button and form
+	PanelFooter     string
+	SectionPublish  string
+	SectionSchedule string
+	SectionSlots    string
+	SectionTimezone string
+	SectionMessage  string
+	FieldChannel    string
+	FieldRole       string
+	FieldWhen       string
+	FieldDisplay    string
+	FieldLanguage   string
+	NotConfigured   string
+	NoRole          string
+	PausedTitle     string
+	PausedHint      string
+	BtnEdit         string
+	BtnSupport      string
+	ConfigSaved     string
+	NothingChanged  string
+	PublishedNow    string
+
+	// /help: channel and role form
+	ChannelLabel        string
+	ChannelHint         string
+	NewChannelLabel     string
+	NewChannelHint      string
+	RoleLabel           string
+	RoleHint            string
+	NewRoleLabel        string
+	NewRoleHint         string
+	NeedManageChannels  string
+	NeedManageRoles     string
+	CreateChannelFailed string
+	CreateRoleFailed    string
+	CantPostThere       string
+	RoleNotMentionable  string
 
 	// /help: publication form
-	ChannelLabel     string
-	ChannelHint      string
-	RoleLabel        string
-	RoleHint         string
 	PublishDayLabel  string
 	PublishDayHint   string
 	PublishSunday    string
@@ -131,7 +195,7 @@ type Messages struct {
 	PlayersOne     string
 	PlayersMany    string // %d players
 
-	// /help: timezone of the guild
+	// /help: timezone of the team
 	GuildPickerContent string // %s current timezone
 	GuildPickerCountry string // %s UTC offset
 	GuildTimezoneSaved string // %s timezone name, %s current time there
@@ -140,7 +204,10 @@ type Messages struct {
 	AnnounceBy        string // %s mention
 	AnnouncePublished string // %s channel mention
 	AnnounceEmpty     string
-	NoChannel         string
+	NoChannel         string // %s team
+	NoTeam            string
+	PickTeam          string
+	UnknownTeam       string // %s team
 
 	// Errors
 	ErrGeneric     string
@@ -163,7 +230,7 @@ var fr = Messages{
 	WeeklyTitle:      "Dispos de la semaine du %s",
 	ClassicTitle:     "Disponibilités de la semaine",
 	TableDayHeader:   "Jour",
-	ServerTimeLegend: "Heure du serveur (%s) · %s = %s chez toi",
+	ServerTimeLegend: "Heure de l'équipe (%s) · %s = %s chez toi",
 	ImageLegend:      "🟩 beaucoup · 🟨 moyen · ⬛ peu",
 	ClosedLegend:     "cases barrées : avant la publication",
 	BtnMyDispos:      "✏️ Mes dispos",
@@ -201,63 +268,128 @@ var fr = Messages{
 	GridInYourTime:     "%s · à ton heure",
 	LocalTimeLegend:    "Heures affichées à ton heure · %s",
 	ShiftedColumns:     " · colonnes décalées de %d min",
-	NoHoursToConvert:   "Les créneaux de ce serveur sont « Après-midi / Soir » : il n'y a pas d'heure à convertir.",
-	HelpDescription:    "Panneau admin pour configurer le bot",
-	AnnonceDescription: "Publier une annonce (embed) dans le salon des dispos",
+	NoHoursToConvert:   "Les créneaux de cette équipe sont « Après-midi / Soir » : il n'y a pas d'heure à convertir.",
+	HelpDescription:    "Panneau admin pour configurer les équipes",
+	AnnonceDescription: "Publier une annonce (embed) dans le salon d'une équipe",
 	AnnonceTitleDesc:   "Titre de l'annonce",
 	AnnonceMessageDesc: "Contenu de l'annonce (utilise \\n pour un retour à la ligne)",
-	AnnonceRoleDesc:    "Rôle à mentionner (optionnel)",
+	AnnonceTeamDesc:    "Équipe concernée (facultatif s'il n'y en a qu'une)",
+	AnnonceRoleDesc:    "Rôle à mentionner (par défaut : celui de l'équipe)",
 
-	PanelTitle:       "⚙️ Panneau de configuration",
-	PanelDescription: "Gère les paramètres du bot pour ce serveur.",
-	PanelFooter:      "🔒 Réservé aux administrateurs",
-	SectionPublish:   "📢 Publication",
-	SectionSlots:     "🕒 Créneaux",
-	SectionTimezone:  "🌍 Fuseau horaire",
-	SectionMessage:   "🎨 Message",
-	FieldChannel:     "Salon",
-	FieldRole:        "Rôle",
-	FieldWhen:        "Quand",
-	FieldDisplay:     "Affichage",
-	FieldLanguage:    "Langue",
-	NotConfigured:    "❌ non configuré",
-	NoRole:           "aucun",
-	PausedTitle:      "⏸️ Publication en pause",
-	PausedHint:       "Le bot ne peut plus publier dans ce salon. Vérifie ses permissions, puis choisis à nouveau le salon.",
-	BtnEdit:          "✏️ Modifier",
-	BtnSupport:       "💸 Soutenir le bot",
-	ConfigSaved:      "Configuration enregistrée.",
-	NothingChanged:   "Rien n'a changé.",
-	PublishedNow:     " Le message de la semaine est en cours de publication.",
+	TeamsTitle:       "🦑 Mes équipes",
+	TeamsHint:        "Clique sur une équipe pour la configurer.",
+	TeamsFooter:      "%d/%d équipes · 🔒 Réservé aux administrateurs",
+	TeamPaused:       "en pause",
+	BtnCreateTeam:    "➕ Créer une équipe",
+	BtnFirstTeam:     "🚀 Créer ma première équipe",
+	SetupTitle:       "🎯 Setup du serveur",
+	SetupIntro:       "Chaque semaine, je publie un message de dispos pour chacune de tes équipes, et je mentionne leurs joueurs.",
+	StepTeam:         "Créer ta première équipe",
+	StepChannel:      "Choisir le salon des dispos",
+	StepRole:         "Choisir un rôle à mentionner *(optionnel)*",
+	NextChannel:      "👉 **Prochaine étape :** choisis le salon des dispos.",
+	RoleTip:          "💡 *Optionnel :* choisis un rôle à mentionner pour prévenir tes joueurs.",
+	TeamReady:        "🎉 **%s** est prête !",
+	TeamSetUp:        " 🏆 Setup de **%s** terminé !",
+	BtnBackToTeams:   "⬅️ Mes équipes",
+	BtnRename:        "✏️ Renommer",
+	BtnPublishNow:    "📤 Publier maintenant",
+	BtnDelete:        "🗑️ Supprimer",
+	BtnConfirmDelete: "🗑️ Oui, supprimer",
+	BtnCancel:        "Annuler",
+	DeleteTitle:      "🗑️ Supprimer %s ?",
+	DeleteWarning:    "Ses dispos et son message de la semaine seront supprimés. Le salon et le rôle Discord sont conservés.",
+	CreateTitle:      "➕ Créer une équipe",
+	RenameTitle:      "✏️ Renommer l'équipe",
+	TeamNameLabel:    "Nom de l'équipe",
+	TeamNameHint:     "%d caractères maximum.",
+	TeamNameSample:   "Ex : Team Inkling",
+	TeamCreated:      "✨ Équipe **%s** créée !",
+	TeamRenamed:      "✏️ Équipe renommée en **%s**.",
+	TeamDeleted:      "🗑️ Équipe **%s** supprimée.",
+	TeamGone:         "Cette équipe n'existe plus.",
+	NameEmpty:        "Le nom de l'équipe ne peut pas être vide.",
+	NameTooLong:      "Le nom de l'équipe doit faire %d caractères maximum.",
+	NameTaken:        "Une équipe porte déjà ce nom sur ce serveur.",
+	TooManyTeams:     "Tu as atteint la limite de %d équipes.",
+	PublishedIn:      "📤 Message publié dans %s.",
+	PublishFailed:    "Impossible de publier dans %s : vérifie que j'ai accès au salon.",
 
-	ChannelLabel:     "Salon des dispos",
-	ChannelHint:      "Où le message de la semaine est publié.",
-	RoleLabel:        "Rôle à mentionner",
-	RoleHint:         "Optionnel : sans rôle, personne n'est mentionné.",
+	WelcomeTitle:   "👋 Heeey, moi c'est %s !",
+	WelcomeIntro:   "Je suis là pour que ta team ne rate plus jamais une session 🦑\nChaque semaine, je poste les dispos, je ping tes joueurs, et en deux clics tout le monde sait **qui joue quand**. Plusieurs équipes ? Aucun souci, chacune a les siennes ! 🎨",
+	WelcomeStart:   "👉 Un admin clique sur **🚀 Lancer le setup** (ou tape `/help`) et c'est parti !",
+	WelcomeDone:    "🏆 **Setup terminé, bien joué !** Les dispos partent toutes seules chaque semaine.",
+	WelcomeFooter:  "🔒 Le setup est réservé aux administrateurs",
+	BtnStartSetup:  "🚀 Lancer le setup",
+	BtnManageTeams: "⚙️ Gérer mes équipes",
+	BtnHowTo:       "❓ Comment ça marche",
+	HowToTitle:     "❓ Comment ça marche ?",
+	HowToBody: "**1.** Un admin crée une ou plusieurs équipes avec `/help` : un nom, un salon et un rôle à mentionner.\n" +
+		"**2.** Chaque semaine, je publie un message dans le salon de chaque équipe et je mentionne son rôle.\n" +
+		"**3.** Les joueurs cliquent sur **✏️ Mes dispos** pour cocher leurs créneaux, et le message se met à jour en direct.\n" +
+		"**4.** Chaque équipe a ses propres réglages : créneaux, affichage, langue, jour et heure de publication.\n\n" +
+		"📣 `/annonce` publie aussi une annonce pour une équipe.",
+
+	PanelFooter:     "🔒 Réservé aux administrateurs",
+	SectionPublish:  "📢 Salon et rôle",
+	SectionSchedule: "📅 Publication",
+	SectionSlots:    "🕒 Créneaux",
+	SectionTimezone: "🌍 Fuseau horaire",
+	SectionMessage:  "🎨 Message",
+	FieldChannel:    "Salon",
+	FieldRole:       "Rôle",
+	FieldWhen:       "Quand",
+	FieldDisplay:    "Affichage",
+	FieldLanguage:   "Langue",
+	NotConfigured:   "❌ non configuré",
+	NoRole:          "aucun",
+	PausedTitle:     "⏸️ Publication en pause",
+	PausedHint:      "Le bot ne peut plus publier dans ce salon. Vérifie ses permissions, puis choisis à nouveau le salon.",
+	BtnEdit:         "✏️ Modifier",
+	BtnSupport:      "💸 Soutenir le bot",
+	ConfigSaved:     "Configuration enregistrée.",
+	NothingChanged:  "Rien n'a changé.",
+	PublishedNow:    " Le message de la semaine est en cours de publication.",
+
+	ChannelLabel:        "Salon des dispos",
+	ChannelHint:         "Où le message de la semaine est publié.",
+	NewChannelLabel:     "…ou créer un nouveau salon",
+	NewChannelHint:      "Tape un nom : je crée le salon, à la place du choix au-dessus.",
+	RoleLabel:           "Rôle à mentionner",
+	RoleHint:            "Optionnel : sans rôle, personne n'est mentionné.",
+	NewRoleLabel:        "…ou créer un nouveau rôle",
+	NewRoleHint:         "Tape un nom : je crée le rôle, à la place du choix au-dessus.",
+	NeedManageChannels:  "Il me manque la permission **Gérer les salons** pour créer le salon. Ajoute-la à mon rôle ou choisis un salon existant.",
+	NeedManageRoles:     "Il me manque la permission **Gérer les rôles** pour créer le rôle. Ajoute-la à mon rôle ou choisis un rôle existant.",
+	CreateChannelFailed: "Impossible de créer le salon.",
+	CreateRoleFailed:    "Impossible de créer le rôle.",
+	CantPostThere:       "Je ne peux pas écrire dans ce salon : donne-moi l'accès (voir, envoyer des messages, intégrer des liens).",
+	RoleNotMentionable:  "Ce rôle n'est pas mentionnable : sans la permission **Mentionner @everyone**, le ping ne notifiera personne.",
+
 	PublishDayLabel:  "Jour de publication",
 	PublishDayHint:   "Le message couvre toujours une semaine du lundi au dimanche.",
 	PublishSunday:    "Dimanche, pour la semaine qui suit",
 	PublishMonday:    "Lundi, pour la semaine qui commence",
 	PublishHourLabel: "Heure de publication",
-	PublishHourHint:  "Heure du serveur.",
+	PublishHourHint:  "Heure de l'équipe.",
 
 	ModeLabel:        "Découpage des journées",
 	ModeHint:         "⚠️ Changer le découpage réinitialise les dispos de la semaine en cours.",
 	ModeHourly:       "Par heure",
 	StartHourLabel:   "Première heure (mode par heure)",
-	StartHourHint:    "Heure du serveur. Ignorée en Après-midi / Soir.",
+	StartHourHint:    "Heure de l'équipe. Ignorée en Après-midi / Soir.",
 	EndHourLabel:     "Fin du dernier créneau (mode par heure)",
 	EndHourHint:      "Jusqu'à 5h le lendemain. Ignorée en Après-midi / Soir.",
 	NextDay:          " (lendemain)",
 	HourOrder:        "La première heure doit être avant la fin du dernier créneau.",
 	MemberTimeLabel:  "Heures des membres (mode par heure)",
 	MemberTimeHint:   "International : chacun indique son fuseau et voit les créneaux à son heure.",
-	MemberTimeServer: "🏠 Tout le monde à l'heure du serveur",
+	MemberTimeServer: "🏠 Tout le monde à l'heure de l'équipe",
 	MemberTimeOwn:    "🌍 International : chacun à son heure",
 	FieldMembers:     "Membres",
-	MembersServer:    "à l'heure du serveur",
+	MembersServer:    "à l'heure de l'équipe",
 	MembersOwn:       "chacun à son heure",
-	MemberTimeOff:    "Sur ce serveur, tout le monde voit les créneaux à l'heure du serveur.",
+	MemberTimeOff:    "Dans cette équipe, tout le monde voit les créneaux à l'heure de l'équipe.",
 	SlotsReset:       " Les créneaux ayant changé, les dispos de la semaine ont été réinitialisées.",
 
 	LanguageLabel:  "Langue du bot",
@@ -273,14 +405,17 @@ var fr = Messages{
 	PlayersOne:     "1 joueur",
 	PlayersMany:    "%d joueurs",
 
-	GuildPickerContent: "🌍 **Quel est le fuseau horaire du serveur ?** (actuellement : %s)\nToutes ses heures le suivent : créneaux, grille, semaines et publication. Choisis le décalage UTC actuel, puis le pays.",
-	GuildPickerCountry: "🌍 **Dans quel pays est le serveur ?** (%s)\nLe bot suivra tout seul les passages à l'heure d'été et d'hiver.",
-	GuildTimezoneSaved: "Fuseau du serveur : **%s** (il y est %s).",
+	GuildPickerContent: "🌍 **Quel est le fuseau horaire de l'équipe ?** (actuellement : %s)\nToutes ses heures le suivent : créneaux, grille, semaines et publication. Choisis le décalage UTC actuel, puis le pays.",
+	GuildPickerCountry: "🌍 **Dans quel pays est l'équipe ?** (%s)\nLe bot suivra tout seul les passages à l'heure d'été et d'hiver.",
+	GuildTimezoneSaved: "Fuseau de l'équipe : **%s** (il y est %s).",
 
 	AnnounceBy:        "**Annonce de** %s",
 	AnnouncePublished: "✅ Annonce publiée dans %s.",
 	AnnounceEmpty:     "Le titre et le message ne peuvent pas être vides.",
-	NoChannel:         "Aucun salon configuré. Utilise `/help` pour définir le salon des dispos.",
+	NoChannel:         "L'équipe **%s** n'a pas de salon. Configure-le avec `/help`.",
+	NoTeam:            "Aucune équipe sur ce serveur. Crée-en une avec `/help`.",
+	PickTeam:          "Ce serveur a plusieurs équipes : précise laquelle avec l'option `equipe`.",
+	UnknownTeam:       "Aucune équipe ne s'appelle **%s**.",
 
 	ErrGeneric:     "Une erreur est survenue, réessaie dans un instant.",
 	ErrUnknownUser: "Impossible de déterminer ton utilisateur Discord pour cette interaction.",
@@ -302,7 +437,7 @@ var en = Messages{
 	WeeklyTitle:      "Availability for the week of %s",
 	ClassicTitle:     "This week's availability",
 	TableDayHeader:   "Day",
-	ServerTimeLegend: "Server time (%s) · %s = %s for you",
+	ServerTimeLegend: "Team time (%s) · %s = %s for you",
 	ImageLegend:      "🟩 many · 🟨 some · ⬛ few",
 	ClosedLegend:     "crossed-out cells: before posting",
 	BtnMyDispos:      "✏️ My availability",
@@ -340,63 +475,128 @@ var en = Messages{
 	GridInYourTime:     "%s · in your time",
 	LocalTimeLegend:    "Hours shown in your time · %s",
 	ShiftedColumns:     " · columns shifted by %d min",
-	NoHoursToConvert:   "This server uses \"Afternoon / Evening\" slots: there are no hours to convert.",
-	HelpDescription:    "Admin panel to configure the bot",
-	AnnonceDescription: "Post an announcement (embed) in the availability channel",
+	NoHoursToConvert:   "This team uses \"Afternoon / Evening\" slots: there are no hours to convert.",
+	HelpDescription:    "Admin panel to configure the teams",
+	AnnonceDescription: "Post an announcement (embed) in a team's channel",
 	AnnonceTitleDesc:   "Title of the announcement",
 	AnnonceMessageDesc: "Content of the announcement (use \\n for a line break)",
-	AnnonceRoleDesc:    "Role to mention (optional)",
+	AnnonceTeamDesc:    "Team concerned (optional when there is only one)",
+	AnnonceRoleDesc:    "Role to mention (by default: the team's)",
 
-	PanelTitle:       "⚙️ Settings",
-	PanelDescription: "Manage the bot's settings for this server.",
-	PanelFooter:      "🔒 Admins only",
-	SectionPublish:   "📢 Posting",
-	SectionSlots:     "🕒 Slots",
-	SectionTimezone:  "🌍 Timezone",
-	SectionMessage:   "🎨 Message",
-	FieldChannel:     "Channel",
-	FieldRole:        "Role",
-	FieldWhen:        "When",
-	FieldDisplay:     "Display",
-	FieldLanguage:    "Language",
-	NotConfigured:    "❌ not set",
-	NoRole:           "none",
-	PausedTitle:      "⏸️ Posting paused",
-	PausedHint:       "The bot can no longer post in this channel. Check its permissions, then pick the channel again.",
-	BtnEdit:          "✏️ Edit",
-	BtnSupport:       "💸 Support the bot",
-	ConfigSaved:      "Settings saved.",
-	NothingChanged:   "Nothing changed.",
-	PublishedNow:     " The weekly message is being posted.",
+	TeamsTitle:       "🦑 My teams",
+	TeamsHint:        "Click a team to set it up.",
+	TeamsFooter:      "%d/%d teams · 🔒 Admins only",
+	TeamPaused:       "paused",
+	BtnCreateTeam:    "➕ Create a team",
+	BtnFirstTeam:     "🚀 Create my first team",
+	SetupTitle:       "🎯 Server setup",
+	SetupIntro:       "Every week, I post an availability message for each of your teams and mention their players.",
+	StepTeam:         "Create your first team",
+	StepChannel:      "Pick the availability channel",
+	StepRole:         "Pick a role to mention *(optional)*",
+	NextChannel:      "👉 **Next step:** pick the availability channel.",
+	RoleTip:          "💡 *Optional:* pick a role to mention to notify your players.",
+	TeamReady:        "🎉 **%s** is ready!",
+	TeamSetUp:        " 🏆 **%s** is all set up!",
+	BtnBackToTeams:   "⬅️ My teams",
+	BtnRename:        "✏️ Rename",
+	BtnPublishNow:    "📤 Post now",
+	BtnDelete:        "🗑️ Delete",
+	BtnConfirmDelete: "🗑️ Yes, delete",
+	BtnCancel:        "Cancel",
+	DeleteTitle:      "🗑️ Delete %s?",
+	DeleteWarning:    "Its availability and weekly message will be deleted. The Discord channel and role are kept.",
+	CreateTitle:      "➕ Create a team",
+	RenameTitle:      "✏️ Rename the team",
+	TeamNameLabel:    "Team name",
+	TeamNameHint:     "%d characters at most.",
+	TeamNameSample:   "E.g. Team Inkling",
+	TeamCreated:      "✨ Team **%s** created!",
+	TeamRenamed:      "✏️ Team renamed to **%s**.",
+	TeamDeleted:      "🗑️ Team **%s** deleted.",
+	TeamGone:         "This team no longer exists.",
+	NameEmpty:        "The team's name can't be empty.",
+	NameTooLong:      "The team's name must be %d characters at most.",
+	NameTaken:        "A team already has this name on this server.",
+	TooManyTeams:     "You reached the limit of %d teams.",
+	PublishedIn:      "📤 Message posted in %s.",
+	PublishFailed:    "Couldn't post in %s: check that I can access the channel.",
 
-	ChannelLabel:     "Availability channel",
-	ChannelHint:      "Where the weekly message is posted.",
-	RoleLabel:        "Role to mention",
-	RoleHint:         "Optional: without a role, nobody is mentioned.",
+	WelcomeTitle:   "👋 Heeey, I'm %s!",
+	WelcomeIntro:   "I'm here so your team never misses a session again 🦑\nEvery week, I post the availability, ping your players, and in two clicks everyone knows **who plays when**. Several teams? No problem, each gets its own! 🎨",
+	WelcomeStart:   "👉 An admin clicks **🚀 Start the setup** (or types `/help`) and off we go!",
+	WelcomeDone:    "🏆 **Setup done, nice one!** The availability goes out by itself every week.",
+	WelcomeFooter:  "🔒 The setup is for admins only",
+	BtnStartSetup:  "🚀 Start the setup",
+	BtnManageTeams: "⚙️ Manage my teams",
+	BtnHowTo:       "❓ How it works",
+	HowToTitle:     "❓ How it works",
+	HowToBody: "**1.** An admin creates one or more teams with `/help`: a name, a channel and a role to mention.\n" +
+		"**2.** Every week, I post a message in each team's channel and mention its role.\n" +
+		"**3.** Players click **✏️ My availability** to pick their slots, and the message updates live.\n" +
+		"**4.** Each team has its own settings: slots, display, language, posting day and time.\n\n" +
+		"📣 `/annonce` also posts an announcement for a team.",
+
+	PanelFooter:     "🔒 Admins only",
+	SectionPublish:  "📢 Channel and role",
+	SectionSchedule: "📅 Posting",
+	SectionSlots:    "🕒 Slots",
+	SectionTimezone: "🌍 Timezone",
+	SectionMessage:  "🎨 Message",
+	FieldChannel:    "Channel",
+	FieldRole:       "Role",
+	FieldWhen:       "When",
+	FieldDisplay:    "Display",
+	FieldLanguage:   "Language",
+	NotConfigured:   "❌ not set",
+	NoRole:          "none",
+	PausedTitle:     "⏸️ Posting paused",
+	PausedHint:      "The bot can no longer post in this channel. Check its permissions, then pick the channel again.",
+	BtnEdit:         "✏️ Edit",
+	BtnSupport:      "💸 Support the bot",
+	ConfigSaved:     "Settings saved.",
+	NothingChanged:  "Nothing changed.",
+	PublishedNow:    " The weekly message is being posted.",
+
+	ChannelLabel:        "Availability channel",
+	ChannelHint:         "Where the weekly message is posted.",
+	NewChannelLabel:     "…or create a new channel",
+	NewChannelHint:      "Type a name: I create the channel, instead of the choice above.",
+	RoleLabel:           "Role to mention",
+	RoleHint:            "Optional: without a role, nobody is mentioned.",
+	NewRoleLabel:        "…or create a new role",
+	NewRoleHint:         "Type a name: I create the role, instead of the choice above.",
+	NeedManageChannels:  "I'm missing the **Manage Channels** permission to create the channel. Add it to my role or pick an existing channel.",
+	NeedManageRoles:     "I'm missing the **Manage Roles** permission to create the role. Add it to my role or pick an existing role.",
+	CreateChannelFailed: "Couldn't create the channel.",
+	CreateRoleFailed:    "Couldn't create the role.",
+	CantPostThere:       "I can't write in this channel: give me access (view, send messages, embed links).",
+	RoleNotMentionable:  "This role isn't mentionable: without the **Mention @everyone** permission, the ping won't notify anyone.",
+
 	PublishDayLabel:  "Posting day",
 	PublishDayHint:   "The message always covers a week from Monday to Sunday.",
 	PublishSunday:    "Sunday, for the following week",
 	PublishMonday:    "Monday, for the week starting",
 	PublishHourLabel: "Posting time",
-	PublishHourHint:  "Server time.",
+	PublishHourHint:  "Team time.",
 
 	ModeLabel:        "Day slots",
 	ModeHint:         "⚠️ Changing the slots resets this week's availability.",
 	ModeHourly:       "Hourly",
 	StartHourLabel:   "First hour (hourly slots)",
-	StartHourHint:    "Server time. Ignored for Afternoon / Evening.",
+	StartHourHint:    "Team time. Ignored for Afternoon / Evening.",
 	EndHourLabel:     "End of the last slot (hourly slots)",
 	EndHourHint:      "Up to 5 AM the next day. Ignored for Afternoon / Evening.",
 	NextDay:          " (next day)",
 	HourOrder:        "The first hour must be before the end of the last slot.",
 	MemberTimeLabel:  "Members' hours (hourly slots)",
 	MemberTimeHint:   "International: everyone sets their timezone and sees the slots in their own time.",
-	MemberTimeServer: "🏠 Everyone on the server's time",
+	MemberTimeServer: "🏠 Everyone on the team's time",
 	MemberTimeOwn:    "🌍 International: everyone in their own time",
 	FieldMembers:     "Members",
-	MembersServer:    "on the server's time",
+	MembersServer:    "on the team's time",
 	MembersOwn:       "each in their own time",
-	MemberTimeOff:    "On this server, everyone sees the slots in the server's time.",
+	MemberTimeOff:    "In this team, everyone sees the slots in the team's time.",
 	SlotsReset:       " The slots changed, so this week's availability was reset.",
 
 	LanguageLabel:  "Bot language",
@@ -412,14 +612,17 @@ var en = Messages{
 	PlayersOne:     "1 player",
 	PlayersMany:    "%d players",
 
-	GuildPickerContent: "🌍 **What's the server's timezone?** (currently: %s)\nAll its hours follow it: slots, grid, weeks and posting. Pick the current UTC offset, then the country.",
-	GuildPickerCountry: "🌍 **Which country is the server in?** (%s)\nThe bot will follow daylight saving time changes by itself.",
-	GuildTimezoneSaved: "Server timezone: **%s** (it is %s there).",
+	GuildPickerContent: "🌍 **What's the team's timezone?** (currently: %s)\nAll its hours follow it: slots, grid, weeks and posting. Pick the current UTC offset, then the country.",
+	GuildPickerCountry: "🌍 **Which country is the team in?** (%s)\nThe bot will follow daylight saving time changes by itself.",
+	GuildTimezoneSaved: "Team timezone: **%s** (it is %s there).",
 
 	AnnounceBy:        "**Announcement by** %s",
 	AnnouncePublished: "✅ Announcement posted in %s.",
 	AnnounceEmpty:     "The title and the message can't be empty.",
-	NoChannel:         "No channel set. Use `/help` to set the availability channel.",
+	NoChannel:         "Team **%s** has no channel. Set it with `/help`.",
+	NoTeam:            "No team on this server. Create one with `/help`.",
+	PickTeam:          "This server has several teams: say which one with the `equipe` option.",
+	UnknownTeam:       "No team is called **%s**.",
 
 	ErrGeneric:     "Something went wrong, please try again in a moment.",
 	ErrUnknownUser: "Couldn't determine your Discord user for this interaction.",
