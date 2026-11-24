@@ -1,7 +1,9 @@
 package handlers
 
 import (
+	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -11,41 +13,38 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
-	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	appguild "github.com/ADG08/SplatoonOrganizer/internal/application/guild"
+	appteam "github.com/ADG08/SplatoonOrganizer/internal/application/team"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
-	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/team"
 	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
 
-const HelpConfigCustomIDPrefix = "help:config"
-
-// HelpConfigHandler handles the buttons, forms and timezone picker of the /help panel.
+// HelpConfigHandler handles the buttons, forms and timezone picker of the /help panels.
 type HelpConfigHandler struct {
-	svc        *appguildconfig.Service
+	teams      *appteam.Service
+	guilds     *appguild.Service // the language of what isn't a team's
 	availSvc   *appavailability.Service
 	refresher  *weekly.Refresher // updates the weekly message when a change doesn't need a new one
+	welcome    *WelcomeHandler   // updates the welcome message as the setup goes on
 	ownerID    string
 	supportURL string // donation page linked from the panel, optional
 }
 
 // NewHelpConfigHandler creates a new help config handler. ownerID is optional.
-func NewHelpConfigHandler(svc *appguildconfig.Service, availSvc *appavailability.Service, refresher *weekly.Refresher, ownerID, supportURL string) *HelpConfigHandler {
-	return &HelpConfigHandler{svc: svc, availSvc: availSvc, refresher: refresher, ownerID: ownerID, supportURL: supportURL}
+func NewHelpConfigHandler(teams *appteam.Service, guilds *appguild.Service, availSvc *appavailability.Service, refresher *weekly.Refresher, welcome *WelcomeHandler, ownerID, supportURL string) *HelpConfigHandler {
+	return &HelpConfigHandler{teams: teams, guilds: guilds, availSvc: availSvc, refresher: refresher, welcome: welcome, ownerID: ownerID, supportURL: supportURL}
 }
 
 func (h *HelpConfigHandler) CustomID() string {
-	return HelpConfigCustomIDPrefix
+	return discord.HelpPanelID
 }
 
 var _ discord.InteractionHandler = (*HelpConfigHandler)(nil)
 
 func (h *HelpConfigHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(ctx, s, i, h.svc)
-	if cfg == nil {
-		return nil
-	}
-	m := cfg.Messages()
+	m := discord.LocaleMessages(i)
 	if !discord.IsAdminOrOwner(i, h.ownerID) {
 		return discord.RespondError(s, i, m.ErrAdminOnly)
 	}
@@ -53,57 +52,133 @@ func (h *HelpConfigHandler) Handle(ctx context.Context, s *discordgo.Session, i 
 		return discord.RespondError(s, i, m.ErrGuildOnly)
 	}
 
+	var customID string
 	if i.Type == discordgo.InteractionModalSubmit {
-		data := i.ModalSubmitData()
-		switch data.CustomID {
-		case discord.HelpPanelModalPublishID:
-			return h.handlePublishSubmit(ctx, s, i, cfg, data)
-		case discord.HelpPanelModalSlotsID:
-			return h.handleSlotsSubmit(ctx, s, i, cfg, data)
-		case discord.HelpPanelModalMessageID:
-			return h.handleMessageSubmit(ctx, s, i, cfg, data)
-		}
+		customID = i.ModalSubmitData().CustomID
+	} else {
+		customID = i.MessageComponentData().CustomID
+	}
+	action, teamID, step, err := discord.ParseHelpCustomID(customID)
+	if err != nil {
+		slog.WarnContext(ctx, "invalid help panel custom id", "guild", i.GuildID, "err", err)
 		return discord.RespondError(s, i, m.ErrInvalid)
 	}
 
-	customID := i.MessageComponentData().CustomID
-	if step, ok := strings.CutPrefix(customID, discord.HelpPanelTimezoneID+":"); ok {
-		return h.handleTimezonePick(ctx, s, i, cfg, step)
+	if lang, ok := strings.CutPrefix(action, discord.HelpActionLanguage); ok {
+		return h.handleLanguage(ctx, s, i, lang)
 	}
-	modal := func(customID, title string, fields []discordgo.MessageComponent) error {
-		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
-			Type: discordgo.InteractionResponseModal,
-			Data: &discordgo.InteractionResponseData{CustomID: customID, Title: title, Components: fields},
-		})
+	switch action {
+	case discord.HelpActionList:
+		return h.showList(ctx, s, i, "")
+	case discord.HelpActionCreate:
+		return respondModal(s, i, discord.HelpCustomID(discord.HelpActionModalCreate, 0), m.CreateTitle, buildTeamNameField(m, ""))
+	case discord.HelpActionModalCreate:
+		return h.handleCreateSubmit(ctx, s, i)
 	}
-	switch customID {
-	case discord.HelpPanelOpenPublishID:
-		return modal(discord.HelpPanelModalPublishID, m.SectionPublish, buildPublishModalComponents(cfg))
-	case discord.HelpPanelOpenSlotsID:
-		return modal(discord.HelpPanelModalSlotsID, m.SectionSlots, buildSlotsModalComponents(cfg))
-	case discord.HelpPanelOpenMessageID:
-		return modal(discord.HelpPanelModalMessageID, m.SectionMessage, buildMessageModalComponents(cfg))
-	case discord.HelpPanelOpenTimezoneID:
+
+	t, err := h.teams.GetInGuild(ctx, i.GuildID, teamID)
+	if errors.Is(err, team.ErrNotFound) {
+		return h.showList(ctx, s, i, "⚠️ "+m.TeamGone)
+	}
+	if err != nil {
+		slog.ErrorContext(ctx, "help config: get team", "guild", i.GuildID, "err", err)
+		return discord.RespondError(s, i, m.ErrGeneric)
+	}
+	m = t.Messages()
+	panelID := func(action string) string { return discord.HelpCustomID(action, t.ID) }
+
+	switch action {
+	case discord.HelpActionOpen:
+		return showPanel(s, i, discord.BuildHelpPanel(t, ""))
+	case discord.HelpActionOpenPublish:
+		return respondModal(s, i, panelID(discord.HelpActionModalPublish), m.SectionPublish, buildPublishModalComponents(t))
+	case discord.HelpActionOpenSchedule:
+		return respondModal(s, i, panelID(discord.HelpActionModalSched), m.SectionSchedule, buildScheduleModalComponents(t))
+	case discord.HelpActionOpenSlots:
+		return respondModal(s, i, panelID(discord.HelpActionModalSlots), m.SectionSlots, buildSlotsModalComponents(t))
+	case discord.HelpActionOpenMessage:
+		return respondModal(s, i, panelID(discord.HelpActionModalMessage), m.SectionMessage, buildMessageModalComponents(t))
+	case discord.HelpActionOpenRename:
+		return respondModal(s, i, panelID(discord.HelpActionModalRename), m.RenameTitle, buildTeamNameField(m, t.Name))
+	case discord.HelpActionOpenTimezone:
 		// The panel turns into the picker, and back into the panel once a timezone is picked.
 		return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 			Type: discordgo.InteractionResponseUpdateMessage,
-			Data: pickerStep(true, fmt.Sprintf(m.GuildPickerContent, m.TimezoneName(cfg.Location)), buildTimezonePicker(m, discord.HelpPanelTimezoneID)),
+			Data: pickerStep(true, fmt.Sprintf(m.GuildPickerContent, m.TimezoneName(t.Location)), buildTimezonePicker(m, panelID(discord.HelpActionTimezone))),
 		})
+	case discord.HelpActionTimezone:
+		return h.handleTimezonePick(ctx, s, i, t, step)
+	case discord.HelpActionPublishNow:
+		return h.handlePublishNow(ctx, s, i, t)
+	case discord.HelpActionDelete:
+		return showPanel(s, i, discord.BuildTeamDeletePanel(t))
+	case discord.HelpActionConfirmDel:
+		return h.handleDelete(ctx, s, i, t)
+	}
+
+	if i.Type != discordgo.InteractionModalSubmit {
+		return discord.RespondError(s, i, m.ErrInvalid)
+	}
+	data := i.ModalSubmitData()
+	switch action {
+	case discord.HelpActionModalPublish:
+		return h.handlePublishSubmit(ctx, s, i, t, data)
+	case discord.HelpActionModalSched:
+		return h.handleScheduleSubmit(ctx, s, i, t, data)
+	case discord.HelpActionModalSlots:
+		return h.handleSlotsSubmit(ctx, s, i, t, data)
+	case discord.HelpActionModalMessage:
+		return h.handleMessageSubmit(ctx, s, i, t, data)
+	case discord.HelpActionModalRename:
+		return h.handleRenameSubmit(ctx, s, i, t, data)
 	}
 	return discord.RespondError(s, i, m.ErrInvalid)
 }
 
-// buildPublishModalComponents builds the publication form, prefilled with the current
-// channel, role and schedule. The role is optional: unselecting it stops the mentions.
-func buildPublishModalComponents(cfg *guildconfig.GuildConfig) []discordgo.MessageComponent {
-	m := cfg.Messages()
-	days := []discordgo.SelectMenuOption{
-		{Label: m.PublishSunday, Value: strconv.Itoa(int(time.Sunday)), Default: cfg.Schedule.Weekday == time.Sunday},
-		{Label: m.PublishMonday, Value: strconv.Itoa(int(time.Monday)), Default: cfg.Schedule.Weekday == time.Monday},
+// respondModal opens a form.
+func respondModal(s *discordgo.Session, i *discordgo.InteractionCreate, customID, title string, fields []discordgo.MessageComponent) error {
+	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
+		Type: discordgo.InteractionResponseModal,
+		Data: &discordgo.InteractionResponseData{CustomID: customID, Title: title, Components: fields},
+	})
+}
+
+// buildTeamNameField builds the team's name form, prefilled with its name when renaming.
+func buildTeamNameField(m *i18n.Messages, name string) []discordgo.MessageComponent {
+	return []discordgo.MessageComponent{
+		discordgo.Label{
+			Label:       m.TeamNameLabel,
+			Description: fmt.Sprintf(m.TeamNameHint, team.MaxNameLength),
+			Component: discordgo.TextInput{
+				CustomID:    "team_name",
+				Style:       discordgo.TextInputShort,
+				Placeholder: m.TeamNameSample,
+				Value:       name,
+				Required:    new(true),
+				MinLength:   1,
+				MaxLength:   team.MaxNameLength,
+			},
+		},
 	}
-	hours := make([]discordgo.SelectMenuOption, 24)
-	for h := range hours {
-		hours[h] = discordgo.SelectMenuOption{Label: m.HourLabel(h), Value: strconv.Itoa(h), Default: h == cfg.Schedule.Hour}
+}
+
+// buildPublishModalComponents builds the channel and role form, prefilled with the current
+// ones. Each can be picked or, by typing a name, created. The role is optional:
+// unselecting it stops the mentions.
+func buildPublishModalComponents(t *team.Team) []discordgo.MessageComponent {
+	m := t.Messages()
+	nameField := func(label, hint, customID, placeholder string) discordgo.Label {
+		return discordgo.Label{
+			Label:       label,
+			Description: hint,
+			Component: discordgo.TextInput{
+				CustomID:    customID,
+				Style:       discordgo.TextInputShort,
+				Placeholder: placeholder,
+				Required:    new(false),
+				MaxLength:   100,
+			},
+		}
 	}
 	return []discordgo.MessageComponent{
 		discordgo.Label{
@@ -113,12 +188,13 @@ func buildPublishModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Messa
 				CustomID:      "channel",
 				MenuType:      discordgo.ChannelSelectMenu,
 				ChannelTypes:  []discordgo.ChannelType{discordgo.ChannelTypeGuildText},
-				MinValues:     new(1),
+				MinValues:     new(0),
 				MaxValues:     1,
-				Required:      new(true),
-				DefaultValues: defaultChannelValues(cfg.ChannelID),
+				Required:      new(false),
+				DefaultValues: defaultChannelValues(t.ChannelID),
 			},
 		},
+		nameField(m.NewChannelLabel, m.NewChannelHint, "new_channel", "dispos-"+t.Name),
 		discordgo.Label{
 			Label:       m.RoleLabel,
 			Description: m.RoleHint,
@@ -128,9 +204,25 @@ func buildPublishModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Messa
 				MinValues:     new(0),
 				MaxValues:     1,
 				Required:      new(false),
-				DefaultValues: defaultRoleValues(cfg.RoleID),
+				DefaultValues: defaultRoleValues(t.RoleID),
 			},
 		},
+		nameField(m.NewRoleLabel, m.NewRoleHint, "new_role", t.Name),
+	}
+}
+
+// buildScheduleModalComponents builds the publication form, prefilled with the current schedule.
+func buildScheduleModalComponents(t *team.Team) []discordgo.MessageComponent {
+	m := t.Messages()
+	days := []discordgo.SelectMenuOption{
+		{Label: m.PublishSunday, Value: strconv.Itoa(int(time.Sunday)), Default: t.Schedule.Weekday == time.Sunday},
+		{Label: m.PublishMonday, Value: strconv.Itoa(int(time.Monday)), Default: t.Schedule.Weekday == time.Monday},
+	}
+	hours := make([]discordgo.SelectMenuOption, 24)
+	for h := range hours {
+		hours[h] = discordgo.SelectMenuOption{Label: m.HourLabel(h), Value: strconv.Itoa(h), Default: h == t.Schedule.Hour}
+	}
+	return []discordgo.MessageComponent{
 		selectField(m.PublishDayLabel, m.PublishDayHint, "publish_weekday", true, days),
 		selectField(m.PublishHourLabel, m.PublishHourHint, "publish_hour", true, hours),
 	}
@@ -138,14 +230,14 @@ func buildPublishModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Messa
 
 // Values of the slots form's member time select.
 const (
-	memberTimeServer = "server" // everyone sees the guild's time
+	memberTimeServer = "server" // everyone sees the team's time
 	memberTimeOwn    = "own"    // each member sees their own timezone
 )
 
 // buildSlotsModalComponents builds the slots form, prefilled with the current layout.
-func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.MessageComponent {
-	m := cfg.Messages()
-	current := cfg.SlotLayout
+func buildSlotsModalComponents(t *team.Team) []discordgo.MessageComponent {
+	m := t.Messages()
+	current := t.SlotLayout
 	start, end := availability.DefaultStartHour, availability.DefaultEndHour
 	if current.IsHourly() {
 		start, end = current.StartHour, current.EndHour
@@ -168,8 +260,8 @@ func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Message
 		})
 	}
 	memberTime := []discordgo.SelectMenuOption{
-		{Label: m.MemberTimeServer, Value: memberTimeServer, Default: !cfg.MemberTimezones},
-		{Label: m.MemberTimeOwn, Value: memberTimeOwn, Default: cfg.MemberTimezones},
+		{Label: m.MemberTimeServer, Value: memberTimeServer, Default: !t.MemberTimezones},
+		{Label: m.MemberTimeOwn, Value: memberTimeOwn, Default: t.MemberTimezones},
 	}
 	return []discordgo.MessageComponent{
 		selectField(m.ModeLabel, m.ModeHint, "slot_mode", true, modes),
@@ -182,19 +274,19 @@ func buildSlotsModalComponents(cfg *guildconfig.GuildConfig) []discordgo.Message
 
 // buildMessageModalComponents builds the message form: display, language, and the
 // players from which a slot is green.
-func buildMessageModalComponents(cfg *guildconfig.GuildConfig) []discordgo.MessageComponent {
-	m := cfg.Messages()
+func buildMessageModalComponents(t *team.Team) []discordgo.MessageComponent {
+	m := t.Messages()
 	languages := make([]discordgo.SelectMenuOption, len(i18n.Langs))
 	for n, lang := range i18n.Langs {
-		languages[n] = discordgo.SelectMenuOption{Label: m.LanguageNames[n], Value: string(lang), Default: lang == i18n.Parse(string(cfg.Language))}
+		languages[n] = discordgo.SelectMenuOption{Label: m.LanguageNames[n], Value: string(lang), Default: lang == i18n.Parse(string(t.Language))}
 	}
 	displays := []discordgo.SelectMenuOption{
-		{Label: m.DisplayClassic, Value: string(guildconfig.DisplayClassic), Default: cfg.Display != guildconfig.DisplayImage},
-		{Label: m.DisplayImage, Value: string(guildconfig.DisplayImage), Default: cfg.Display == guildconfig.DisplayImage},
+		{Label: m.DisplayClassic, Value: string(team.DisplayClassic), Default: t.Display != team.DisplayImage},
+		{Label: m.DisplayImage, Value: string(team.DisplayImage), Default: t.Display == team.DisplayImage},
 	}
-	fullAt := []discordgo.SelectMenuOption{{Label: m.FullAtAuto, Value: "0", Default: cfg.FullAt <= 0}}
+	fullAt := []discordgo.SelectMenuOption{{Label: m.FullAtAuto, Value: "0", Default: t.FullAt <= 0}}
 	for n := 1; n <= availability.MaxFullAt; n++ {
-		fullAt = append(fullAt, discordgo.SelectMenuOption{Label: m.Players(n), Value: strconv.Itoa(n), Default: cfg.FullAt == n})
+		fullAt = append(fullAt, discordgo.SelectMenuOption{Label: m.Players(n), Value: strconv.Itoa(n), Default: t.FullAt == n})
 	}
 	return []discordgo.MessageComponent{
 		selectField(m.DisplayLabel, m.DisplayHint, "display_style", true, displays),
@@ -222,40 +314,83 @@ func selectField(label, hint, customID string, required bool, options []discordg
 	}
 }
 
-// handlePublishSubmit saves the channel, role and schedule. A new channel (or the same
-// one picked again for a paused guild) gets the weekly message right away; a new schedule
-// does when its publication time is already past.
-func (h *HelpConfigHandler) handlePublishSubmit(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, data discordgo.ModalSubmitInteractionData) error {
+// handlePublishSubmit saves the channel and the role, created first when a name was typed:
+// one that can't be created keeps its previous value and is reported, the rest is saved.
+// A new channel (or the same one picked again for a paused team) gets the weekly message
+// right away.
+func (h *HelpConfigHandler) handlePublishSubmit(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *team.Team, data discordgo.ModalSubmitInteractionData) error {
 	m := previous.Messages()
-	channelID := modalSelectValue(data.Components, "channel")
+	channelID := cmp.Or(modalSelectValue(data.Components, "channel"), previous.ChannelID)
 	roleID := modalSelectValue(data.Components, "role")
-	weekday, errDay := strconv.Atoi(modalSelectValue(data.Components, "publish_weekday"))
-	hour, errHour := strconv.Atoi(modalSelectValue(data.Components, "publish_hour"))
-	schedule, err := availability.NewSchedule(time.Weekday(weekday), hour)
-	if channelID == "" || errDay != nil || errHour != nil || err != nil {
-		return discord.RespondError(s, i, m.ErrInvalid)
+	newChannel := modalTextValue(data.Components, "new_channel")
+	newRole := modalTextValue(data.Components, "new_role")
+
+	answer := showPanel
+	if newChannel != "" || newRole != "" {
+		// Discord wants the answer within 3 seconds, and creating takes a few calls.
+		if err := deferPanelUpdate(s, i); err != nil {
+			return err
+		}
+		answer = editPanel
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithTimeout(context.WithoutCancel(ctx), weekly.Timeout)
+		defer cancel()
 	}
 
-	channelChanged := channelID != previous.ChannelID || !previous.Active
-	if !channelChanged && roleID == previous.RoleID && schedule == previous.Schedule {
-		return h.refreshPanel(ctx, s, i, m.NothingChanged)
+	var warnings string
+	warn := func(text string) { warnings += "\n⚠️ " + text }
+	if newChannel != "" {
+		created, err := s.GuildChannelCreateComplex(i.GuildID, discordgo.GuildChannelCreateData{Name: newChannel, Type: discordgo.ChannelTypeGuildText}, discordgo.WithContext(ctx))
+		if err != nil {
+			slog.ErrorContext(ctx, "help config: create channel", "guild", i.GuildID, "err", err)
+			warn(creationError(err, m.NeedManageChannels, m.CreateChannelFailed))
+			channelID = previous.ChannelID
+		} else {
+			channelID = created.ID
+		}
+	}
+	if newRole != "" {
+		created, err := s.GuildRoleCreate(i.GuildID, &discordgo.RoleParams{Name: newRole, Mentionable: new(true)}, discordgo.WithContext(ctx))
+		if err != nil {
+			slog.ErrorContext(ctx, "help config: create role", "guild", i.GuildID, "err", err)
+			warn(creationError(err, m.NeedManageRoles, m.CreateRoleFailed))
+			roleID = previous.RoleID
+		} else {
+			roleID = created.ID
+		}
+	}
+
+	// A paused team picking its channel again resumes; one whose new channel couldn't be
+	// created stays as it was.
+	channelChanged := channelID != "" && (channelID != previous.ChannelID || (!previous.Active && newChannel == ""))
+	roleChanged := roleID != previous.RoleID
+	if !channelChanged && !roleChanged {
+		if warnings != "" {
+			return answer(s, i, discord.BuildHelpPanel(previous, warnings[1:]))
+		}
+		return answer(s, i, discord.BuildHelpPanel(previous, "✅ "+m.NothingChanged))
+	}
+	if channelChanged && newChannel == "" && !botCanPost(s, channelID) {
+		warn(m.CantPostThere)
+	}
+	if roleChanged && newRole == "" {
+		if role, err := s.State.Role(i.GuildID, roleID); err == nil && !role.Mentionable {
+			warn(m.RoleNotMentionable)
+		}
+	}
+
+	failed := func(what string, err error) error {
+		slog.ErrorContext(ctx, "help config: set "+what, "guild", i.GuildID, "err", err)
+		return answer(s, i, discord.BuildHelpPanel(previous, "⚠️ "+m.ErrGeneric))
 	}
 	if channelChanged {
-		if err := h.svc.SetChannel(ctx, previous.GuildID, channelID); err != nil {
-			slog.ErrorContext(ctx, "help config: set channel", "guild", i.GuildID, "err", err)
-			return discord.RespondError(s, i, m.ErrGeneric)
+		if err := h.teams.SetChannel(ctx, previous.ID, channelID); err != nil {
+			return failed("channel", err)
 		}
 	}
-	if roleID != previous.RoleID {
-		if err := h.svc.SetRole(ctx, previous.GuildID, roleID); err != nil {
-			slog.ErrorContext(ctx, "help config: set role", "guild", i.GuildID, "err", err)
-			return discord.RespondError(s, i, m.ErrGeneric)
-		}
-	}
-	if schedule != previous.Schedule {
-		if err := h.svc.SetSchedule(ctx, previous.GuildID, schedule); err != nil {
-			slog.ErrorContext(ctx, "help config: set schedule", "guild", i.GuildID, "err", err)
-			return discord.RespondError(s, i, m.ErrGeneric)
+	if roleChanged {
+		if err := h.teams.SetRole(ctx, previous.ID, roleID); err != nil {
+			return failed("role", err)
 		}
 	}
 
@@ -263,32 +398,72 @@ func (h *HelpConfigHandler) handlePublishSubmit(ctx context.Context, s *discordg
 	if channelChanged {
 		changes = append(changes, "channel", channelName(s, channelID))
 	}
-	if roleID != previous.RoleID {
+	if roleChanged {
 		changes = append(changes, "role", roleName(s, i.GuildID, roleID))
 	}
-	if schedule != previous.Schedule {
-		changes = append(changes, "schedule", m.ScheduleSummary(schedule))
-	}
 	event := "settings changed"
-	if previous.ChannelID == "" {
-		event = "guild set up"
+	if previous.ChannelID == "" && channelID != "" {
+		event = "team set up"
 	}
-	logSettings(ctx, i, event, changes...)
+	logSettings(ctx, i, previous, event, changes...)
+	h.welcome.Refresh(s, i.GuildID)
 
-	cfg := *previous
-	cfg.ChannelID, cfg.RoleID, cfg.Schedule, cfg.Active = channelID, roleID, schedule, true
-	republish := channelChanged
-	if !republish {
-		if republish, err = weekly.Due(ctx, h.availSvc, &cfg); err != nil {
-			slog.ErrorContext(ctx, "help config: check weekly message", "guild", i.GuildID, "err", err)
-		}
+	t := *previous
+	t.ChannelID, t.RoleID, t.Active = channelID, roleID, t.Active || channelChanged
+	message := "✅ " + m.ConfigSaved
+	if channelChanged {
+		message += m.PublishedNow
+		weekly.PublishInBackground(ctx, s, h.availSvc, &t)
+	} else if roleChanged {
+		// Only the mention changes: redraw the message, without a new one pinging the role.
+		h.refresher.Request(s, t.ID)
 	}
-	return h.saved(ctx, s, i, &cfg, m.ConfigSaved, republish)
+	if t.IsComplete() && !previous.IsComplete() {
+		message += fmt.Sprintf(m.TeamSetUp, t.Name)
+	}
+	return answer(s, i, discord.BuildHelpPanel(&t, message+warnings))
+}
+
+// creationError picks the text of a channel or role Discord refused to create.
+func creationError(err error, missingPermission, otherwise string) string {
+	var rest *discordgo.RESTError
+	if errors.As(err, &rest) && rest.Message != nil && rest.Message.Code == discordgo.ErrCodeMissingPermissions {
+		return missingPermission
+	}
+	return otherwise
+}
+
+// handleScheduleSubmit saves the publication schedule. A new schedule gets the weekly
+// message right away when its publication time is already past.
+func (h *HelpConfigHandler) handleScheduleSubmit(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *team.Team, data discordgo.ModalSubmitInteractionData) error {
+	m := previous.Messages()
+	weekday, errDay := strconv.Atoi(modalSelectValue(data.Components, "publish_weekday"))
+	hour, errHour := strconv.Atoi(modalSelectValue(data.Components, "publish_hour"))
+	schedule, err := availability.NewSchedule(time.Weekday(weekday), hour)
+	if errDay != nil || errHour != nil || err != nil {
+		return discord.RespondError(s, i, m.ErrInvalid)
+	}
+	if schedule == previous.Schedule {
+		return h.refreshPanel(ctx, s, i, previous.ID, "✅ "+m.NothingChanged)
+	}
+	if err := h.teams.SetSchedule(ctx, previous.ID, schedule); err != nil {
+		slog.ErrorContext(ctx, "help config: set schedule", "guild", i.GuildID, "err", err)
+		return discord.RespondError(s, i, m.ErrGeneric)
+	}
+	logSettings(ctx, i, previous, "settings changed", "schedule", m.ScheduleSummary(schedule))
+
+	t := *previous
+	t.Schedule = schedule
+	republish, err := weekly.Due(ctx, h.availSvc, &t)
+	if err != nil {
+		slog.ErrorContext(ctx, "help config: check weekly message", "guild", i.GuildID, "err", err)
+	}
+	return h.saved(ctx, s, i, &t, m.ConfigSaved, republish)
 }
 
 // handleSlotsSubmit saves the slot layout and whose time the members see. A new layout
 // starts the week over, as slot indexes of the old one would be misread with it.
-func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, data discordgo.ModalSubmitInteractionData) error {
+func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *team.Team, data discordgo.ModalSubmitInteractionData) error {
 	m := previous.Messages()
 	layout := availability.HalfDayLayout()
 	if modalSelectValue(data.Components, "slot_mode") == string(availability.ModeHourly) {
@@ -308,23 +483,23 @@ func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.
 	memberTimezones := modalSelectValue(data.Components, "member_time") == memberTimeOwn
 	layoutChanged := layout != previous.SlotLayout
 	if !layoutChanged && memberTimezones == previous.MemberTimezones {
-		return h.refreshPanel(ctx, s, i, m.NothingChanged)
+		return h.refreshPanel(ctx, s, i, previous.ID, "✅ "+m.NothingChanged)
 	}
 
 	message := m.ConfigSaved
 	if layoutChanged {
-		if err := h.svc.SetMessageSettings(ctx, previous.GuildID, layout, previous.Display, previous.Language); err != nil {
+		if err := h.teams.SetMessageSettings(ctx, previous.ID, layout, previous.Display, previous.Language); err != nil {
 			slog.ErrorContext(ctx, "help config: set slots", "guild", i.GuildID, "err", err)
 			return discord.RespondError(s, i, m.ErrGeneric)
 		}
-		if err := h.availSvc.ResetWeek(ctx, previous.GuildID, h.availSvc.Week(previous.Schedule, previous.Location)); err != nil {
+		if err := h.availSvc.ResetWeek(ctx, previous.ID, h.availSvc.Week(previous.Schedule, previous.Location)); err != nil {
 			slog.ErrorContext(ctx, "help config: reset week", "guild", i.GuildID, "err", err)
 			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 		message += m.SlotsReset
 	}
 	if memberTimezones != previous.MemberTimezones {
-		if err := h.svc.SetMemberTimezones(ctx, previous.GuildID, memberTimezones); err != nil {
+		if err := h.teams.SetMemberTimezones(ctx, previous.ID, memberTimezones); err != nil {
 			slog.ErrorContext(ctx, "help config: set member timezones", "guild", i.GuildID, "err", err)
 			return discord.RespondError(s, i, m.ErrGeneric)
 		}
@@ -337,24 +512,24 @@ func (h *HelpConfigHandler) handleSlotsSubmit(ctx context.Context, s *discordgo.
 	if memberTimezones != previous.MemberTimezones {
 		changes = append(changes, "member_timezones", memberTimezones)
 	}
-	logSettings(ctx, i, "settings changed", changes...)
+	logSettings(ctx, i, previous, "settings changed", changes...)
 
-	cfg := *previous
-	cfg.SlotLayout, cfg.MemberTimezones = layout, memberTimezones
+	t := *previous
+	t.SlotLayout, t.MemberTimezones = layout, memberTimezones
 	// The message changes with the layout, or with the "Mon fuseau" button of hourly slots.
-	republish := layoutChanged || cfg.MemberTime() != previous.MemberTime()
-	return h.saved(ctx, s, i, &cfg, message, republish)
+	republish := layoutChanged || t.MemberTime() != previous.MemberTime()
+	return h.saved(ctx, s, i, &t, message, republish)
 }
 
 // handleMessageSubmit saves the display, the language and the green threshold. A new
 // display or language posts the message again (it may switch between an embed and
 // Components V2, which an edit can't do); a new threshold only redraws it.
-func (h *HelpConfigHandler) handleMessageSubmit(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, data discordgo.ModalSubmitInteractionData) error {
+func (h *HelpConfigHandler) handleMessageSubmit(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *team.Team, data discordgo.ModalSubmitInteractionData) error {
 	lang := i18n.Parse(modalSelectValue(data.Components, "language"))
 	m := i18n.For(lang) // answer in the language just picked
-	display := guildconfig.DisplayClassic
-	if modalSelectValue(data.Components, "display_style") == string(guildconfig.DisplayImage) {
-		display = guildconfig.DisplayImage
+	display := team.DisplayClassic
+	if modalSelectValue(data.Components, "display_style") == string(team.DisplayImage) {
+		display = team.DisplayImage
 	}
 	fullAt, err := strconv.Atoi(modalSelectValue(data.Components, "full_at"))
 	if err != nil || fullAt < 0 || fullAt > availability.MaxFullAt {
@@ -362,23 +537,23 @@ func (h *HelpConfigHandler) handleMessageSubmit(ctx context.Context, s *discordg
 	}
 	republish := display != previous.Display || lang != previous.Language
 	if !republish && fullAt == previous.FullAt {
-		return h.refreshPanel(ctx, s, i, m.NothingChanged)
+		return h.refreshPanel(ctx, s, i, previous.ID, "✅ "+m.NothingChanged)
 	}
 
 	if republish {
-		if err := h.svc.SetMessageSettings(ctx, previous.GuildID, previous.SlotLayout, display, lang); err != nil {
+		if err := h.teams.SetMessageSettings(ctx, previous.ID, previous.SlotLayout, display, lang); err != nil {
 			slog.ErrorContext(ctx, "help config: set message settings", "guild", i.GuildID, "err", err)
 			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 	}
 	if fullAt != previous.FullAt {
-		if err := h.svc.SetFullAt(ctx, previous.GuildID, fullAt); err != nil {
+		if err := h.teams.SetFullAt(ctx, previous.ID, fullAt); err != nil {
 			slog.ErrorContext(ctx, "help config: set full at", "guild", i.GuildID, "err", err)
 			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 		if !republish {
 			// Only the colors change: redraw the message, without a new one pinging the role.
-			h.refresher.Request(s, previous.GuildID)
+			h.refresher.Request(s, previous.ID)
 		}
 	}
 
@@ -392,65 +567,65 @@ func (h *HelpConfigHandler) handleMessageSubmit(ctx context.Context, s *discordg
 	if fullAt != previous.FullAt {
 		changes = append(changes, "full_at", fullAt)
 	}
-	logSettings(ctx, i, "settings changed", changes...)
+	logSettings(ctx, i, previous, "settings changed", changes...)
 
-	cfg := *previous
-	cfg.Display, cfg.Language, cfg.FullAt = display, lang, fullAt
-	return h.saved(ctx, s, i, &cfg, m.ConfigSaved, republish)
+	t := *previous
+	t.Display, t.Language, t.FullAt = display, lang, fullAt
+	return h.saved(ctx, s, i, &t, m.ConfigSaved, republish)
 }
 
-// handleTimezonePick saves the guild's timezone picked in the picker. Hourly slots move
+// handleTimezonePick saves the team's timezone picked in the picker. Hourly slots move
 // with it, so the week's availabilities are reset as for a new slot layout.
-func (h *HelpConfigHandler) handleTimezonePick(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *guildconfig.GuildConfig, step string) error {
+func (h *HelpConfigHandler) handleTimezonePick(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, previous *team.Team, step string) error {
 	m := previous.Messages()
-	loc, err := readTimezonePick(ctx, s, i, m, discord.HelpPanelTimezoneID, step, m.GuildPickerCountry, true)
+	loc, err := readTimezonePick(ctx, s, i, m, discord.HelpCustomID(discord.HelpActionTimezone, previous.ID), step, m.GuildPickerCountry, true)
 	if loc == nil {
 		return err
 	}
 	if loc.String() == previous.Location.String() {
-		return h.refreshPanel(ctx, s, i, m.NothingChanged)
+		return h.refreshPanel(ctx, s, i, previous.ID, "✅ "+m.NothingChanged)
 	}
-	if err := h.svc.SetTimezone(ctx, previous.GuildID, loc); err != nil {
+	if err := h.teams.SetTimezone(ctx, previous.ID, loc); err != nil {
 		slog.ErrorContext(ctx, "help config: set timezone", "guild", i.GuildID, "err", err)
 		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 
-	logSettings(ctx, i, "settings changed", "timezone", loc.String())
+	logSettings(ctx, i, previous, "settings changed", "timezone", loc.String())
 
 	message := fmt.Sprintf(m.GuildTimezoneSaved, m.TimezoneName(loc), m.Clock(time.Now().In(loc)))
 	republish := previous.SlotLayout.IsHourly()
 	if republish {
-		if err := h.availSvc.ResetWeek(ctx, previous.GuildID, h.availSvc.Week(previous.Schedule, previous.Location)); err != nil {
+		if err := h.availSvc.ResetWeek(ctx, previous.ID, h.availSvc.Week(previous.Schedule, previous.Location)); err != nil {
 			slog.ErrorContext(ctx, "help config: reset week", "guild", i.GuildID, "err", err)
 			return discord.RespondError(s, i, m.ErrGeneric)
 		}
 		message += m.SlotsReset
 	}
 
-	cfg := *previous
-	cfg.Location = loc
+	t := *previous
+	t.Location = loc
 	// Half-day slots don't move: republish only when the current week changed.
-	if !republish && cfg.ChannelID != "" {
-		if republish, err = weekly.Due(ctx, h.availSvc, &cfg); err != nil {
+	if !republish && t.ChannelID != "" {
+		if republish, err = weekly.Due(ctx, h.availSvc, &t); err != nil {
 			slog.ErrorContext(ctx, "help config: check weekly message", "guild", i.GuildID, "err", err)
 		}
 	}
-	return h.saved(ctx, s, i, &cfg, message, republish)
+	return h.saved(ctx, s, i, &t, message, republish)
 }
 
 // saved shows the panel again after a change, once the weekly message is being posted
 // again when asked (in the background: Discord wants the answer within 3 seconds).
-func (h *HelpConfigHandler) saved(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, cfg *guildconfig.GuildConfig, message string, republish bool) error {
-	if republish && cfg.ChannelID != "" {
-		message += cfg.Messages().PublishedNow
-		weekly.PublishInBackground(ctx, s, h.availSvc, cfg)
+func (h *HelpConfigHandler) saved(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, t *team.Team, message string, republish bool) error {
+	if republish && t.ChannelID != "" {
+		message += t.Messages().PublishedNow
+		weekly.PublishInBackground(ctx, s, h.availSvc, t)
 	}
-	return h.refreshPanel(ctx, s, i, message)
+	return h.refreshPanel(ctx, s, i, t.ID, "✅ "+message)
 }
 
-// logSettings logs a change of the guild's settings, with who made it.
-func logSettings(ctx context.Context, i *discordgo.InteractionCreate, event string, changes ...any) {
-	slog.InfoContext(ctx, event, append([]any{"guild", i.GuildID, "by", discord.UserName(i)}, changes...)...)
+// logSettings logs a change of the team's settings, with who made it.
+func logSettings(ctx context.Context, i *discordgo.InteractionCreate, t *team.Team, event string, changes ...any) {
+	slog.InfoContext(ctx, event, append([]any{"guild", i.GuildID, "team", t.Name, "by", discord.UserName(i)}, changes...)...)
 }
 
 // channelName returns "#name" of a channel the bot knows, else its ID.
@@ -474,26 +649,47 @@ func roleName(s *discordgo.Session, guildID, roleID string) string {
 
 // modalSelectValue returns the first selected value of a modal select menu, or "".
 func modalSelectValue(components []discordgo.MessageComponent, customID string) string {
-	menu := findModalSelectMenu(components, customID)
-	if menu == nil || len(menu.Values) == 0 {
+	var values []string
+	switch c := findModalComponent(components, customID).(type) {
+	case discordgo.SelectMenu:
+		values = c.Values
+	case *discordgo.SelectMenu:
+		values = c.Values
+	}
+	if len(values) == 0 {
 		return ""
 	}
-	return menu.Values[0]
+	return values[0]
 }
 
-// refreshPanel shows the panel again with the saved settings, in the guild's language.
-func (h *HelpConfigHandler) refreshPanel(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, description string) error {
-	cfg := loadGuildConfig(ctx, s, i, h.svc)
-	if cfg == nil {
-		return nil
+// refreshPanel shows the team's panel again with the saved settings, in its language.
+func (h *HelpConfigHandler) refreshPanel(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate, teamID int64, status string) error {
+	t, err := h.teams.GetInGuild(ctx, i.GuildID, teamID)
+	if err != nil {
+		slog.ErrorContext(ctx, "help config: get team", "guild", i.GuildID, "err", err)
+		return discord.RespondError(s, i, discord.LocaleMessages(i).ErrGeneric)
 	}
+	return showPanel(s, i, discord.BuildHelpPanel(t, status))
+}
+
+// showPanel replaces the panel the interaction comes from.
+func showPanel(s *discordgo.Session, i *discordgo.InteractionCreate, components []discordgo.MessageComponent) error {
 	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
 		Type: discordgo.InteractionResponseUpdateMessage,
-		Data: &discordgo.InteractionResponseData{
-			Flags:      discordgo.MessageFlagsIsComponentsV2,
-			Components: discord.BuildHelpPanel(cfg, description, h.supportURL),
-		},
+		Data: &discordgo.InteractionResponseData{Flags: discordgo.MessageFlagsIsComponentsV2, Components: components},
 	})
+}
+
+// deferPanelUpdate acknowledges a panel interaction before slow Discord calls: the panel
+// is then replaced with editPanel.
+func deferPanelUpdate(s *discordgo.Session, i *discordgo.InteractionCreate) error {
+	return s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{Type: discordgo.InteractionResponseDeferredMessageUpdate})
+}
+
+// editPanel replaces the panel of an interaction acknowledged with deferPanelUpdate.
+func editPanel(s *discordgo.Session, i *discordgo.InteractionCreate, components []discordgo.MessageComponent) error {
+	_, err := s.InteractionResponseEdit(i.Interaction, &discordgo.WebhookEdit{Flags: discordgo.MessageFlagsIsComponentsV2, Components: &components})
+	return err
 }
 
 func defaultChannelValues(channelID string) []discordgo.SelectMenuDefaultValue {
@@ -520,33 +716,42 @@ func defaultRoleValues(roleID string) []discordgo.SelectMenuDefaultValue {
 	}
 }
 
-func findModalSelectMenu(components []discordgo.MessageComponent, customID string) *discordgo.SelectMenu {
+// findModalComponent returns the select menu or text input of a form, inside its action
+// rows and labels.
+func findModalComponent(components []discordgo.MessageComponent, customID string) discordgo.MessageComponent {
 	for _, comp := range components {
 		switch c := comp.(type) {
 		case discordgo.SelectMenu:
 			if c.CustomID == customID {
-				menu := c
-				return &menu
+				return c
 			}
 		case *discordgo.SelectMenu:
 			if c.CustomID == customID {
 				return c
 			}
+		case discordgo.TextInput:
+			if c.CustomID == customID {
+				return c
+			}
+		case *discordgo.TextInput:
+			if c.CustomID == customID {
+				return c
+			}
 		case discordgo.ActionsRow:
-			if menu := findModalSelectMenu(c.Components, customID); menu != nil {
-				return menu
+			if found := findModalComponent(c.Components, customID); found != nil {
+				return found
 			}
 		case *discordgo.ActionsRow:
-			if menu := findModalSelectMenu(c.Components, customID); menu != nil {
-				return menu
+			if found := findModalComponent(c.Components, customID); found != nil {
+				return found
 			}
 		case discordgo.Label:
-			if menu := findModalSelectMenu([]discordgo.MessageComponent{c.Component}, customID); menu != nil {
-				return menu
+			if found := findModalComponent([]discordgo.MessageComponent{c.Component}, customID); found != nil {
+				return found
 			}
 		case *discordgo.Label:
-			if menu := findModalSelectMenu([]discordgo.MessageComponent{c.Component}, customID); menu != nil {
-				return menu
+			if found := findModalComponent([]discordgo.MessageComponent{c.Component}, customID); found != nil {
+				return found
 			}
 		}
 	}

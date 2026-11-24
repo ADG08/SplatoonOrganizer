@@ -11,7 +11,7 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
 )
 
-// Lang is a language a guild can pick for the bot.
+// Lang is a language a team can pick for the bot.
 type Lang string
 
 const (
@@ -22,9 +22,18 @@ const (
 // Langs lists the supported languages, the default one first.
 var Langs = []Lang{FR, EN}
 
-// Parse returns the language stored for a guild, French when unknown or empty.
+// Parse returns the language stored for a team, French when unknown or empty.
 func Parse(s string) Lang {
 	if Lang(s) == EN {
+		return EN
+	}
+	return FR
+}
+
+// FromLocale returns the language of a Discord locale, French when it isn't English: as
+// for the commands' descriptions, the only other language is English.
+func FromLocale(locale string) Lang {
+	if strings.HasPrefix(locale, "en") {
 		return EN
 	}
 	return FR
@@ -36,6 +45,11 @@ func For(l Lang) *Messages {
 		return &en
 	}
 	return &fr
+}
+
+// Lang returns the language of the texts.
+func (m *Messages) Lang() Lang {
+	return m.lang
 }
 
 // HourLabel formats an hour of the day, 24 being midnight at the end of the day:
@@ -61,7 +75,7 @@ func (m *Messages) Clock(t time.Time) string {
 	return fmt.Sprintf("%dh%02d", t.Hour(), t.Minute())
 }
 
-// SlotLabel returns the label of a slot in the guild's time: "Soir", "20h – 21h", or
+// SlotLabel returns the label of a slot in the team's time: "Soir", "20h – 21h", or
 // "0h – 1h (lendemain)" for the hours after midnight of an evening going on.
 func (m *Messages) SlotLabel(l availability.Layout, slot int) string {
 	if !l.IsHourly() {

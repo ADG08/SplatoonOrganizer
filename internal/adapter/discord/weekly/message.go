@@ -1,4 +1,4 @@
-// Package weekly builds, publishes and refreshes each guild's weekly availability
+// Package weekly builds, publishes and refreshes each team's weekly availability
 // message. Its components are answered by package handlers.
 package weekly
 
@@ -10,7 +10,7 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/gridimage"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
 	"github.com/ADG08/SplatoonOrganizer/internal/domain/availability"
-	"github.com/ADG08/SplatoonOrganizer/internal/domain/guildconfig"
+	"github.com/ADG08/SplatoonOrganizer/internal/domain/team"
 	"github.com/ADG08/SplatoonOrganizer/internal/i18n"
 	"github.com/bwmarrin/discordgo"
 )
@@ -34,25 +34,30 @@ type Payload struct {
 	AllowedMentions *discordgo.MessageAllowedMentions
 }
 
-// BuildPayload builds the guild's weekly message, in its display. When the guild has a
+// Title adds the team's name to a title: a guild can have several weekly messages.
+func Title(t *team.Team, title string) string {
+	return title + " · " + t.Name
+}
+
+// BuildPayload builds the team's weekly message, in its display. When the team has a
 // role, the message mentions it to ping it.
-func BuildPayload(cfg *guildconfig.GuildConfig, view appavailability.WeeklyView) (*Payload, error) {
-	m, roleID, display := cfg.Messages(), cfg.RoleID, cfg.Display
+func BuildPayload(t *team.Team, view appavailability.WeeklyView) (*Payload, error) {
+	m, roleID, display := t.Messages(), t.RoleID, t.Display
 	p := &Payload{AllowedMentions: &discordgo.MessageAllowedMentions{}}
 	if roleID != "" {
 		p.AllowedMentions.Roles = []string{roleID}
 	}
 
-	if display != guildconfig.DisplayImage {
-		p.Embeds = []*discordgo.MessageEmbed{buildClassicEmbed(m, view)}
-		p.Components = buildClassicComponents(m, cfg.MemberTime())
+	if display != team.DisplayImage {
+		p.Embeds = []*discordgo.MessageEmbed{buildClassicEmbed(t, view)}
+		p.Components = buildClassicComponents(m, t.ID, t.MemberTime())
 		if roleID != "" {
 			p.Content = "<@&" + roleID + ">"
 		}
 		return p, nil
 	}
 
-	img, err := gridimage.Render(view, cfg.FullAt)
+	img, err := gridimage.Render(view, t.FullAt)
 	if err != nil {
 		return nil, fmt.Errorf("render grid image: %w", err)
 	}
@@ -61,7 +66,7 @@ func BuildPayload(cfg *guildconfig.GuildConfig, view appavailability.WeeklyView)
 	if roleID != "" {
 		p.Components = append(p.Components, discordgo.TextDisplay{Content: "<@&" + roleID + ">"})
 	}
-	p.Components = append(p.Components, buildImageContainer(m, view, cfg.MemberTime(), cfg.FullAt))
+	p.Components = append(p.Components, buildImageContainer(t, view))
 	return p, nil
 }
 
@@ -104,13 +109,13 @@ func (p *Payload) MessageEdit(channelID, messageID string) *discordgo.MessageEdi
 
 // buildClassicEmbed is the original embed: the text table, plus the timezone hint for
 // hourly layouts.
-func buildClassicEmbed(m *i18n.Messages, view appavailability.WeeklyView) *discordgo.MessageEmbed {
+func buildClassicEmbed(t *team.Team, view appavailability.WeeklyView) *discordgo.MessageEmbed {
 	description := view.Table
 	if view.Legend != "" {
 		description = "*" + view.Legend + "*\n" + view.Table
 	}
 	return &discordgo.MessageEmbed{
-		Title:       m.ClassicTitle,
+		Title:       Title(t, t.Messages().ClassicTitle),
 		Description: description,
 		Color:       AccentColor,
 	}
@@ -118,42 +123,43 @@ func buildClassicEmbed(m *i18n.Messages, view appavailability.WeeklyView) *disco
 
 // buildClassicComponents returns the action row with the original weekly buttons,
 // plus "Mon fuseau" when members see the slots in their own timezone.
-func buildClassicComponents(m *i18n.Messages, memberTime bool) []discordgo.MessageComponent {
+func buildClassicComponents(m *i18n.Messages, teamID int64, memberTime bool) []discordgo.MessageComponent {
 	buttons := []discordgo.MessageComponent{
 		discordgo.Button{
 			Label:    m.BtnMyDispos,
 			Style:    discordgo.PrimaryButton,
-			CustomID: OpenDisposCustomID,
+			CustomID: CustomID(OpenDisposCustomID, teamID),
 		},
 		discordgo.Button{
 			Label:    m.BtnViewDispos,
 			Style:    discordgo.SecondaryButton,
-			CustomID: ViewDisposCustomID,
+			CustomID: CustomID(ViewDisposCustomID, teamID),
 		},
 		discordgo.Button{
 			Label:    m.BtnUnavailable,
 			Style:    discordgo.SecondaryButton,
-			CustomID: UnavailableCustomID,
+			CustomID: CustomID(UnavailableCustomID, teamID),
 		},
 	}
 	if memberTime {
-		buttons = append(buttons, myTimeButton(m))
+		buttons = append(buttons, myTimeButton(m, teamID))
 	}
 	return []discordgo.MessageComponent{discordgo.ActionsRow{Components: buttons}}
 }
 
 // myTimeButton shows the week's grid in the member's own timezone.
-func myTimeButton(m *i18n.Messages) discordgo.Button {
+func myTimeButton(m *i18n.Messages, teamID int64) discordgo.Button {
 	return discordgo.Button{
 		Label:    m.BtnMyTimezone,
 		Style:    discordgo.SecondaryButton,
-		CustomID: MyTimeCustomID,
+		CustomID: CustomID(MyTimeCustomID, teamID),
 	}
 }
 
 // buildImageContainer lays out the "image" display: title, grid image, actions.
-func buildImageContainer(m *i18n.Messages, view appavailability.WeeklyView, memberTime bool, fullAt int) discordgo.Container {
-	legend := m.ColorLegend(fullAt)
+func buildImageContainer(t *team.Team, view appavailability.WeeklyView) discordgo.Container {
+	m := t.Messages()
+	legend := m.ColorLegend(t.FullAt)
 	if view.Legend != "" {
 		legend = view.Legend + " · " + legend
 	}
@@ -161,29 +167,29 @@ func buildImageContainer(m *i18n.Messages, view appavailability.WeeklyView, memb
 		discordgo.Button{
 			Label:    m.BtnMyDispos,
 			Style:    discordgo.PrimaryButton,
-			CustomID: OpenDisposCustomID,
+			CustomID: CustomID(OpenDisposCustomID, t.ID),
 		},
 		discordgo.Button{
 			Label:    m.BtnUnavailable,
 			Style:    discordgo.SecondaryButton,
-			CustomID: UnavailableCustomID,
+			CustomID: CustomID(UnavailableCustomID, t.ID),
 		},
 	}
-	if memberTime {
-		buttons = append(buttons, myTimeButton(m))
+	if t.MemberTime() {
+		buttons = append(buttons, myTimeButton(m, t.ID))
 	}
 
 	accent := AccentColor
 	return discordgo.Container{
 		AccentColor: &accent,
 		Components: []discordgo.MessageComponent{
-			discordgo.TextDisplay{Content: "## " + view.Title + "\n-# " + legend},
+			discordgo.TextDisplay{Content: "## " + Title(t, view.Title) + "\n-# " + legend},
 			discordgo.MediaGallery{
 				Items: []discordgo.MediaGalleryItem{{Media: discordgo.UnfurledMediaItem{URL: "attachment://" + ImageName}}},
 			},
 			discordgo.ActionsRow{Components: buttons},
 			discordgo.ActionsRow{
-				Components: []discordgo.MessageComponent{buildWhoDisposSelect(m)},
+				Components: []discordgo.MessageComponent{buildWhoDisposSelect(m, t.ID)},
 			},
 		},
 	}
@@ -191,7 +197,7 @@ func buildImageContainer(m *i18n.Messages, view appavailability.WeeklyView, memb
 
 // buildWhoDisposSelect lets members see who is available on a given day (answered in ephemeral).
 // Discord has no clickable grid, so this select replaces "clicking a cell".
-func buildWhoDisposSelect(m *i18n.Messages) discordgo.SelectMenu {
+func buildWhoDisposSelect(m *i18n.Messages, teamID int64) discordgo.SelectMenu {
 	options := []discordgo.SelectMenuOption{
 		{Label: m.WhoWholeWeek, Value: WhoAllValue, Emoji: &discordgo.ComponentEmoji{Name: "📋"}},
 	}
@@ -202,7 +208,7 @@ func buildWhoDisposSelect(m *i18n.Messages) discordgo.SelectMenu {
 		})
 	}
 	return discordgo.SelectMenu{
-		CustomID:    WhoDisposCustomID,
+		CustomID:    CustomID(WhoDisposCustomID, teamID),
 		Placeholder: m.WhoPlaceholder,
 		Options:     options,
 	}

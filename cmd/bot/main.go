@@ -17,7 +17,8 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/persistence/postgres"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
-	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	appguild "github.com/ADG08/SplatoonOrganizer/internal/application/guild"
+	appteam "github.com/ADG08/SplatoonOrganizer/internal/application/team"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -75,33 +76,37 @@ func run(logs *logwebhook.Handler) error {
 
 	// Adapters (secondary / driven): persistence
 	availRepo := postgres.NewAvailabilityRepository(pool)
-	guildConfigRepo := postgres.NewGuildConfigRepository(pool)
+	teamRepo := postgres.NewTeamRepository(pool)
+	guildRepo := postgres.NewGuildRepository(pool)
 
 	// Application services (use cases)
 	availSvc := appavailability.NewService(availRepo)
-	guildConfigSvc := appguildconfig.NewService(guildConfigRepo)
+	teamSvc := appteam.NewService(teamRepo)
+	guildSvc := appguild.NewService(guildRepo)
 
 	// Adapters (primary / driving): Discord
 	reg := discord.NewRegistry()
-	refresher := weekly.NewRefresher(availSvc, guildConfigSvc)
+	refresher := weekly.NewRefresher(availSvc, teamSvc)
+	welcome := handlers.NewWelcomeHandler(guildSvc, teamSvc, cfg.DiscordOwnerID, cfg.SupportURL)
 	for _, c := range []discord.Command{
-		commands.NewHelpCommand(guildConfigSvc, cfg.DiscordOwnerID, cfg.SupportURL),
-		commands.NewAnnonceCommand(guildConfigSvc, cfg.DiscordOwnerID),
+		commands.NewHelpCommand(teamSvc, guildSvc, cfg.DiscordOwnerID, cfg.SupportURL),
+		commands.NewAnnonceCommand(teamSvc, cfg.DiscordOwnerID),
 	} {
 		if err := reg.RegisterCommand(c); err != nil {
 			return fmt.Errorf("register command: %w", err)
 		}
 	}
 	for _, h := range []discord.InteractionHandler{
-		handlers.NewOpenDisposHandler(availSvc, guildConfigSvc),
-		handlers.NewViewDisposHandler(availSvc, guildConfigSvc),
-		handlers.NewTimezoneSelectHandler(availSvc, guildConfigSvc),
-		handlers.NewTimezoneEditHandler(guildConfigSvc),
-		handlers.NewMyTimeHandler(availSvc, guildConfigSvc),
-		handlers.NewWhoDisposHandler(availSvc, guildConfigSvc),
-		handlers.NewSelectDisposHandler(availSvc, guildConfigSvc, refresher),
-		handlers.NewUnavailableDisposHandler(availSvc, guildConfigSvc, refresher),
-		handlers.NewHelpConfigHandler(guildConfigSvc, availSvc, refresher, cfg.DiscordOwnerID, cfg.SupportURL),
+		handlers.NewOpenDisposHandler(availSvc, teamSvc),
+		handlers.NewViewDisposHandler(availSvc, teamSvc),
+		handlers.NewTimezoneSelectHandler(availSvc, teamSvc),
+		handlers.NewTimezoneEditHandler(teamSvc),
+		handlers.NewMyTimeHandler(availSvc, teamSvc),
+		handlers.NewWhoDisposHandler(availSvc, teamSvc),
+		handlers.NewSelectDisposHandler(availSvc, teamSvc, refresher),
+		handlers.NewUnavailableDisposHandler(availSvc, teamSvc, refresher),
+		handlers.NewHelpConfigHandler(teamSvc, guildSvc, availSvc, refresher, welcome, cfg.DiscordOwnerID, cfg.SupportURL),
+		welcome,
 	} {
 		if err := reg.RegisterHandler(h); err != nil {
 			return fmt.Errorf("register handler: %w", err)
@@ -118,7 +123,7 @@ func run(logs *logwebhook.Handler) error {
 		}
 		return ""
 	})
-	membership := handlers.NewGuildMembership(guildConfigSvc)
+	membership := handlers.NewGuildMembership(teamSvc, welcome)
 	b.Session().AddHandler(membership.OnGuildCreate)
 	b.Session().AddHandler(membership.OnGuildDelete)
 	if err := b.Open(); err != nil {
@@ -127,7 +132,7 @@ func run(logs *logwebhook.Handler) error {
 	defer b.Close()
 
 	// Scheduler for weekly posting
-	scheduler.NewScheduler(availSvc, guildConfigSvc, b.Session()).Start(ctx, cfg.RunWeeklyOnStart)
+	scheduler.NewScheduler(availSvc, teamSvc, b.Session()).Start(ctx, cfg.RunWeeklyOnStart)
 
 	if err := b.RegisterSlashCommands(cfg.DiscordClientID); err != nil {
 		return fmt.Errorf("register slash commands: %w", err)

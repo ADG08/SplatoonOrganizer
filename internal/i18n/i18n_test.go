@@ -71,6 +71,9 @@ func TestHourFormats(t *testing.T) {
 	if Parse("") != FR || Parse("en") != EN || Parse("de") != FR {
 		t.Error("Parse must default to French")
 	}
+	if FromLocale("en-GB") != EN || FromLocale("en-US") != EN || FromLocale("fr") != FR || FromLocale("") != FR || FromLocale("de") != FR {
+		t.Error("FromLocale must default to French")
+	}
 }
 
 func TestColorLegend(t *testing.T) {

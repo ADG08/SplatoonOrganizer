@@ -7,20 +7,20 @@ import (
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord"
 	"github.com/ADG08/SplatoonOrganizer/internal/adapter/discord/weekly"
 	appavailability "github.com/ADG08/SplatoonOrganizer/internal/application/availability"
-	appguildconfig "github.com/ADG08/SplatoonOrganizer/internal/application/guildconfig"
+	appteam "github.com/ADG08/SplatoonOrganizer/internal/application/team"
 	"github.com/bwmarrin/discordgo"
 )
 
 // UnavailableDisposHandler handles the "Pas dispo cette semaine" button click.
 type UnavailableDisposHandler struct {
 	svc       *appavailability.Service
-	guildCfg  *appguildconfig.Service
+	teams     *appteam.Service
 	refresher *weekly.Refresher
 }
 
 // NewUnavailableDisposHandler creates a new unavailable dispos handler.
-func NewUnavailableDisposHandler(svc *appavailability.Service, guildCfg *appguildconfig.Service, refresher *weekly.Refresher) *UnavailableDisposHandler {
-	return &UnavailableDisposHandler{svc: svc, guildCfg: guildCfg, refresher: refresher}
+func NewUnavailableDisposHandler(svc *appavailability.Service, teams *appteam.Service, refresher *weekly.Refresher) *UnavailableDisposHandler {
+	return &UnavailableDisposHandler{svc: svc, teams: teams, refresher: refresher}
 }
 
 func (h *UnavailableDisposHandler) CustomID() string {
@@ -30,26 +30,26 @@ func (h *UnavailableDisposHandler) CustomID() string {
 var _ discord.InteractionHandler = (*UnavailableDisposHandler)(nil)
 
 func (h *UnavailableDisposHandler) Handle(ctx context.Context, s *discordgo.Session, i *discordgo.InteractionCreate) error {
-	cfg := loadGuildConfig(ctx, s, i, h.guildCfg)
-	if cfg == nil {
+	t, _ := loadTeam(ctx, s, i, h.teams, weekly.UnavailableCustomID)
+	if t == nil {
 		return nil
 	}
-	m := cfg.Messages()
+	m := t.Messages()
 	userID := getUserID(i)
 	if userID == "" {
 		slog.WarnContext(ctx, "could not determine user ID", "guild", i.GuildID)
 		return discord.RespondError(s, i, m.ErrUnknownUser)
 	}
 
-	nowUnavailable, err := h.svc.ToggleWeekUnavailable(ctx, i.GuildID, h.svc.Week(cfg.Schedule, cfg.Location), userID)
+	nowUnavailable, err := h.svc.ToggleWeekUnavailable(ctx, t.ID, h.svc.Week(t.Schedule, t.Location), userID)
 	if err != nil {
 		slog.ErrorContext(ctx, "toggle week unavailability", "guild", i.GuildID, "err", err)
 		return discord.RespondError(s, i, m.ErrGeneric)
 	}
 
-	content := m.AvailableAgain
+	content := withTeam(t, m.AvailableAgain)
 	if nowUnavailable {
-		content = m.UnavailableNow
+		content = withTeam(t, m.UnavailableNow)
 	}
 
 	if err := s.InteractionRespond(i.Interaction, &discordgo.InteractionResponse{
@@ -63,7 +63,7 @@ func (h *UnavailableDisposHandler) Handle(ctx context.Context, s *discordgo.Sess
 	}
 
 	// Marking unavailable clears slots, so refresh the main weekly table (best-effort).
-	h.refresher.Request(s, i.GuildID)
+	h.refresher.Request(s, t.ID)
 
 	return nil
 }
